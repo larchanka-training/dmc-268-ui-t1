@@ -1,5 +1,23 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+coverage/
+
+# Env
 .env
 .env.local
+.env.*.local
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.local
