@@ -8,3 +8,5 @@ dist/
 *.tfstate.*
 *.tfvars
 !terraform.tfvars.example
+.idea/
+.DS_Store
