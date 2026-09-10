@@ -2,10 +2,10 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import reactHooks from 'eslint-plugin-react-hooks'
 import reactRefresh from 'eslint-plugin-react-refresh'
-import vitest from 'eslint-plugin-vitest'
 import prettierConfig from 'eslint-config-prettier'
 import globals from 'globals'
 
+/** @type {import('eslint').Linter.Config[]} */
 export default tseslint.config(
   {
     ignores: ['dist', 'node_modules', 'coverage'],
@@ -28,12 +28,6 @@ export default tseslint.config(
   },
   {
     files: ['**/*.{test,spec}.{ts,tsx}'],
-    plugins: {
-      vitest,
-    },
-    rules: {
-      ...vitest.configs.recommended.rules,
-    },
     languageOptions: {
       globals: {
         ...globals.node,

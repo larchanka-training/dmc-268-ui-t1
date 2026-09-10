@@ -20,7 +20,7 @@
 - `src/main.tsx` — точка входа, `React.StrictMode`.
 - `.gitignore` — минимальный: `node_modules/`, `dist/`, `.env`, `.env.local`, `*.log`.
 - `README.md` — 3 строки, инструкция под npm.
-- Неотслеживаемые: `.idea/`, `package-lock.json`.
+- Неотслеживаемые: `.idea/`.
 - CI-конфигурации нет (`.github` отсутствует).
 - Локально установлен Node 26.7.0 (current), npm 11.19.0, pnpm отсутствует.
 

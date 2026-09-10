@@ -34,17 +34,18 @@ Dev-сервер запускается на `http://localhost:3000` и авто
 | Команда              | Описание                                                          |
 | -------------------- | ----------------------------------------------------------------- |
 | `pnpm dev`           | Запуск Vite dev-сервера с HMR (порт 3000, автооткрытие браузера). |
-| `pnpm build`         | Production-сборка (результат в `dist/`).                          |
+| `pnpm build`         | Проверка типов + production-сборка (результат в `dist/`).         |
 | `pnpm preview`       | Локальный предпросмотр production-сборки.                         |
 | `pnpm check-types`   | Проверка типов TypeScript через `tsc --noEmit`.                   |
+| `pnpm typecheck`     | Алиас для `check-types` (для совместимости с CI).                 |
 | `pnpm lint`          | Запуск ESLint по всему проекту.                                   |
 | `pnpm lint:fix`      | Запуск ESLint с `--fix` для автоисправления.                      |
 | `pnpm stylelint`     | Запуск Stylelint для `src/**/*.css`.                              |
 | `pnpm stylelint:fix` | Запуск Stylelint с `--fix`.                                       |
 | `pnpm format`        | Форматирование всех файлов через Prettier.                        |
 | `pnpm format:check`  | Проверка форматирования без записи изменений.                     |
-| `pnpm test`          | Запуск Vitest в watch-режиме (интерактивно).                      |
-| `pnpm test:run`      | Однократный прогон всех тестов (CI / pre-push).                   |
+| `pnpm test`          | Однократный прогон всех тестов (CI / pre-push).                   |
+| `pnpm test:watch`    | Запуск Vitest в watch-режиме (интерактивно, для разработки).      |
 | `pnpm test:coverage` | Однократный прогон со сбором покрытия через V8.                   |
 
 ## Git-хуки
@@ -53,7 +54,7 @@ Git-хуки управляются [Husky](https://typicode.github.io/husky/) �
 
 - **pre-commit** — запускает `lint-staged`, который линтит и форматирует только staged-файлы
   (ESLint + Prettier для JS/TS, Stylelint + Prettier для CSS, Prettier для JSON/MD/HTML).
-- **pre-push** — запускает `pnpm test:run && pnpm check-types && pnpm build`, чтобы убедиться,
+- **pre-push** — запускает `pnpm test && pnpm check-types && pnpm build`, чтобы убедиться,
   что проект полностью работоспособен перед отправкой.
 
 Для обхода хуков в исключительных ситуациях используйте `--no-verify`:
@@ -76,8 +77,8 @@ git push --no-verify
 Запуск тестов:
 
 ```bash
-pnpm test          # watch-режим
-pnpm test:run      # однократный прогон
+pnpm test          # однократный прогон
+pnpm test:watch    # watch-режим
 pnpm test:coverage # однократный прогон + отчёт покрытия в coverage/
 ```
 
@@ -96,15 +97,14 @@ cp .env.example .env
 
 ```
 .
-├── .editorconfig          # Конфигурация редактора
 ├── .env.example           # Шаблон переменных окружения
 ├── .gitignore             # Правила игнорирования Git
 ├── .npmrc                 # Конфигурация pnpm
 ├── .nvmrc                 # Версия Node.js (22 LTS)
-├── .prettierrc.json       # Конфигурация Prettier
+├── .prettierrc.mjs        # Конфигурация Prettier
 ├── .prettierignore        # Список игнорирования Prettier
-├── eslint.config.js       # ESLint flat config
-├── stylelint.config.js    # Конфигурация Stylelint
+├── eslint.config.mjs      # ESLint flat config
+├── stylelint.config.mjs   # Конфигурация Stylelint
 ├── index.html             # HTML точка входа
 ├── package.json           # Скрипты, зависимости, engines
 ├── tsconfig.json          # Конфигурация TypeScript (строгий режим)
@@ -123,7 +123,7 @@ cp .env.example .env
 ## Технологии
 
 - [Vite](https://vitejs.dev/) — сборщик и dev-сервер
-- [React 18](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) — UI-фреймворк со строгой типизацией
+- [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/) — UI-фреймворк со строгой типизацией
 - [Tailwind CSS v4](https://tailwindcss.com/) — utility-first CSS (CSS-first конфигурация через `@tailwindcss/vite`)
 - [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) — модульное и компонентное тестирование
 - [ESLint](https://eslint.org/) (flat config) — линтинг кода
