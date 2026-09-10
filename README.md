@@ -5,16 +5,16 @@
 ## Запуск
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 ## Проверки качества
 
 ```bash
-npm run typecheck
-npm run lint
-npm run test
+pnpm run typecheck
+pnpm run lint
+pnpm run test
 ```
 
-Деплой UI на хост с Docker — Terraform в каталоге `infra/` (nginx отдаёт сборку Vite). PostgreSQL, RabbitMQ и Redis в этом репозитории нет; они живут в `dmc-268-api-t1`.
+Деплой UI на хост с Docker — Terraform в каталоге `infra/` (nginx отдаёт сборку Vite). PostgreSQL и RabbitMQ в этом репозитории нет; они живут в `dmc-268-api-t1`.

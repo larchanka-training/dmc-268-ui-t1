@@ -10,21 +10,24 @@ stages:
 
 syntax:
   stage: syntax
-  image: node:20
+  image: node:22
   script:
-    - npm ci
-    - npm run typecheck
+    - corepack enable
+    - pnpm install --frozen-lockfile
+    - pnpm run typecheck
 
 lint:
   stage: lint
-  image: node:20
+  image: node:22
   script:
-    - npm ci
-    - npm run lint
+    - corepack enable
+    - pnpm install --frozen-lockfile
+    - pnpm run lint
 
 test:
   stage: test
-  image: node:20
+  image: node:22
   script:
-    - npm ci
-    - npm run test
+    - corepack enable
+    - pnpm install --frozen-lockfile
+    - pnpm run test

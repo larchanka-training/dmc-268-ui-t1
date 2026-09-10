@@ -8,35 +8,35 @@ on:
 jobs:
   syntax:
     runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
     steps:
+      - run: apk add --no-cache git nodejs npm
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run typecheck
+      - run: npm install -g pnpm@10
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
 
   lint:
     needs: syntax
     runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
     steps:
+      - run: apk add --no-cache git nodejs npm
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
+      - run: npm install -g pnpm@10
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
 
   test:
     needs: lint
     runs-on: ubuntu-latest
+    container:
+      image: alpine:latest
     steps:
+      - run: apk add --no-cache git nodejs npm
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-      - run: npm ci
-      - run: npm run test
+      - run: npm install -g pnpm@10
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run test
