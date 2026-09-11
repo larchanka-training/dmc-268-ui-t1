@@ -50,7 +50,9 @@ Dev-сервер запускается на `http://localhost:3000` и авто
 
 ## Git-хуки
 
-Git-хуки управляются [Husky](https://typicode.github.io/husky/) и запускаются автоматически.
+Git-хуки настраиваются через `core.hooksPath` — скрипт `prepare` в `package.json` выполняет
+`git config core.hooksPath .githooks` при установке зависимостей. Хуки хранятся в `.githooks/`
+и версионируются вместе с проектом.
 
 - **pre-commit** — запускает `lint-staged`, который линтит и форматирует только staged-файлы
   (ESLint + Prettier для JS/TS, Stylelint + Prettier для CSS, Prettier для JSON/MD/HTML).
@@ -109,7 +111,7 @@ cp .env.example .env
 ├── package.json           # Скрипты, зависимости, engines
 ├── tsconfig.json          # Конфигурация TypeScript (строгий режим)
 ├── vite.config.ts         # Конфигурация Vite + Tailwind + Vitest
-├── .husky/                # Git-хуки (pre-commit, pre-push)
+├── .githooks/             # Git-хуки (pre-commit, pre-push)
 └── src/
     ├── App.tsx            # Корневой компонент
     ├── App.test.tsx       # Smoke-тест для App
@@ -129,4 +131,5 @@ cp .env.example .env
 - [ESLint](https://eslint.org/) (flat config) — линтинг кода
 - [Prettier](https://prettier.io/) — форматирование кода
 - [Stylelint](https://stylelint.io/) — линтинг CSS
-- [Husky](https://typicode.github.io/husky/) + [lint-staged](https://github.com/lint-staged/lint-staged) — git-хуки
+- [lint-staged](https://github.com/lint-staged/lint-staged) — линтинг staged-файлов
+- Нативные git-хуки через `core.hooksPath` — автоматические проверки при коммите и пуше

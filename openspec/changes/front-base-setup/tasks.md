@@ -31,11 +31,12 @@
 
 ## 4. Git hooks
 
-- [x] 4.1 Установить и инициализировать Husky
-- [x] 4.2 Добавить скрипт `"prepare": "husky"` в `package.json`
+- [x] 4.1 Настроить нативные git hooks через `core.hooksPath` (без Husky)
+- [x] 4.2 Добавить скрипт `"prepare": "git config core.hooksPath .githooks"` в `package.json`
 - [x] 4.3 Настроить `pre-commit` → `pnpm exec lint-staged`
 - [x] 4.4 Настроить `pre-push` → `pnpm test && pnpm check-types && pnpm build`
 - [x] 4.5 Настроить секцию `lint-staged` в `package.json`
+- [x] 4.6 Выставить исполняемый бит на `.githooks/*` через `git update-index --chmod=+x`
 
 ## 5. Тестовое окружение
 

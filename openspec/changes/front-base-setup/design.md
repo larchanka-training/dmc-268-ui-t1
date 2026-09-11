@@ -9,7 +9,7 @@
 - Воспроизводимое окружение через фиксацию Node 22 LTS и pnpm
 - Единый стандарт качества кода: ESLint, Prettier, Stylelint
 - Тестовое окружение: Vitest 5 + Testing Library + jsdom + coverage
-- Автоматические проверки через Husky git hooks
+- Автоматические проверки через нативные git hooks (core.hooksPath)
 - Актуальный стек: Vite 8, React 19, TypeScript 6
 
 **Non-Goals:**
@@ -63,6 +63,6 @@ ESLint 10 использует flat config по умолчанию. Конфиг
 
 PR #1 использует `pnpm@10.17.1`, этот PR — `pnpm@12.3.4`. Разный `lockfileVersion` потребует регенерации lock-файла при мерже. Решение: мержить PR #4 первым, PR #1 перебазировать поверх.
 
-### Husky vs нативные git hooks
+### Нативные git hooks вместо Husky
 
-Ревьюер предложил использовать нативные git hooks вместо Husky. Владелец проекта решил оставить Husky — обсуждение недостатков нативных хуков отложено на синк. Риск: Husky добавляет зависимость, но обеспечивает кроссплатформенную установку хуков через `prepare` скрипт.
+Husky 9 — это обёртка над `git config core.hooksPath .husky/_`. Скрипт `prepare` заменён с `"husky"` на `"git config core.hooksPath .githooks"`, хуки перенесены из `.husky/` в `.githooks/` с исполняемым битом через `git update-index --chmod=+x`. Это убирает зависимость от пакета husky и её шим-файлы, сохраняя тот же механизм.

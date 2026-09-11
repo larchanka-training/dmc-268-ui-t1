@@ -1,21 +1,22 @@
 ## Purpose
 
-Автоматические проверки кода через Husky git hooks: pre-commit линтит staged-файлы, pre-push запускает полный набор проверок.
+Автоматические проверки кода через нативные git hooks (core.hooksPath): pre-commit линтит staged-файлы, pre-push запускает полный набор проверок.
 
 ## ADDED Requirements
 
-### Requirement: Husky инициализация
+### Requirement: Git hooks через core.hooksPath
 
-Husky SHALL быть установлен и инициализирован. Скрипт `"prepare": "husky"` в `package.json` SHALL обеспечивать установку хуков после `pnpm install`. Каталог `.husky/` SHALL содержать хуки `pre-commit` и `pre-push`.
+Git hooks SHALL быть настроены через `core.hooksPath`, указывающий на каталог `.githooks/`. Скрипт `"prepare": "git config core.hooksPath .githooks"` в `package.json` SHALL обеспечивать настройку хуков после `pnpm install`. Каталог `.githooks/` SHALL содержать хуки `pre-commit` и `pre-push`. Файлы хуков SHALL иметь исполняемый бит (+x), установленный через `git update-index --chmod=+x`.
 
 #### Scenario: Установка хуков после pnpm install
 
 - **WHEN** разработчик выполняет `pnpm install` в свежем клоне
-- **THEN** git-хуки устанавливаются автоматически через скрипт `prepare`
+- **THEN** скрипт `prepare` выполняет `git config core.hooksPath .githooks`
+- **AND** git использует хуки из `.githooks/` вместо `.git/hooks/`
 
 ### Requirement: pre-commit хук — lint-staged
 
-Хук `.husky/pre-commit` SHALL запускать `pnpm exec lint-staged`. lint-staged SHALL применять ESLint `--fix` + Prettier `--write` к `*.{ts,tsx,js,jsx}`, Stylelint `--fix` + Prettier `--write` к `*.css`, Prettier `--write` к `*.{json,md,html}`. Хук SHALL проверять только staged-файлы, а не весь проект.
+Хук `.githooks/pre-commit` SHALL запускать `pnpm exec lint-staged`. lint-staged SHALL применять ESLint `--fix` + Prettier `--write` к `*.{ts,tsx,js,jsx}`, Stylelint `--fix` + Prettier `--write` к `*.css`, Prettier `--write` к `*.{json,md,html}`. Хук SHALL проверять только staged-файлы, а не весь проект.
 
 #### Scenario: Коммит с линтингом staged-файлов
 
@@ -32,7 +33,7 @@ Husky SHALL быть установлен и инициализирован. С�
 
 ### Requirement: pre-push хук — полные проверки
 
-Хук `.husky/pre-push` SHALL запускать `pnpm test && pnpm check-types && pnpm build`. Хук SHALL блокировать push при падении любой из проверок.
+Хук `.githooks/pre-push` SHALL запускать `pnpm test && pnpm check-types && pnpm build`. Хук SHALL блокировать push при падении любой из проверок.
 
 #### Scenario: Успешный push
 
