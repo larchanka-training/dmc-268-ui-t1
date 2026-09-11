@@ -3,3 +3,17 @@ dist/
 .env
 .env.local
 *.log
+.idea/
+.DS_Store
+
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
