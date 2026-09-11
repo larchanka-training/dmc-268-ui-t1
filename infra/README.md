@@ -1,6 +1,6 @@
 # Деплой UI (nginx + сборка Vite)
 
-Нужны **Docker Engine** на целевом хосте и Terraform >= 1.5. Этот стек поднимает только фронтенд. PostgreSQL и RabbitMQ находятся в `dmc-268-api-t1/infra/`.
+Нужны **Docker Engine** на целевом хосте и Terraform >= 1.5. Этот стек поднимает только фронтенд. Сначала примените `infra/` из `dmc-268-api-t1` — UI подключается к сети `dmc268` и проксирует `/api/` на контейнер `dmc268-api`.
 
 Скопируйте `terraform.tfvars.example` в `terraform.tfvars`, если нужно изменить хост или порт.
 
