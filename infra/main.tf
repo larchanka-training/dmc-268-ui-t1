@@ -25,10 +25,6 @@ resource "docker_image" "ui" {
     context    = "${path.module}/.."
     dockerfile = "Dockerfile"
     tag        = ["dmc268-ui:${local.ui_image_tag}"]
-
-    triggers = {
-      source_hash = local.ui_source_hash
-    }
   }
 }
 
