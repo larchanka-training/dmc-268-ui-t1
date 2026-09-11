@@ -6,6 +6,7 @@ locals {
   ui_source_hash = sha256(join("", [
     filesha256("${path.module}/../package.json"),
     filesha256("${path.module}/../pnpm-lock.yaml"),
+    filesha256("${path.module}/../pnpm-workspace.yaml"),
     filesha256("${path.module}/../index.html"),
     filesha256("${path.module}/../vite.config.ts"),
     filesha256("${path.module}/../tsconfig.json"),
