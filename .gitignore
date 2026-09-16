@@ -21,3 +21,16 @@ pnpm-debug.log*
 !.vscode/extensions.json
 .DS_Store
 *.local
+
+# Terraform
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

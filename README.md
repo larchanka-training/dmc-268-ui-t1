@@ -1,4 +1,4 @@
-# DMC-268 UI (Team 1)
+# DMC-268 UI (команда 1)
 
 Фронтенд на Vite + React + TypeScript для DMC-268 Team 1.
 
@@ -133,3 +133,7 @@ cp .env.example .env
 - [Stylelint](https://stylelint.io/) — линтинг CSS
 - [lint-staged](https://github.com/lint-staged/lint-staged) — линтинг staged-файлов
 - Нативные git-хуки через `core.hooksPath` — автоматические проверки при коммите и пуше
+
+## Деплой
+
+Деплой UI на хост с Docker — Terraform в каталоге `infra/` (nginx отдаёт сборку Vite). PostgreSQL и RabbitMQ в этом репозитории нет; они живут в `dmc-268-api-t1`.
