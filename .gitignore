@@ -1,11 +1,28 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
+coverage/
+
+# Env
 .env
 .env.local
-*.log
-.idea/
-.DS_Store
+.env.*.local
 
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.local
+
+# Terraform
 .terraform/
 .terraform.tfstate.lock.info
 *.tfstate
