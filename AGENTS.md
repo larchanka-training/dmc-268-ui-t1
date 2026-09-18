@@ -43,16 +43,16 @@
 
 ## Куда смотреть за деталями
 
-| Что                                      | Где                                                          |
-| ---------------------------------------- | ------------------------------------------------------------ |
-| Требования к поведению (источник правды) | [`openspec/specs/`](openspec/specs/)                         |
-| Слои, состояние, доменные модели         | `FRONTEND_ARCHITECTURE.md` (готовится, PR #6)                |
-| Правила стека                            | [`.agents/rules/frontend.md`](.agents/rules/frontend.md)     |
-| Ветки, задачи, пул-реквесты, треды       | [`.agents/rules/git-and-pr.md`](.agents/rules/git-and-pr.md) |
-| Скиллы и шаблоны                         | [`.agents/README.md`](.agents/README.md)                     |
-| Установка и запуск                       | [`README.md`](README.md)                                     |
-| Локальный стек на Terraform              | [`infra/README.md`](infra/README.md)                         |
-| Система целиком, границы сервисов        | `docs/SYSTEM_DESIGN.md` в `dmc-268-api-t1`                   |
+| Что                                      | Где                                                                                                |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Требования к поведению (источник правды) | [`openspec/specs/`](openspec/specs/)                                                               |
+| Слои, состояние, доменные модели         | `FRONTEND_ARCHITECTURE.md` (готовится, PR #6)                                                      |
+| Правила стека                            | [`.agents/rules/frontend.md`](.agents/rules/frontend.md)                                           |
+| Ветки, задачи, пул-реквесты, треды       | [`.agents/rules/git-and-pr.md`](.agents/rules/git-and-pr.md)                                       |
+| Скиллы и шаблоны                         | [`.agents/skills/`](.agents/skills/), [`.agents/templates/frontend/`](.agents/templates/frontend/) |
+| Установка и запуск                       | [`README.md`](README.md)                                                                           |
+| Локальный стек на Terraform              | [`infra/README.md`](infra/README.md)                                                               |
+| Система целиком, границы сервисов        | `docs/SYSTEM_DESIGN.md` в `dmc-268-api-t1`                                                         |
 
 Задачи — доска [`dmc-268-t1`](https://github.com/orgs/larchanka-training/projects/7).
 Фронтовые тикеты в этом репозитории, бэкендовые — в
