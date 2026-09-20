@@ -1,37 +1,90 @@
-# Архитектура фронтенда DMC-268
+---
+document_id: frontend-architecture
+version: '3.0-draft'
+language: ru
+status: draft
+implementation_status: not_implemented
+---
 
-## Назначение
+# Архитектура frontend — AI Code Review
 
-Фронтенд реализует пользовательский интерфейс сервиса AI code review. Основной сценарий — просмотр прогона ревью: его статуса, изменений в коде, контекста вокруг изменений и inline-замечаний AI-ревьюера.
+**Статус:** черновик для согласования с backend-командой.  
+**Редакция:** 20 сентября 2026 года.  
+**Назначение:** этот документ описывает целевую архитектуру Web UI: слои, состояние, UI-систему, контракт данных и требования frontend к API. Он не добавляет зависимости, не меняет базовый setup и не является описанием уже реализованного интерфейса.
 
-Этот документ задаёт целевую структуру будущего приложения и границы ответственности. Он не добавляет зависимости и не описывает уже реализованные UI-экраны.
+Документ использует 12-раздельный шаблон arc42 для описания архитектуры. Feature-Sliced Design (FSD) — отдельное решение о структуре frontend-кода.
 
-## Принятая платформа
+## 1. Введение и цели
 
-В качестве исходной базы используется [PR #4 «Базовый каркас фронтенда с линтингом, тестами и Husky»](https://github.com/larchanka-training/dmc-268-ui-t1/pull/4). Решения из него считаются принятыми и не пересматриваются в этой задаче:
+### 1.1. Пользовательский сценарий
 
-| Область | Принятое решение | Роль |
-| --- | --- | --- |
-| Пакетный менеджер и runtime | pnpm, Node.js 22 | Воспроизводимая установка зависимостей и единое окружение разработки. |
-| Базовый стек | React, TypeScript, Vite | Компонентный UI, типобезопасные модели и быстрая сборка/разработка. |
-| Стилизация | Tailwind CSS v4 | Единый способ собирать адаптивные интерфейсы для diff- и code-review-экранов. |
-| Качество кода | ESLint, Prettier, Stylelint, Git hooks | Автоматические проверки стиля и качества до отправки изменений. |
-| Тестирование | Vitest, React Testing Library, jsdom | Unit- и interaction-тесты компонентов без необходимости запускать браузер вручную. |
+Основной сценарий первой версии — просмотр одного прогона AI-ревью (`ReviewRun`). Пользователь открывает запуск и видит:
 
-Tailwind CSS v4 уже является styling/UI foundation проекта. Поэтому shadcn/ui, Ant Design и другие UI-киты в рамках этой архитектурной задачи не выбираются и не подключаются. Повторно используемые UI-элементы будут составляться из React-компонентов и utility-классов Tailwind.
+- статус, проверенный commit и сводку результата;
+- список файлов, изменённых в проверенном PR;
+- diff выбранного файла, hunks и строки;
+- findings AI, привязанные к строкам diff;
+- при необходимости — техническую историю действий worker в `RunInspector`.
 
-## Структура приложения
+`ReviewWorkspace` похож на вкладку _Files changed_ у PR-провайдера, но показывает снимок именно того diff и тех findings, которые относятся к выбранному `ReviewRun`. Это не копия интерфейса GitHub и не смешивает комментарии людей, других ботов или последующих запусков.
 
-Для роста продукта принимается **Feature-Sliced Design (FSD)**. Подход отделяет предметные сущности code review от пользовательских действий и составных областей экрана: изменение компонента отображения дифа не должно требовать изменений в сетевом слое или сценарии фильтрации.
+### 1.2. Цели
+
+- Точно отобразить diff и inline-finding на целевой строке.
+- Сохранить читаемость при большом числе файлов и hunks.
+- Разделить серверные данные, UI-состояние и локальное состояние компонента.
+- Позволить подключить backend API без переписывания UI.
+- Дать диагностический trace прогона без раскрытия исходного кода, секретов и полного LLM-payload по умолчанию.
+
+### 1.3. Вне scope этой редакции
+
+Список репозиториев, список PR, история запусков на странице PR, login, landing, профиль, настройки профиля, Stripe и billing не проектируются как экраны и компоненты в этой задаче. Backend-модель уже связывает `Repository → MergeRequest → ReviewRun`; это достаточно, чтобы добавить эти сценарии позже без изменения модели просмотра одного запуска.
+
+## 2. Ограничения
+
+| ID        | Статус    | Ограничение                                                                                                                                                                                    |
+| --------- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FE-CON-01 | confirmed | Базовая основа из `develop`: pnpm, Node.js 22, React, TypeScript, Vite, Tailwind CSS v4, ESLint, Prettier, Stylelint, Vitest и React Testing Library.                                          |
+| FE-CON-02 | confirmed | Git hooks работают через `.githooks` и `core.hooksPath`; Husky не используется.                                                                                                                |
+| FE-CON-03 | accepted  | UI строится на Tailwind CSS v4 и Headless UI. Tailwind отвечает за стиль, Headless UI — за доступное интерактивное поведение. Ant Design, shadcn/ui и другой визуальный UI-kit не добавляются. |
+| FE-CON-04 | accepted  | Серверные данные хранятся в TanStack Query; общий UI-state — в Zustand; состояние одного компонента — в React state.                                                                           |
+| FE-CON-05 | accepted  | React Hook Form, Zod и `@hookform/resolvers` используются для будущих форм. Zod также валидирует API DTO на границе frontend.                                                                  |
+| FE-CON-06 | confirmed | Пока backend API не готов, UI получает типизированные данные через mock adapter с теми же публичными типами, что и HTTP-клиент.                                                                |
+| FE-CON-07 | open      | Полная модель `review_run_actions`, правила доступа к trace, формат API и realtime-политика ожидают согласования с backend.                                                                    |
+
+Принятые библиотеки могут отсутствовать в `package.json`: их подключение относится к отдельной реализации, а не к этому архитектурному документу.
+
+## 3. Контекст и границы
+
+```text
+Пользователь в браузере
+        │
+        ▼
+React Web UI ── HTTPS/JSON ──► Backend API
+        │                          │
+        ▼                          ├── Git provider
+Tailwind + Headless UI             ├── review worker / LLM
+                                   └── БД и защищённое хранилище payload
+```
+
+Frontend не читает БД, не клонирует репозитории, не получает Git-токены, не собирает LLM-контекст и не публикует комментарии в GitHub напрямую. Эти обязанности принадлежат backend.
+
+Frontend получает только подготовленные API-данные. Право показать diff, context или trace проверяется backend на каждом соответствующем запросе.
+
+## 4. Стратегия решения
+
+### 4.1. Структура кода
+
+Код организуется по **Feature-Sliced Design (FSD)**:
 
 ```mermaid
 flowchart TB
-  app[app\nbootstrap, providers, global styles]
-  pages[pages\nэкраны review run]
-  widgets[widgets\nreview workspace, diff layout]
-  features[features\nраскрытие контекста, фильтрация]
-  entities[entities\nreview run, diff, comment]
-  shared[shared\nUI, API-инфраструктура, утилиты]
+  app[app\nbootstrap, providers, globals]
+  pages[pages\nмаршрут одного прогона]
+  widgets[widgets\nкрупные области UI]
+  features[features\nдействия пользователя]
+  entities[entities\nмодели и API domain]
+  shared[shared\nобщие UI и инфраструктура]
 
   app --> pages
   pages --> widgets
@@ -41,70 +94,357 @@ flowchart TB
   entities --> shared
 ```
 
-| Слой | Ответственность | Примеры будущих модулей |
-| --- | --- | --- |
-| `app` | Точка входа, провайдеры, глобальные стили и конфигурация приложения. | Query provider, глобальные Tailwind-стили. |
-| `pages` | Компоновка полноценного пользовательского маршрута. | `review-run` — экран одного прогона ревью. |
-| `widgets` | Крупные, самостоятельные области страницы. | Рабочая область review, список файлов, панель summary. |
-| `features` | Завершённые пользовательские действия. | Раскрытие контекста дифа, фильтрация замечаний по severity. |
-| `entities` | Предметные данные и их отображение без сценарной логики. | `review-run`, `diff`, `review-comment`. |
-| `shared` | Переиспользуемый код без зависимости от предметной области. | Tailwind UI-композиции, API-клиент, formatters, общие типы. |
+Импорт разрешён только вниз по слоям. Внешний импорт из слайса идёт через его `index.ts`; `shared` не импортирует code-review сущности.
 
-Направление импортов — только сверху вниз по слоям: модуль не импортирует код из более высокого слоя. Например, `entities/diff` не зависит от `widgets/review-workspace`.
-
-## Управление состоянием
-
-Разные категории состояния требуют разных инструментов. Это предотвращает смешение сетевого кэша и краткоживущего состояния интерфейса.
-
-```mermaid
-flowchart LR
-  api[HTTP API / mock adapter] --> query[TanStack Query\nсерверное состояние]
-  query --> entities[entities: review run, diff, comments]
-  entities --> ui[widgets и pages]
-  zustand[Zustand\nлокальное UI-состояние] --> ui
-  local[React local state\nсостояние одного компонента] --> ui
+```text
+src/
+├── app/
+│   ├── providers/                 # QueryClient, ErrorBoundary
+│   ├── mocks/                     # временный типизированный adapter
+│   └── styles/
+├── pages/
+│   └── review-run/                # ReviewRunPage
+├── widgets/
+│   ├── review-workspace/          # FileList + DiffViewer
+│   ├── review-summary/
+│   └── run-inspector/
+├── features/
+│   ├── expand-context/
+│   └── filter-findings/
+├── entities/
+│   ├── review-run/
+│   ├── diff/
+│   ├── review-finding/
+│   └── review-run-action/         # после согласования API trace
+└── shared/
+    ├── api/                       # transport и базовые ошибки
+    ├── config/
+    ├── lib/
+    └── ui/                        # нейтральные примитивы проекта
 ```
 
-| Инструмент | Что хранит | Почему |
-| --- | --- | --- |
-| TanStack Query | Прогоны ревью, данные diff, summary и комментарии, полученные из API. | Предоставляет кэширование, состояния loading/error, повторное получение и инвалидацию серверных данных. |
-| Zustand | Выбранный файл, раскрытые блоки контекста, активные фильтры и состояние панелей. | Лёгкое общее состояние UI, которое не является источником данных backend. |
-| React local state | Hover, открытие одного popover, состояние поля ввода и другие значения одного компонента. | Не создаёт глобальный store для состояния, которое не нужно соседним компонентам. |
+### 4.2. UI-система
 
-До появления согласованного backend-контракта UI может получать данные через типизированный mock adapter. Он должен реализовывать ту же границу, что и будущий HTTP-клиент; компоненты не должны зависеть от способа получения данных.
+`shared/ui` содержит независимые от code-review обёртки: `Button`, `Dialog`, `Menu`, `Select`, `CollapsibleSection`, `StatusBadge`, `ScrollableContainer`, `LoadingState`, `EmptyState`, `ErrorState` и `Toast`.
 
-## Доменные модели
+Headless UI используется там, где нужны навигация с клавиатуры, управление фокусом, ARIA и доступное интерактивное поведение. В `shared/ui` не размещаются `DiffViewer`, finding, логика PR или API конкретной сущности.
 
-Следующие типы определяют минимальный контракт между API/mock adapter и UI:
+## 5. Представление строительных блоков
 
-| Модель | Основные данные | Используется в |
-| --- | --- | --- |
-| `ReviewRun` | Идентификатор, статус, время запуска/завершения, summary и связанные файлы. | Страница прогона, `ReviewRunStatus`, summary. |
-| `DiffFile` | Путь, язык/расширение, список hunks и статистика изменений. | Список файлов, `DiffViewer`. |
-| `DiffHunk` | Заголовок блока, диапазоны старых и новых строк, строки изменения. | `DiffHunk`, `ContextExpander`. |
-| `DiffLine` | Тип `added`/`removed`/`context`, номера старой и новой строки, текст и признак скрытого контекста. | `CodeBlock`, строка дифа. |
-| `ReviewComment` | Идентификатор, файл, новая строка, severity, текст, автор и состояние обсуждения. | `ReviewCommentThread`, фильтрация замечаний. |
+### 5.1. Композиция страницы
 
-## Базовые UI-компоненты
+Окончательный layout — вкладки, колонки, секции или отдельные маршруты — намеренно не выбирается сейчас. Независимые компоненты должны быть готовы к любому из этих вариантов.
 
-| Компонент | Назначение | Входные данные и связь с моделями |
-| --- | --- | --- |
-| `CodeBlock` | Контейнер с моноширинным шрифтом, нумерацией и прокруткой для исходного кода. | Кодовые строки, язык и настройки отображения; используется `DiffViewer` и контекстом комментария. |
-| `DiffViewer` | Отображает изменения одного или нескольких `DiffFile`. | `DiffFile[]`, выбранный файл и комментарии, привязанные к строкам. |
-| `DiffHunk` | Показывает один логический блок изменений и его заголовок. | `DiffHunk`, включая диапазоны строк и `DiffLine[]`. |
-| `DiffLine` | Отрисовывает одну added, removed или context-строку с нужным фоном и номерами. | Объект `DiffLine`; служит точкой привязки `ReviewComment`. |
-| `ReviewCommentThread` | Показывает inline-замечание и последующий тред обсуждения. | `ReviewComment` и список ответов; располагается рядом с целевой строкой нового diff. |
-| `ContextExpander` | Раскрывает скрытые строки до или после изменённого блока. | Идентификатор скрытого диапазона из `DiffHunk`; записывает состояние раскрытия в Zustand. |
-| `ReviewRunStatus` | Наглядно сообщает этап прогона: `queued`, `in_progress`, `completed` или `failed`. | `ReviewRun.status`; используется в заголовке и списках запусков. |
+```text
+ReviewRunPage
+├── RunHeader
+├── ReviewSummary
+├── ReviewWorkspace
+│   ├── FileList
+│   └── DiffViewer
+│       └── DiffHunk
+│           └── DiffLine
+│               └── ReviewCommentThread
+└── RunInspector
+    └── ActionTree
+        └── request / response выбранного действия
+```
 
-Базовые визуальные композиции, реализуемые средствами Tailwind, — `Button`, `StatusBadge`, `Panel/Card`, `ScrollableContainer` и `CollapsibleSection`. Они не содержат доменной логики и остаются в `shared/ui`.
+| Компонент             | Назначение                                                                          | Основные данные                                       |
+| --------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `ReviewRunPage`       | Контейнер конкретного `runId`; загружает и связывает серверные данные.              | `ReviewRun`, diff, findings, actions.                 |
+| `RunHeader`           | Метаданные прогона: статус, commit, модель, время, длительность, безопасная ошибка. | `ReviewRun`.                                          |
+| `ReviewSummary`       | Количество findings, severity, опубликованные комментарии, отклонённые findings.    | `ReviewRun`, `ReviewFinding[]`, `PublishedComment[]`. |
+| `ReviewWorkspace`     | Результат ревью: изменённые файлы и их diff.                                        | `DiffFile[]`, findings.                               |
+| `FileList`            | Список изменённых файлов и количество findings; выбирает файл.                      | `DiffFileSummary[]`, `selectedFile`.                  |
+| `DiffViewer`          | Показывает **один выбранный** `DiffFile`, не массив viewers.                        | `DiffFile`, `ReviewFinding[]`.                        |
+| `DiffHunk`            | Непрерывный блок изменений с заголовком `@@`.                                       | `DiffHunk`.                                           |
+| `DiffLine`            | Добавленная, удалённая или контекстная строка с номерами old/new.                   | `DiffLine`.                                           |
+| `ReviewCommentThread` | Показывает finding у строки и статус его публикации в Git-provider.                 | `ReviewFinding`, `PublishedComment?`.                 |
+| `ContextExpander`     | Запрашивает скрытый контекст только для указанного диапазона.                       | `FileSliceRequest`.                                   |
+| `RunInspector`        | Технический trace запуска, отдельно от результата ревью.                            | `ReviewRun`, `ReviewRunAction[]`.                     |
+| `ActionTree`          | Хронология действий; одинаковые соседние tools могут группироваться в UI.           | `ReviewRunAction[]`, выбранный action.                |
 
-## Будущий поток данных
+### 5.2. Что показывает `ReviewWorkspace`
 
-1. `pages/review-run` запрашивает `ReviewRun` через entity-level query hook.
-2. TanStack Query получает данные из HTTP API либо временного mock adapter и хранит серверный кэш.
-3. `widgets/review-workspace` передаёт `DiffFile`, `DiffHunk` и `ReviewComment` в базовые UI-компоненты.
-4. Zustand хранит выбранный файл, фильтры и раскрытые участки контекста, не дублируя данные review run.
-5. Пользовательские действия оформляются как `features` и изменяют локальное UI-состояние либо запускают query mutation после появления backend API.
+`ReviewWorkspace` показывает **все изменённые файлы проверенного PR**, но рендерит diff одного выбранного файла за раз. Файлы без findings также видны: это позволяет понять покрытие запуска. Внутри diff показываются только нормализованные findings, связанные с линией. Полный raw-ответ LLM не вставляется рядом с каждой строкой.
 
-Такое разделение соответствует сценарию AI code review: diff остаётся центральным источником правок, локальный контекст раскрывается по запросу, а замечания привязаны к конкретным строкам изменённого кода.
+Finding без корректной привязки к строке отображается в `ReviewSummary`, а не искусственно размещается в `ReviewCommentThread`.
+
+## 6. Представление выполнения
+
+### 6.1. Открытие завершённого прогона
+
+1. `ReviewRunPage` получает `runId` из маршрута или входного параметра.
+2. Entity-level hooks TanStack Query запрашивают run, список файлов, diff выбранного файла, findings и опубликованные комментарии.
+3. `ReviewWorkspace` показывает `LoadingState`, `ErrorState` или данные без ручного `fetch` в компонентах.
+4. Пользователь выбирает файл; Zustand меняет только `selectedFile`, а TanStack Query получает его diff.
+5. `DiffViewer` размещает finding рядом с его `oldLine` или `newLine`.
+
+### 6.2. Прогон в процессе
+
+1. API возвращает нетерминальный статус `ReviewRun`.
+2. TanStack Query обновляет run по согласованной политике polling или SSE.
+3. UI отображает только серверный статус; frontend не делает вывод о завершении самостоятельно.
+4. При наличии action API `RunInspector` получает новые завершённые действия в том же query-кэше.
+
+### 6.3. Просмотр технического действия
+
+1. `ActionTree` показывает безопасные `tool`, время, длительность и статус записи.
+2. При выборе действия UI показывает `requestPreview` и `responsePreview`.
+3. Полный payload запрашивается по `responseRef` только при наличии backend-разрешения и только если он не истёк по retention policy.
+
+## 7. Представление развёртывания
+
+Vite собирает статические assets; существующий Docker/nginx/Terraform-контур отдаёт их браузеру. В bundle попадают только публичные переменные окружения с префиксом `VITE_`, например `VITE_API_BASE_URL`.
+
+Git-токены, ключи LLM, Stripe secret key, полный context и raw-action payload не попадают в environment frontend, bundle или browser logs.
+
+## 8. Сквозные концепции
+
+### 8.1. Состояние
+
+| Данные                                            | Владелец          | Пример ключа / store                           |
+| ------------------------------------------------- | ----------------- | ---------------------------------------------- |
+| Детали прогона                                    | TanStack Query    | `['review-runs', runId]`                       |
+| Список файлов                                     | TanStack Query    | `['review-runs', runId, 'files']`              |
+| Diff файла                                        | TanStack Query    | `['review-runs', runId, 'diff', path]`         |
+| Findings и публикации                             | TanStack Query    | `['review-runs', runId, 'findings']`           |
+| Trace действий                                    | TanStack Query    | `['review-runs', runId, 'actions']`            |
+| Контекстный срез                                  | TanStack Query    | `['review-runs', runId, 'files', path, range]` |
+| Выбранный файл, фильтры severity, раскрытые hunks | Zustand в виджете | `review-workspace/model/store`                 |
+| Выбранное действие, раскрытые узлы trace          | Zustand в виджете | `run-inspector/model/store`                    |
+| hover, открытый popover, ввод одного поля         | React state       | владелец компонента                            |
+
+Серверные данные никогда не копируются в Zustand. Store хранит только пользовательский выбор и краткоживущее представление.
+
+### 8.2. Контракт данных
+
+Источник истины для runtime DTO — будущие Zod-схемы в `entities/*/model`. Ниже приведён обязательный публичный состав полей; названия API предполагаются в `camelCase`. Backend может хранить поля иначе, но обязан сериализовать согласованный DTO.
+
+```ts
+type ReviewRun = {
+  id: string
+  mergeRequestId: string
+  headSha: string
+  status: 'queued' | 'running' | 'publishing' | 'completed' | 'failed' | 'cancelled'
+  trigger: 'webhook' | 'manual' | 'mention'
+  startedAt: string | null
+  finishedAt: string | null
+  lastProgressAt: string
+  failureReason: string | null
+  model: string | null
+  tokensUsed: number | null
+  durationSeconds: number | null
+  rejectedFindings: number
+}
+
+type ReviewFinding = {
+  id: string
+  reviewRunId: string
+  filePath: string
+  side: 'left' | 'right'
+  oldLine: number | null
+  newLine: number | null
+  category: 'security' | 'correctness' | 'performance' | 'readability'
+  severity: 'low' | 'medium' | 'high' | 'critical'
+  message: string
+  suggestion: string | null
+  confidence: number | null
+}
+
+type PublishedComment = {
+  id: string
+  reviewRunId: string
+  findingId: string | null
+  providerCommentId: string
+  kind: 'summary' | 'inline'
+  publishedAt: string
+}
+
+type DiffFileSummary = {
+  path: string
+  additions: number
+  deletions: number
+  findingsCount: number
+}
+
+type DiffFile = {
+  path: string
+  language: string | null
+  hunks: DiffHunk[]
+}
+
+type DiffHunk = {
+  header: string
+  oldStart: number
+  oldLines: number
+  newStart: number
+  newLines: number
+  lines: DiffLine[]
+}
+
+type DiffLine = {
+  kind: 'added' | 'removed' | 'context'
+  oldLine: number | null
+  newLine: number | null
+  content: string
+}
+
+type FileSlice = {
+  path: string
+  startLine: number
+  lines: string[]
+  nextStartLine: number | null
+}
+```
+
+`ReviewFinding` — результат модели после валидации и дедупликации; `PublishedComment` — факт публикации этого finding у Git-provider. Они не являются одной сущностью. `ReviewCommentThread` получает finding и, при наличии, публикационный статус.
+
+`DiffFile`, `DiffHunk` и `DiffLine` должны приходить как snapshot, относящийся к `ReviewRun.headSha`. Frontend не извлекает diff из внутреннего LLM-payload и не рассчитывает diff по текущему состоянию PR.
+
+### 8.3. Контракт trace: `ReviewRunAction`
+
+`RunInspector` требует историю отдельных действий worker. В backend PR #5 такой таблицы пока нет: там есть `context_payloads`, которые хранят chunks контекста, переданные модели. По комментарию frontend в PR предложено заменить этот подход на аудит действий `review_run_actions`; решение ожидает backend-команду.
+
+Предлагаемый DTO и будущая сущность:
+
+```ts
+type ReviewRunAction = {
+  id: string
+  runId: string
+  index: number
+  tool: string
+  status: 'running' | 'completed' | 'failed'
+  requestPreview: unknown | null
+  responsePreview: unknown | null
+  responseRef: string | null
+  error: { code: string; message: string } | null
+  startedAt: string
+  durationMs: number | null
+}
+```
+
+```text
+review_runs 1 ─── N review_run_actions
+
+review_run_actions
+├── id
+├── review_run_id
+├── index                 # стабильный порядок в одном run
+├── tool                  # get_diff, get_tree, read_file, build_context, call_llm, post_review
+├── status
+├── request_preview JSONB
+├── response_preview JSONB
+├── response_ref NULL     # большой payload отдельным защищённым запросом
+├── error_code NULL
+├── error_message NULL
+├── started_at
+└── duration_ms NULL
+```
+
+`ActionTree` может сам сгруппировать подряд идущие действия с одинаковым `tool`; отдельная parent-child таблица для первой версии не нужна. Поле `index` обязательно для воспроизводимой хронологии.
+
+### 8.4. Безопасность и хранение исходного кода
+
+`responseRef` уменьшает размер обычного API-ответа, но сам по себе не решает вопрос хранения кода. Исходники, prompt и raw LLM-output могут содержать интеллектуальную собственность, персональные данные или секреты.
+
+| Категория         | Правило                                                                                                               |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Итоговые данные   | `ReviewRun`, findings и сведения о публикации хранятся по утверждённой политике хранения.                             |
+| Код и raw payload | Хранятся отдельно от основной записи run, шифруются, имеют ограниченный TTL и удаляются автоматически.                |
+| Preview           | В `review_run_actions` попадает только очищенное и ограниченное по размеру preview.                                   |
+| Секреты           | Токены, пароли, ключи и чувствительные фрагменты маскируются до логирования и записи.                                 |
+| Доступ            | Backend проверяет права на run, diff, context и полный response; frontend не является границей безопасности.          |
+| Внешний LLM       | Условия передачи кода, регион обработки, использование для обучения и DPA определяются владельцем продукта и юристом. |
+
+## 9. Требования frontend к API
+
+Эти требования описывают необходимую для UI публичную границу; они не означают, что endpoints уже реализованы.
+
+| Endpoint                                                              | Ответ                                                    | Назначение                                                                      |
+| --------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `GET /api/review-runs/{runId}`                                        | `ReviewRun` + краткая ссылка на PR                       | Заголовок и статус страницы.                                                    |
+| `GET /api/review-runs/{runId}/files`                                  | `DiffFileSummary[]`                                      | `FileList`; только изменённые файлы данного snapshot.                           |
+| `GET /api/review-runs/{runId}/diff?path=…`                            | `DiffFile`                                               | `DiffViewer` одного выбранного файла.                                           |
+| `GET /api/review-runs/{runId}/findings`                               | `ReviewFinding[]` + `PublishedComment[]`                 | Inline findings, summary и статус публикации.                                   |
+| `GET /api/review-runs/{runId}/files/{path}/context?startLine=&count=` | `FileSlice`                                              | Дочитывание контекста по явному действию пользователя.                          |
+| `GET /api/review-runs/{runId}/actions`                                | `ReviewRunAction[]`                                      | `ActionTree`; появляется после согласования trace-модели.                       |
+| `GET /api/review-runs/{runId}/actions/{actionId}/response`            | большой очищенный payload                                | Только авторизованный запрос по `responseRef`; `404`/`410` допустимы после TTL. |
+| `GET /api/stream` **или** polling-контракт                            | событие `reviewRun.updated` минимум с `runId` и `status` | Обновление активного прогона.                                                   |
+
+### 9.1. Требование к неизменяемости diff
+
+Backend обязан отдавать diff, соответствующий проверенному `headSha`, а не текущему состоянию PR. Для точного сравнения backend должен либо сохранить raw patch/snapshot, либо зафиксировать обе revision, необходимые провайдеру для воспроизведения diff. Один `headSha` без базовой revision может оказаться недостаточным, если target branch изменился.
+
+### 9.2. API-boundary
+
+HTTP-клиент возвращает `unknown`; entity API валидирует DTO Zod-схемой и только после этого отдаёт типизированную модель в query hook. API DTO не смешивается с props UI без явного mapping.
+
+## 10. Решения и открытые вопросы
+
+### 10.1. Принятые решения
+
+| ID        | Решение                                                                                             |
+| --------- | --------------------------------------------------------------------------------------------------- |
+| FE-DEC-01 | FSD: `app → pages → widgets → features → entities → shared`.                                        |
+| FE-DEC-02 | Tailwind CSS v4 + Headless UI; общие примитивы проекта — в `shared/ui`.                             |
+| FE-DEC-03 | TanStack Query для server-state, Zustand для общего UI-state, React state для локального состояния. |
+| FE-DEC-04 | Zod на API boundary; React Hook Form + Zod для будущих форм.                                        |
+| FE-DEC-05 | `ReviewWorkspace` отображает все изменённые файлы, но `DiffViewer` рендерит один выбранный файл.    |
+| FE-DEC-06 | `RunInspector` и `ReviewWorkspace` — независимые виджеты; их будущий layout не фиксируется.         |
+
+### 10.2. Незакрытые решения по `review_run_actions`
+
+| ID         | Вопрос                                                                                                                  | Почему нужен ответ                                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FE-OPEN-01 | Заменяет ли `review_run_actions` `context_payloads` полностью или контекст сохраняется в отдельном защищённом snapshot? | `context_payloads` хранит то, что видел LLM; журнал действий отвечает на другой вопрос. Удаление без согласования может ухудшить воспроизводимость. |
+| FE-OPEN-02 | Какие `tool` допустимы и кто владеет их словарём?                                                                       | UI может показать неизвестный tool, но analytics, локализация и группировка требуют стабильных имён.                                                |
+| FE-OPEN-03 | Нужны ли action-level статусы и ошибки?                                                                                 | Без них inspector плохо объясняет текущий или упавший запуск.                                                                                       |
+| FE-OPEN-04 | Какой максимальный размер preview и где хранится полный payload?                                                        | Нужен баланс между полезностью trace, стоимостью и безопасностью.                                                                                   |
+| FE-OPEN-05 | Какой TTL для diff, context, prompt и raw LLM-response?                                                                 | Это требование защиты данных и стоимости хранения, а не UI-деталь.                                                                                  |
+| FE-OPEN-06 | Кто имеет доступ к полному `responseRef`?                                                                               | Требуется RBAC/проверка прав на backend.                                                                                                            |
+| FE-OPEN-07 | Нужен ли raw prompt и raw ответ LLM в первой версии?                                                                    | Для результата ревью они не нужны; полезны только для ограниченной диагностики.                                                                     |
+| FE-OPEN-08 | SSE или polling для активных запусков?                                                                                  | От этого зависит invalidation strategy TanStack Query.                                                                                              |
+| FE-OPEN-09 | Какая базовая revision входит в snapshot diff?                                                                          | Нужна неизменяемость отображаемого review после новых push в PR.                                                                                    |
+
+## 11. Качество и проверка
+
+| Область        | Проверяемый результат                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------- |
+| Diff           | Added, removed и context-строки имеют правильные номера; finding появляется у правильной стороны и строки. |
+| File selection | Выбор файла не дублирует diff в глобальном server-state и не заставляет рендерить все файлы сразу.         |
+| Context        | `ContextExpander` дочитывает только запрошенный диапазон и корректно обрабатывает `404`/`410`.             |
+| Server state   | Loading, error, retry и обновления идут через TanStack Query.                                              |
+| Inspector      | Действия упорядочены по `index`; большой payload не загружается до явного открытия.                        |
+| Accessibility  | Интерактивные shared-компоненты поддерживают клавиатуру, фокус и ARIA через Headless UI.                   |
+| API boundary   | Некорректный DTO не попадает в UI: Zod возвращает контролируемую ошибку.                                   |
+
+Для UI применяются Vitest и React Testing Library. Тесты проверяют наблюдаемое поведение пользователя, а не CSS-классы или внутреннюю структуру компонентов.
+
+## 12. Глоссарий и ресурсы
+
+| Термин             | Значение                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------ |
+| `ReviewRun`        | Один неизменяемый запуск AI-ревью конкретного commit PR.                             |
+| `DiffFile`         | Изменения одного файла в snapshot прогона.                                           |
+| `DiffHunk`         | Непрерывный блок строк изменений.                                                    |
+| `ReviewFinding`    | Нормализованный результат модели, переживший валидацию и дедупликацию.               |
+| `PublishedComment` | Запись о публикации finding или summary у Git-provider.                              |
+| `ReviewRunAction`  | Одно техническое действие worker внутри прогона.                                     |
+| `RunInspector`     | UI технической истории действий; не основной результат ревью.                        |
+| `responseRef`      | Ссылка на большой защищённый payload, который не входит в обычный ответ actions API. |
+
+### Ресурсы
+
+- [Issue #5 — Frontend Architecture](https://github.com/larchanka-training/dmc-268-ui-t1/issues/5)
+- [PR #4 — базовый setup frontend](https://github.com/larchanka-training/dmc-268-ui-t1/pull/4)
+- [PR #5 backend — архитектура и ERD](https://github.com/larchanka-training/dmc-268-api-t1/pull/5)
+- [Комментарий frontend о `review_run_actions` в PR #5](https://github.com/larchanka-training/dmc-268-api-t1/pull/5#discussion_r4057422261)
+- [Пример архитектурного документа команды T6](https://github.com/larchanka-training/dmc-268-ui-t6/blob/1cc57cd72009312c4a820d3bd15a72fcd67764b9/docs/FRONTEND_ARCHITECTURE.md)
+- [arc42 — обзор шаблона](https://arc42.org/overview/)
+- [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/overview)
+- [Zod](https://zod.dev/)
+- [React Hook Form](https://react-hook-form.com/)
+- [Headless UI](https://headlessui.com/)
+- [Tailwind CSS](https://tailwindcss.com/)
