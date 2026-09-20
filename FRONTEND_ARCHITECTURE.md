@@ -9,7 +9,7 @@ implementation_status: not_implemented
 # Архитектура frontend — AI Code Review
 
 **Статус:** черновик для согласования с backend-командой.  
-**Редакция:** 20 сентября 2026 года.  
+**Редакция:** 21 сентября 2026 года.  
 **Назначение:** этот документ описывает целевую архитектуру Web UI: слои, состояние, UI-систему, контракт данных и требования frontend к API. Он не добавляет зависимости, не меняет базовый setup и не является описанием уже реализованного интерфейса.
 
 Документ использует 12-раздельный шаблон arc42 для описания архитектуры. Feature-Sliced Design (FSD) — отдельное решение о структуре frontend-кода.
@@ -21,12 +21,16 @@ implementation_status: not_implemented
 Основной сценарий первой версии — просмотр одного прогона AI-ревью (`ReviewRun`). Пользователь открывает запуск и видит:
 
 - статус, проверенный commit и сводку результата;
-- список файлов, изменённых в проверенном PR;
-- diff выбранного файла, hunks и строки;
-- findings AI, привязанные к строкам diff;
-- при необходимости — техническую историю действий worker в `RunInspector`.
+- список findings AI и статус их публикации.
 
-`ReviewWorkspace` похож на вкладку _Files changed_ у PR-провайдера, но показывает снимок именно того diff и тех findings, которые относятся к выбранному `ReviewRun`. Это не копия интерфейса GitHub и не смешивает комментарии людей, других ботов или последующих запусков.
+`ReviewWorkspace` с файлами, diff и inline-findings входит в первую версию
+только после решения FE-OPEN-11. `RunInspector` с технической историей worker
+входит в первую версию только после решения FE-OPEN-10.
+
+Если выбран FE-OPEN-11, `ReviewWorkspace` похож на вкладку _Files changed_ у
+PR-провайдера, но показывает снимок именно того diff и тех findings, которые
+относятся к выбранному `ReviewRun`. Это не копия интерфейса GitHub и не
+смешивает комментарии людей, других ботов или последующих запусков.
 
 ### 1.2. Цели
 
@@ -34,11 +38,11 @@ implementation_status: not_implemented
 - Сохранить читаемость при большом числе файлов и hunks.
 - Разделить серверные данные, UI-состояние и локальное состояние компонента.
 - Позволить подключить backend API без переписывания UI.
-- Дать диагностический trace прогона без раскрытия исходного кода, секретов и полного LLM-payload по умолчанию.
+- После решения FE-OPEN-10 дать диагностический trace прогона без раскрытия исходного кода, секретов и полного LLM-payload по умолчанию.
 
 ### 1.3. Вне scope этой редакции
 
-Список репозиториев, список PR, история запусков на странице PR, login, landing, профиль, настройки профиля, Stripe и billing не проектируются как экраны и компоненты в этой задаче. Backend-модель уже связывает `Repository → MergeRequest → ReviewRun`; это достаточно, чтобы добавить эти сценарии позже без изменения модели просмотра одного запуска.
+Список репозиториев, список PR, история запусков на странице PR, login, landing, профиль, настройки профиля, Stripe и billing не проектируются как экраны и компоненты в этой задаче. В рамках этой задачи для них не создаются маршруты, виджеты, features, entity-компоненты, формы или mock API. Backend-модель уже связывает `Repository → MergeRequest → ReviewRun`; этого достаточно, чтобы добавить эти сценарии позже без изменения модели просмотра одного запуска.
 
 ## 2. Ограничения
 
@@ -50,7 +54,9 @@ implementation_status: not_implemented
 | FE-CON-04 | accepted  | Серверные данные хранятся в TanStack Query; общий UI-state — в Zustand; состояние одного компонента — в React state.                                                                           |
 | FE-CON-05 | accepted  | React Hook Form, Zod и `@hookform/resolvers` используются для будущих форм. Zod также валидирует API DTO на границе frontend.                                                                  |
 | FE-CON-06 | confirmed | Пока backend API не готов, UI получает типизированные данные через mock adapter с теми же публичными типами, что и HTTP-клиент.                                                                |
-| FE-CON-07 | open      | Полная модель `review_run_actions`, правила доступа к trace, формат API и realtime-политика ожидают согласования с backend.                                                                    |
+| FE-CON-07 | open      | Полная модель `review_run_actions` и правила доступа к trace ожидают согласования с backend.                                                                                                   |
+| FE-CON-08 | accepted  | Публичный API имеет префикс `/api/v1` и использует `snake_case`, совпадающий с текущей backend-моделью.                                                                                        |
+| FE-CON-09 | accepted  | Активный run обновляется polling-запросом; SSE не входит в первую версию.                                                                                                                      |
 
 Принятые библиотеки могут отсутствовать в `package.json`: их подключение относится к отдельной реализации, а не к этому архитектурному документу.
 
@@ -69,7 +75,7 @@ Tailwind + Headless UI             ├── review worker / LLM
 
 Frontend не читает БД, не клонирует репозитории, не получает Git-токены, не собирает LLM-контекст и не публикует комментарии в GitHub напрямую. Эти обязанности принадлежат backend.
 
-Frontend получает только подготовленные API-данные. Право показать diff, context или trace проверяется backend на каждом соответствующем запросе.
+Frontend получает только подготовленные API-данные. Право показать diff или trace проверяется backend на каждом соответствующем запросе.
 
 ## 4. Стратегия решения
 
@@ -100,6 +106,7 @@ flowchart TB
 src/
 ├── app/
 │   ├── providers/                 # QueryClient, ErrorBoundary
+│   ├── router/                    # React Router и маршруты страниц
 │   ├── mocks/                     # временный типизированный adapter
 │   └── styles/
 ├── pages/
@@ -109,7 +116,6 @@ src/
 │   ├── review-summary/
 │   └── run-inspector/
 ├── features/
-│   ├── expand-context/
 │   └── filter-findings/
 ├── entities/
 │   ├── review-run/
@@ -139,33 +145,32 @@ Headless UI используется там, где нужны навигаци�
 ReviewRunPage
 ├── RunHeader
 ├── ReviewSummary
-├── ReviewWorkspace
+├── ReviewWorkspace                 # только после решения FE-OPEN-11
 │   ├── FileList
 │   └── DiffViewer
 │       └── DiffHunk
 │           └── DiffLine
 │               └── ReviewCommentThread
-└── RunInspector
+└── RunInspector                    # только после решения FE-OPEN-10
     └── ActionTree
         └── request / response выбранного действия
 ```
 
-| Компонент             | Назначение                                                                          | Основные данные                                       |
-| --------------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| `ReviewRunPage`       | Контейнер конкретного `runId`; загружает и связывает серверные данные.              | `ReviewRun`, diff, findings, actions.                 |
-| `RunHeader`           | Метаданные прогона: статус, commit, модель, время, длительность, безопасная ошибка. | `ReviewRun`.                                          |
-| `ReviewSummary`       | Количество findings, severity, опубликованные комментарии, отклонённые findings.    | `ReviewRun`, `ReviewFinding[]`, `PublishedComment[]`. |
-| `ReviewWorkspace`     | Результат ревью: изменённые файлы и их diff.                                        | `DiffFile[]`, findings.                               |
-| `FileList`            | Список изменённых файлов и количество findings; выбирает файл.                      | `DiffFileSummary[]`, `selectedFile`.                  |
-| `DiffViewer`          | Показывает **один выбранный** `DiffFile`, не массив viewers.                        | `DiffFile`, `ReviewFinding[]`.                        |
-| `DiffHunk`            | Непрерывный блок изменений с заголовком `@@`.                                       | `DiffHunk`.                                           |
-| `DiffLine`            | Добавленная, удалённая или контекстная строка с номерами old/new.                   | `DiffLine`.                                           |
-| `ReviewCommentThread` | Показывает finding у строки и статус его публикации в Git-provider.                 | `ReviewFinding`, `PublishedComment?`.                 |
-| `ContextExpander`     | Запрашивает скрытый контекст только для указанного диапазона.                       | `FileSliceRequest`.                                   |
-| `RunInspector`        | Технический trace запуска, отдельно от результата ревью.                            | `ReviewRun`, `ReviewRunAction[]`.                     |
-| `ActionTree`          | Хронология действий; одинаковые соседние tools могут группироваться в UI.           | `ReviewRunAction[]`, выбранный action.                |
+| Компонент             | Назначение                                                                          | Основные данные                                            |
+| --------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `ReviewRunPage`       | Контейнер конкретного `runId`; загружает summary и выбранные командой виджеты.      | `ReviewRun`, findings; diff/actions — после FE-OPEN-11/10. |
+| `RunHeader`           | Метаданные прогона: статус, commit, модель, время, длительность, безопасная ошибка. | `ReviewRun`.                                               |
+| `ReviewSummary`       | Количество findings, severity, опубликованные комментарии, отклонённые findings.    | `ReviewRun`, `ReviewFinding[]`, `PublishedComment[]`.      |
+| `ReviewWorkspace`     | Результат ревью: изменённые файлы и их diff; создаётся после FE-OPEN-11.            | `DiffFile[]`, findings.                                    |
+| `FileList`            | Список изменённых файлов и количество findings; выбирает файл.                      | `DiffFileSummary[]`, `selectedFile`.                       |
+| `DiffViewer`          | Показывает **один выбранный** `DiffFile`, не массив viewers.                        | `DiffFile`, `ReviewFinding[]`.                             |
+| `DiffHunk`            | Непрерывный блок изменений с заголовком `@@`.                                       | `DiffHunk`.                                                |
+| `DiffLine`            | Добавленная, удалённая или контекстная строка с номерами old/new.                   | `DiffLine`.                                                |
+| `ReviewCommentThread` | Показывает finding у строки и статус его публикации в Git-provider.                 | `ReviewFinding`, `PublishedComment?`.                      |
+| `RunInspector`        | Технический trace запуска; создаётся после FE-OPEN-10.                              | `ReviewRun`, `ReviewRunAction[]`.                          |
+| `ActionTree`          | Хронология действий; одинаковые соседние tools могут группироваться в UI.           | `ReviewRunAction[]`, выбранный action.                     |
 
-### 5.2. Что показывает `ReviewWorkspace`
+### 5.2. Что показывает `ReviewWorkspace` после FE-OPEN-11
 
 `ReviewWorkspace` показывает **все изменённые файлы проверенного PR**, но рендерит diff одного выбранного файла за раз. Файлы без findings также видны: это позволяет понять покрытие запуска. Внутри diff показываются только нормализованные findings, связанные с линией. Полный raw-ответ LLM не вставляется рядом с каждой строкой.
 
@@ -175,24 +180,24 @@ Finding без корректной привязки к строке отобр�
 
 ### 6.1. Открытие завершённого прогона
 
-1. `ReviewRunPage` получает `runId` из маршрута или входного параметра.
-2. Entity-level hooks TanStack Query запрашивают run, список файлов, diff выбранного файла, findings и опубликованные комментарии.
-3. `ReviewWorkspace` показывает `LoadingState`, `ErrorState` или данные без ручного `fetch` в компонентах.
+1. React Router сопоставляет маршрут `/review-runs/:runId` со страницей `ReviewRunPage`.
+2. Entity-level hooks TanStack Query запрашивают run, findings и опубликованные комментарии.
+3. После FE-OPEN-11 hooks дополнительно запрашивают список файлов и diff выбранного файла; `ReviewWorkspace` показывает `LoadingState`, `ErrorState` или данные без ручного `fetch` в компонентах.
 4. Пользователь выбирает файл; Zustand меняет только `selectedFile`, а TanStack Query получает его diff.
-5. `DiffViewer` размещает finding рядом с его `oldLine` или `newLine`.
+5. `DiffViewer` размещает finding рядом с его `old_line` или `new_line`.
 
 ### 6.2. Прогон в процессе
 
 1. API возвращает нетерминальный статус `ReviewRun`.
-2. TanStack Query обновляет run по согласованной политике polling или SSE.
+2. Пока статус нетерминальный, TanStack Query обновляет run polling-запросом; после терминального статуса polling прекращается.
 3. UI отображает только серверный статус; frontend не делает вывод о завершении самостоятельно.
 4. При наличии action API `RunInspector` получает новые завершённые действия в том же query-кэше.
 
-### 6.3. Просмотр технического действия
+### 6.3. Просмотр технического действия после FE-OPEN-10
 
 1. `ActionTree` показывает безопасные `tool`, время, длительность и статус записи.
-2. При выборе действия UI показывает `requestPreview` и `responsePreview`.
-3. Полный payload запрашивается по `responseRef` только при наличии backend-разрешения и только если он не истёк по retention policy.
+2. При выборе действия UI показывает `request_preview` и `response_preview`.
+3. Полный payload запрашивается по `response_ref` только при наличии backend-разрешения и только если он не истёк по retention policy.
 
 ## 7. Представление развёртывания
 
@@ -204,48 +209,60 @@ Git-токены, ключи LLM, Stripe secret key, полный context и raw
 
 ### 8.1. Состояние
 
-| Данные                                            | Владелец          | Пример ключа / store                           |
-| ------------------------------------------------- | ----------------- | ---------------------------------------------- |
-| Детали прогона                                    | TanStack Query    | `['review-runs', runId]`                       |
-| Список файлов                                     | TanStack Query    | `['review-runs', runId, 'files']`              |
-| Diff файла                                        | TanStack Query    | `['review-runs', runId, 'diff', path]`         |
-| Findings и публикации                             | TanStack Query    | `['review-runs', runId, 'findings']`           |
-| Trace действий                                    | TanStack Query    | `['review-runs', runId, 'actions']`            |
-| Контекстный срез                                  | TanStack Query    | `['review-runs', runId, 'files', path, range]` |
-| Выбранный файл, фильтры severity, раскрытые hunks | Zustand в виджете | `review-workspace/model/store`                 |
-| Выбранное действие, раскрытые узлы trace          | Zustand в виджете | `run-inspector/model/store`                    |
-| hover, открытый popover, ввод одного поля         | React state       | владелец компонента                            |
+| Данные                                                               | Владелец          | Пример ключа / store                   |
+| -------------------------------------------------------------------- | ----------------- | -------------------------------------- |
+| Детали прогона                                                       | TanStack Query    | `['review-runs', runId]`               |
+| Список файлов (после FE-OPEN-11)                                     | TanStack Query    | `['review-runs', runId, 'files']`      |
+| Diff файла (после FE-OPEN-11)                                        | TanStack Query    | `['review-runs', runId, 'diff', path]` |
+| Findings и публикации                                                | TanStack Query    | `['review-runs', runId, 'findings']`   |
+| Trace действий (после FE-OPEN-10)                                    | TanStack Query    | `['review-runs', runId, 'actions']`    |
+| Выбранный файл, фильтры severity, раскрытые hunks (после FE-OPEN-11) | Zustand в виджете | `review-workspace/model/store`         |
+| Выбранное действие, раскрытые узлы trace (после FE-OPEN-10)          | Zustand в виджете | `run-inspector/model/store`            |
+| hover, открытый popover, ввод одного поля                            | React state       | владелец компонента                    |
 
 Серверные данные никогда не копируются в Zustand. Store хранит только пользовательский выбор и краткоживущее представление.
 
 ### 8.2. Контракт данных
 
-Источник истины для runtime DTO — будущие Zod-схемы в `entities/*/model`. Ниже приведён обязательный публичный состав полей; названия API предполагаются в `camelCase`. Backend может хранить поля иначе, но обязан сериализовать согласованный DTO.
+Источник истины для runtime DTO — будущие Zod-схемы в `entities/*/model`. Публичный API использует `snake_case`, совпадающий с текущими именами backend. При необходимости frontend преобразует валидный API DTO в удобную для компонента модель внутри entity API adapter.
 
 ```ts
 type ReviewRun = {
   id: string
-  mergeRequestId: string
-  headSha: string
-  status: 'queued' | 'running' | 'publishing' | 'completed' | 'failed' | 'cancelled'
+  merge_request_id: string
+  head_sha: string
+  status:
+    | 'queued'
+    | 'building_context'
+    | 'analysing'
+    | 'publishing'
+    | 'completed'
+    | 'failed'
+    | 'cancelled'
   trigger: 'webhook' | 'manual' | 'mention'
-  startedAt: string | null
-  finishedAt: string | null
-  lastProgressAt: string
-  failureReason: string | null
+  created_at: string
+  updated_at: string
+  last_progress_at: string
+  failure_reason: string | null
   model: string | null
-  tokensUsed: number | null
-  durationSeconds: number | null
-  rejectedFindings: number
+  tokens_used: number | null
+  duration_seconds: number | null
+  rejected_findings: number
+  change_request: ChangeRequestLink | null
+}
+
+type ChangeRequestLink = {
+  provider: 'github' | 'gitlab'
+  url: string
 }
 
 type ReviewFinding = {
   id: string
-  reviewRunId: string
-  filePath: string
-  side: 'left' | 'right'
-  oldLine: number | null
-  newLine: number | null
+  review_run_id: string
+  file_path: string
+  side: 'old' | 'new'
+  old_line: number | null
+  new_line: number | null
   category: 'security' | 'correctness' | 'performance' | 'readability'
   severity: 'low' | 'medium' | 'high' | 'critical'
   message: string
@@ -255,73 +272,74 @@ type ReviewFinding = {
 
 type PublishedComment = {
   id: string
-  reviewRunId: string
-  findingId: string | null
-  providerCommentId: string
+  review_run_id: string
+  finding_id: string | null
+  provider_comment_id: string
   kind: 'summary' | 'inline'
-  publishedAt: string
+  published_at: string
 }
 
 type DiffFileSummary = {
   path: string
+  previous_path: string | null
+  status: 'added' | 'modified' | 'deleted' | 'renamed'
   additions: number
   deletions: number
-  findingsCount: number
+  findings_count: number
+  is_binary: boolean
 }
 
 type DiffFile = {
   path: string
+  previous_path: string | null
+  status: 'added' | 'modified' | 'deleted' | 'renamed'
+  is_binary: boolean
   language: string | null
   hunks: DiffHunk[]
 }
 
 type DiffHunk = {
   header: string
-  oldStart: number
-  oldLines: number
-  newStart: number
-  newLines: number
+  old_start: number
+  old_count: number
+  new_start: number
+  new_count: number
   lines: DiffLine[]
 }
 
 type DiffLine = {
   kind: 'added' | 'removed' | 'context'
-  oldLine: number | null
-  newLine: number | null
+  old_line: number | null
+  new_line: number | null
   content: string
-}
-
-type FileSlice = {
-  path: string
-  startLine: number
-  lines: string[]
-  nextStartLine: number | null
 }
 ```
 
 `ReviewFinding` — результат модели после валидации и дедупликации; `PublishedComment` — факт публикации этого finding у Git-provider. Они не являются одной сущностью. `ReviewCommentThread` получает finding и, при наличии, публикационный статус.
 
-`DiffFile`, `DiffHunk` и `DiffLine` должны приходить как snapshot, относящийся к `ReviewRun.headSha`. Frontend не извлекает diff из внутреннего LLM-payload и не рассчитывает diff по текущему состоянию PR.
+`DiffFile`, `DiffHunk` и `DiffLine` должны приходить как snapshot, относящийся к `ReviewRun.head_sha`. Frontend не извлекает diff из внутреннего LLM-payload и не рассчитывает diff по текущему состоянию PR.
 
 ### 8.3. Контракт trace: `ReviewRunAction`
 
-`RunInspector` требует историю отдельных действий worker. В backend PR #5 такой таблицы пока нет: там есть `context_payloads`, которые хранят chunks контекста, переданные модели. По комментарию frontend в PR предложено заменить этот подход на аудит действий `review_run_actions`; решение ожидает backend-команду.
+`RunInspector` требует историю отдельных действий worker. Для этой задачи ему не нужен сохранённый diff: inspector объясняет ход работы (например, `get_diff → read_file → call_llm`), а не отображает код построчно. В backend PR #5 такой таблицы пока нет: там есть `context_payloads`, которые хранят chunks контекста, переданные модели.
+
+`context_payloads` и `review_run_actions` не должны заменять друг друга. Первое нужно для воспроизводимости входа LLM и переиспользования контекста, второе — для диагностики шагов worker. В [обсуждении backend PR #5](https://github.com/larchanka-training/dmc-268-api-t1/pull/5#discussion_r4057422261) @Grinv предложил оставить обе сущности; команде нужно явно подтвердить это решение и решить, входит ли журнал действий в первую версию.
 
 Предлагаемый DTO и будущая сущность:
 
 ```ts
 type ReviewRunAction = {
   id: string
-  runId: string
-  index: number
+  run_id: string
+  position: number
   tool: string
   status: 'running' | 'completed' | 'failed'
-  requestPreview: unknown | null
-  responsePreview: unknown | null
-  responseRef: string | null
+  request_preview: unknown | null
+  response_preview: unknown | null
+  response_ref: string | null
   error: { code: string; message: string } | null
-  startedAt: string
-  durationMs: number | null
+  started_at: string
+  duration_seconds: number | null
 }
 ```
 
@@ -331,7 +349,7 @@ review_runs 1 ─── N review_run_actions
 review_run_actions
 ├── id
 ├── review_run_id
-├── index                 # стабильный порядок в одном run
+├── position              # стабильный порядок в одном run
 ├── tool                  # get_diff, get_tree, read_file, build_context, call_llm, post_review
 ├── status
 ├── request_preview JSONB
@@ -340,14 +358,14 @@ review_run_actions
 ├── error_code NULL
 ├── error_message NULL
 ├── started_at
-└── duration_ms NULL
+└── duration_seconds NULL
 ```
 
-`ActionTree` может сам сгруппировать подряд идущие действия с одинаковым `tool`; отдельная parent-child таблица для первой версии не нужна. Поле `index` обязательно для воспроизводимой хронологии.
+`ActionTree` может сам сгруппировать подряд идущие действия с одинаковым `tool`; отдельная parent-child таблица для первой версии не нужна. Поле `position` обязательно для воспроизводимой хронологии.
 
 ### 8.4. Безопасность и хранение исходного кода
 
-`responseRef` уменьшает размер обычного API-ответа, но сам по себе не решает вопрос хранения кода. Исходники, prompt и raw LLM-output могут содержать интеллектуальную собственность, персональные данные или секреты.
+`response_ref` уменьшает размер обычного API-ответа, но сам по себе не решает вопрос хранения кода. Исходники, prompt и raw LLM-output могут содержать интеллектуальную собственность, персональные данные или секреты.
 
 | Категория         | Правило                                                                                                               |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -362,20 +380,18 @@ review_run_actions
 
 Эти требования описывают необходимую для UI публичную границу; они не означают, что endpoints уже реализованы.
 
-| Endpoint                                                              | Ответ                                                    | Назначение                                                                      |
-| --------------------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| `GET /api/review-runs/{runId}`                                        | `ReviewRun` + краткая ссылка на PR                       | Заголовок и статус страницы.                                                    |
-| `GET /api/review-runs/{runId}/files`                                  | `DiffFileSummary[]`                                      | `FileList`; только изменённые файлы данного snapshot.                           |
-| `GET /api/review-runs/{runId}/diff?path=…`                            | `DiffFile`                                               | `DiffViewer` одного выбранного файла.                                           |
-| `GET /api/review-runs/{runId}/findings`                               | `ReviewFinding[]` + `PublishedComment[]`                 | Inline findings, summary и статус публикации.                                   |
-| `GET /api/review-runs/{runId}/files/{path}/context?startLine=&count=` | `FileSlice`                                              | Дочитывание контекста по явному действию пользователя.                          |
-| `GET /api/review-runs/{runId}/actions`                                | `ReviewRunAction[]`                                      | `ActionTree`; появляется после согласования trace-модели.                       |
-| `GET /api/review-runs/{runId}/actions/{actionId}/response`            | большой очищенный payload                                | Только авторизованный запрос по `responseRef`; `404`/`410` допустимы после TTL. |
-| `GET /api/stream` **или** polling-контракт                            | событие `reviewRun.updated` минимум с `runId` и `status` | Обновление активного прогона.                                                   |
+| Endpoint                                                        | Ответ                                    | Назначение                                                                       |
+| --------------------------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------- |
+| `GET /api/v1/review-runs/{run_id}`                              | `ReviewRun` + ссылка на change request   | Заголовок и статус страницы; polling активного run.                              |
+| `GET /api/v1/review-runs/{run_id}/files`                        | `DiffFileSummary[]`                      | Только после FE-OPEN-11: `FileList` изменённых файлов snapshot.                  |
+| `GET /api/v1/review-runs/{run_id}/diff?path=…`                  | `DiffFile`                               | Только после FE-OPEN-11: `DiffViewer` одного выбранного файла.                   |
+| `GET /api/v1/review-runs/{run_id}/findings`                     | `ReviewFinding[]` + `PublishedComment[]` | Summary и статус публикации; inline-рендеринг — после FE-OPEN-11.                |
+| `GET /api/v1/review-runs/{run_id}/actions`                      | `ReviewRunAction[]`                      | Только после FE-OPEN-10: `ActionTree` технической истории worker.                |
+| `GET /api/v1/review-runs/{run_id}/actions/{action_id}/response` | большой очищенный payload                | Только авторизованный запрос по `response_ref`; `404`/`410` допустимы после TTL. |
 
 ### 9.1. Требование к неизменяемости diff
 
-Backend обязан отдавать diff, соответствующий проверенному `headSha`, а не текущему состоянию PR. Для точного сравнения backend должен либо сохранить raw patch/snapshot, либо зафиксировать обе revision, необходимые провайдеру для воспроизведения diff. Один `headSha` без базовой revision может оказаться недостаточным, если target branch изменился.
+Backend обязан отдавать diff, соответствующий проверенному `head_sha`, а не текущему состоянию PR. Для точного сравнения backend должен либо сохранить raw patch/snapshot, либо зафиксировать обе revision, необходимые провайдеру для воспроизведения diff. Один `head_sha` без базовой revision может оказаться недостаточным, если target branch изменился.
 
 ### 9.2. API-boundary
 
@@ -385,40 +401,61 @@ HTTP-клиент возвращает `unknown`; entity API валидируе�
 
 ### 10.1. Принятые решения
 
-| ID        | Решение                                                                                             |
-| --------- | --------------------------------------------------------------------------------------------------- |
-| FE-DEC-01 | FSD: `app → pages → widgets → features → entities → shared`.                                        |
-| FE-DEC-02 | Tailwind CSS v4 + Headless UI; общие примитивы проекта — в `shared/ui`.                             |
-| FE-DEC-03 | TanStack Query для server-state, Zustand для общего UI-state, React state для локального состояния. |
-| FE-DEC-04 | Zod на API boundary; React Hook Form + Zod для будущих форм.                                        |
-| FE-DEC-05 | `ReviewWorkspace` отображает все изменённые файлы, но `DiffViewer` рендерит один выбранный файл.    |
-| FE-DEC-06 | `RunInspector` и `ReviewWorkspace` — независимые виджеты; их будущий layout не фиксируется.         |
+| ID        | Решение                                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------------------------- |
+| FE-DEC-01 | FSD: `app → pages → widgets → features → entities → shared`.                                                      |
+| FE-DEC-02 | Tailwind CSS v4 + Headless UI; общие примитивы проекта — в `shared/ui`.                                           |
+| FE-DEC-03 | TanStack Query для server-state, Zustand для общего UI-state, React state для локального состояния.               |
+| FE-DEC-04 | Zod на API boundary; React Hook Form + Zod для будущих форм.                                                      |
+| FE-DEC-05 | После FE-OPEN-11 `ReviewWorkspace` отображает все изменённые файлы, но `DiffViewer` рендерит один выбранный файл. |
+| FE-DEC-06 | `RunInspector` и `ReviewWorkspace` — независимые виджеты; их будущий layout не фиксируется.                       |
+| FE-DEC-07 | React Router владеет маршрутом `/review-runs/:runId`; подключение библиотеки относится к реализации.              |
+| FE-DEC-08 | Активный run обновляется polling-запросом к detail endpoint; SSE отложен.                                         |
+| FE-DEC-09 | Внешний API использует `/api/v1` и `snake_case`, совпадающий с backend DTO.                                       |
 
 ### 10.2. Незакрытые решения по `review_run_actions`
 
-| ID         | Вопрос                                                                                                                  | Почему нужен ответ                                                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| FE-OPEN-01 | Заменяет ли `review_run_actions` `context_payloads` полностью или контекст сохраняется в отдельном защищённом snapshot? | `context_payloads` хранит то, что видел LLM; журнал действий отвечает на другой вопрос. Удаление без согласования может ухудшить воспроизводимость. |
-| FE-OPEN-02 | Какие `tool` допустимы и кто владеет их словарём?                                                                       | UI может показать неизвестный tool, но analytics, локализация и группировка требуют стабильных имён.                                                |
-| FE-OPEN-03 | Нужны ли action-level статусы и ошибки?                                                                                 | Без них inspector плохо объясняет текущий или упавший запуск.                                                                                       |
-| FE-OPEN-04 | Какой максимальный размер preview и где хранится полный payload?                                                        | Нужен баланс между полезностью trace, стоимостью и безопасностью.                                                                                   |
-| FE-OPEN-05 | Какой TTL для diff, context, prompt и raw LLM-response?                                                                 | Это требование защиты данных и стоимости хранения, а не UI-деталь.                                                                                  |
-| FE-OPEN-06 | Кто имеет доступ к полному `responseRef`?                                                                               | Требуется RBAC/проверка прав на backend.                                                                                                            |
-| FE-OPEN-07 | Нужен ли raw prompt и raw ответ LLM в первой версии?                                                                    | Для результата ревью они не нужны; полезны только для ограниченной диагностики.                                                                     |
-| FE-OPEN-08 | SSE или polling для активных запусков?                                                                                  | От этого зависит invalidation strategy TanStack Query.                                                                                              |
-| FE-OPEN-09 | Какая базовая revision входит в snapshot diff?                                                                          | Нужна неизменяемость отображаемого review после новых push в PR.                                                                                    |
+| ID         | Вопрос                                                                     | Почему нужен ответ                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FE-OPEN-01 | Подтверждаем ли сосуществование `review_run_actions` и `context_payloads`? | В backend-обсуждении предложено оставить обе сущности: `context_payloads` хранит вход LLM, журнал действий отвечает на другой вопрос. Это нужно формально зафиксировать, а не удалить одну таблицу по недоразумению. |
+| FE-OPEN-02 | Какие `tool` допустимы и кто владеет их словарём?                          | UI может показать неизвестный tool, но analytics, локализация и группировка требуют стабильных имён.                                                                                                                 |
+| FE-OPEN-03 | Нужны ли action-level статусы и ошибки?                                    | Без них inspector плохо объясняет текущий или упавший запуск.                                                                                                                                                        |
+| FE-OPEN-04 | Какой максимальный размер preview и где хранится полный payload?           | Нужен баланс между полезностью trace, стоимостью и безопасностью.                                                                                                                                                    |
+| FE-OPEN-05 | Какой TTL для diff, context, prompt и raw LLM-response?                    | Это требование защиты данных и стоимости хранения, а не UI-деталь.                                                                                                                                                   |
+| FE-OPEN-06 | Кто имеет доступ к полному `response_ref`?                                 | Требуется RBAC/проверка прав на backend.                                                                                                                                                                             |
+| FE-OPEN-07 | Нужен ли raw prompt и raw ответ LLM в первой версии?                       | Для результата ревью они не нужны; полезны только для ограниченной диагностики.                                                                                                                                      |
+| FE-OPEN-09 | Какая базовая revision входит в snapshot diff?                             | Нужна неизменяемость отображаемого review после новых push в PR.                                                                                                                                                     |
+
+### 10.3. Решение команды о составе первой версии
+
+Ни `RunInspector`, ни `ReviewWorkspace` нельзя оставлять как неявные будущие
+обещания: оба требуют backend-работы, которой в PR #5 пока нет. До начала
+реализации команда должна выбрать один из вариантов для каждого виджета и
+записать решение в связанном backend-тикете. Упоминание @Grinv указывает на
+автора поднятого в PR вопроса, но не назначает его исполнителем.
+
+| ID         | Что должна решить команда                                                                             | Если делаем в первой версии                                                                                                                        | Если не делаем в первой версии                                                                                 |
+| ---------- | ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| FE-OPEN-10 | Нужен ли пользователю `RunInspector` — техническая хронология действий worker?                        | Backend добавляет `review_run_actions` одновременно с worker, который пишет действия; UI использует endpoints `/actions`. Diff snapshot не нужен.  | Убираем `RunInspector` и endpoints actions из scope v1; позднее возвращаемся к ним отдельной задачей.          |
+| FE-OPEN-11 | Нужен ли `ReviewWorkspace` с файловым списком, hunks и inline-findings на снимке конкретного запуска? | Backend сохраняет immutable diff snapshot и обе revision (`base_sha`, `head_sha`); UI получает `/files` и `/diff` только из этого snapshot.        | В v1 показываем только header, summary и список findings; не создаём псевдо-diff из текущего состояния PR.     |
+| FE-OPEN-13 | Нужна ли ссылка из run на текущий change request у Git-провайдера?                                    | Backend возвращает готовый `change_request_url`: для GitHub это URL PR, для GitLab — URL MR; UI показывает ссылку без знания маршрутов провайдера. | UI не показывает внешнюю ссылку; не строит URL самостоятельно из provider, имени репозитория и номера запроса. |
+
+Причина выбора сейчас: после внедрения worker исторический diff уже нельзя
+восстановить надёжно для старых запусков, если не были сохранены его snapshot и
+`base_sha`. Аналогично, без записи действий во время выполнения inspector позже
+не сможет достроить их задним числом. Поэтому откладывать можно сам UI, но не
+решение о том, сохраняем ли эти данные при запуске.
 
 ## 11. Качество и проверка
 
-| Область        | Проверяемый результат                                                                                      |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| Diff           | Added, removed и context-строки имеют правильные номера; finding появляется у правильной стороны и строки. |
-| File selection | Выбор файла не дублирует diff в глобальном server-state и не заставляет рендерить все файлы сразу.         |
-| Context        | `ContextExpander` дочитывает только запрошенный диапазон и корректно обрабатывает `404`/`410`.             |
-| Server state   | Loading, error, retry и обновления идут через TanStack Query.                                              |
-| Inspector      | Действия упорядочены по `index`; большой payload не загружается до явного открытия.                        |
-| Accessibility  | Интерактивные shared-компоненты поддерживают клавиатуру, фокус и ARIA через Headless UI.                   |
-| API boundary   | Некорректный DTO не попадает в UI: Zod возвращает контролируемую ошибку.                                   |
+| Область                           | Проверяемый результат                                                                                      |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Diff (после FE-OPEN-11)           | Added, removed и context-строки имеют правильные номера; finding появляется у правильной стороны и строки. |
+| File selection (после FE-OPEN-11) | Выбор файла не дублирует diff в глобальном server-state и не заставляет рендерить все файлы сразу.         |
+| Server state                      | Loading, error, retry и обновления идут через TanStack Query.                                              |
+| Inspector (после FE-OPEN-10)      | Действия упорядочены по `position`; большой payload не загружается до явного открытия.                     |
+| Accessibility                     | Интерактивные shared-компоненты поддерживают клавиатуру, фокус и ARIA через Headless UI.                   |
+| API boundary                      | Некорректный DTO не попадает в UI: Zod возвращает контролируемую ошибку.                                   |
 
 Для UI применяются Vitest и React Testing Library. Тесты проверяют наблюдаемое поведение пользователя, а не CSS-классы или внутреннюю структуру компонентов.
 
@@ -433,7 +470,7 @@ HTTP-клиент возвращает `unknown`; entity API валидируе�
 | `PublishedComment` | Запись о публикации finding или summary у Git-provider.                              |
 | `ReviewRunAction`  | Одно техническое действие worker внутри прогона.                                     |
 | `RunInspector`     | UI технической истории действий; не основной результат ревью.                        |
-| `responseRef`      | Ссылка на большой защищённый payload, который не входит в обычный ответ actions API. |
+| `response_ref`     | Ссылка на большой защищённый payload, который не входит в обычный ответ actions API. |
 
 ### Ресурсы
 
