@@ -60,7 +60,7 @@ Feature-Sliced Design: `app` → `pages` → `widgets` → `features` → `entit
 
 `any` не используется. Неизвестные данные на границе приходят как `unknown` и валидируются
 перед употреблением. Доменные модели (`ReviewRun`, `DiffFile`, `DiffHunk`, `DiffLine`,
-`ReviewComment`) описаны в архитектурном документе и живут в `entities`, а не в компоненте.
+`ReviewFinding`, `PublishedComment`) описаны в архитектурном документе и живут в `entities`, а не в компоненте.
 
 ## Тесты
 
