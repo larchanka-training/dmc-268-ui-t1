@@ -1,0 +1,29 @@
+README.md
+  s_370e0e7bd1fd7e::t_0e0794319315d5 56-72
+src/auth/oauth.ts
+  s_370e0e7bd1fd7e::t_d244ad08f57b3d 1-87
+src/components/layout/AppHeader.tsx
+  s_370e0e7bd1fd7e::t_b6c600e5922e57 1-54
+src/config/env.ts
+  s_370e0e7bd1fd7e::t_003a374b4f43ae 1-7
+src/pages/ConnectRepositoryPage.tsx
+  s_370e0e7bd1fd7e::t_1d3132f6b2def8 1-138
+src/styles/global.css
+  s_370e0e7bd1fd7e::t_7bab6dd5e61304 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "279d675349408f4c33525dd695b95c2ae0ca7a4e",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
