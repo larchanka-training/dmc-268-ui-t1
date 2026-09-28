@@ -1,7 +1,12 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import App from './App.tsx'
-import './index.css'
+import dayjs from 'dayjs'
+import 'dayjs/locale/ru'
+import App from '@/App.tsx'
+import '@/index.css'
+import '@/styles/global.css'
+
+dayjs.locale('ru')
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
