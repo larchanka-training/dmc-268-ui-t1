@@ -1,0 +1,19 @@
+src/entities/session/api/mockAuthApi.ts
+  s_370e0e7bd1fd7e::t_93ecaf1578fbf4 1-23
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "5416152a0ddcf14fa783412dcf5f0eb93d50ff60",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
