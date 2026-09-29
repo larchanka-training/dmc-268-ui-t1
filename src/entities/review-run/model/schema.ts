@@ -26,8 +26,8 @@ export const ChangeRequestLinkSchema = z.object({
 })
 
 /**
- * Предложение фронтенда, в контракте §8.2 этого ещё нет: запрос на изменения, который
- * проверял прогон. Поля отдаются вместе с прогоном, чтобы шапка не ждала второй запрос.
+ * Расширение §8.2 ради ТЗ шапки: запрос на изменения, который проверял прогон. Поля есть в
+ * доменной `MergeRequest` бэкенда, в модели `ReviewRun` архитектуры — нет.
  */
 export const MergeRequestSummarySchema = z.object({
   title: z.string(),
@@ -36,12 +36,12 @@ export const MergeRequestSummarySchema = z.object({
   target_branch: z.string(),
 })
 
-/** Предложение фронтенда: итог ревью. `null`, пока прогон не завершён. */
+/** Расширение §8.2 ради ТЗ: итог ревью. `null`, пока прогон не завершён. */
 export const VERDICTS = ['approve', 'comment', 'request_changes'] as const
 
+/** Поля и статусы — как в merged backend PR #5 (FRONTEND_ARCHITECTURE.md §8.2). */
 export const ReviewRunSchema = z.object({
   id: z.string(),
-  merge_request_id: z.string(),
   head_sha: z.string(),
   base_sha: z.string().nullable(),
   // Чужой enum будет расти: незнакомый статус не должен ронять страницу,
@@ -56,6 +56,7 @@ export const ReviewRunSchema = z.object({
   tokens_used: z.number().int().nullable(),
   duration_seconds: z.number().nullable(),
   rejected_findings: z.number().int(),
+  // Ниже — расширения ТЗ, их нет в §8.2: ссылка на источник, запрос на изменения, итог.
   change_request: ChangeRequestLinkSchema.nullable(),
   merge_request: MergeRequestSummarySchema.nullable(),
   verdict: z.enum(VERDICTS).nullable(),

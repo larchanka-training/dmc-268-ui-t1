@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
 import { makeFinding, makePublishedComment } from '../../../test/factories'
-import { FindingCard } from './FindingCard'
+import { ReviewCommentThread } from './ReviewCommentThread'
 
 const finding = makeFinding({
   severity: 'critical',
@@ -12,9 +12,9 @@ const finding = makeFinding({
   suggestion: 'query = text("SELECT * FROM runs WHERE id = :id")',
 })
 
-describe('FindingCard', () => {
+describe('ReviewCommentThread', () => {
   it('показывает severity, категорию и первую строку замечания', () => {
-    render(<FindingCard finding={finding} />)
+    render(<ReviewCommentThread finding={finding} />)
 
     expect(screen.getByText('Critical')).toBeInTheDocument()
     expect(screen.getByText('Безопасность')).toBeInTheDocument()
@@ -23,7 +23,7 @@ describe('FindingCard', () => {
 
   it('серьёзное замечание раскрыто сразу и сворачивается по клику', async () => {
     const user = userEvent.setup()
-    render(<FindingCard finding={finding} />)
+    render(<ReviewCommentThread finding={finding} />)
     const toggle = screen.getByRole('button', { name: /SQL собирается/ })
 
     expect(toggle).toHaveAttribute('aria-expanded', 'true')
@@ -37,7 +37,9 @@ describe('FindingCard', () => {
 
   it('незначительное замечание свёрнуто, пока его не раскроют', async () => {
     const user = userEvent.setup()
-    render(<FindingCard finding={makeFinding({ severity: 'low', message: 'Длинное имя.' })} />)
+    render(
+      <ReviewCommentThread finding={makeFinding({ severity: 'low', message: 'Длинное имя.' })} />,
+    )
     const toggle = screen.getByRole('button', { name: /Длинное имя/ })
 
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
@@ -48,7 +50,7 @@ describe('FindingCard', () => {
   })
 
   it('показывает исходную строку и предлагаемую замену', () => {
-    render(<FindingCard finding={finding} anchorContent={'query = f"SELECT {run_id}"'} />)
+    render(<ReviewCommentThread finding={finding} anchorContent={'query = f"SELECT {run_id}"'} />)
 
     const block = screen.getByRole('figure', { name: 'Предлагаемое исправление' })
     expect(block).toHaveTextContent('Было: query = f"SELECT {run_id}"')
@@ -56,16 +58,16 @@ describe('FindingCard', () => {
   })
 
   it('без предложения блока исправления нет', () => {
-    render(<FindingCard finding={makeFinding({ severity: 'high', suggestion: null })} />)
+    render(<ReviewCommentThread finding={makeFinding({ severity: 'high', suggestion: null })} />)
 
     expect(screen.queryByRole('figure')).not.toBeInTheDocument()
   })
 
   it('сообщает, опубликовано ли замечание у провайдера', () => {
-    const { rerender } = render(<FindingCard finding={finding} />)
+    const { rerender } = render(<ReviewCommentThread finding={finding} />)
     expect(screen.getByText('Не опубликовано у провайдера')).toBeInTheDocument()
 
-    rerender(<FindingCard finding={finding} publication={makePublishedComment()} />)
+    rerender(<ReviewCommentThread finding={finding} publication={makePublishedComment()} />)
     expect(screen.getByText(/^Опубликовано 20\.09\.2026/)).toBeInTheDocument()
   })
 })

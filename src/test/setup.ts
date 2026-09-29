@@ -13,3 +13,10 @@ HTMLCanvasElement.prototype.getContext = function getContext() {
     measureText: (text: string) => ({ width: text.length * 8 }),
   } as unknown as CanvasRenderingContext2D
 } as unknown as typeof HTMLCanvasElement.prototype.getContext
+
+// ResizeObserver нужен просмотрщику диффа для строк-разделителей между hunk'ами.
+globalThis.ResizeObserver ??= class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}

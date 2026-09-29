@@ -1,7 +1,7 @@
 import type { DiffViewMode } from '../model/store'
 
 const MODES: { mode: DiffViewMode; label: string }[] = [
-  { mode: 'split', label: 'Две колонки' },
+  { mode: 'side_by_side', label: 'Две колонки' },
   { mode: 'unified', label: 'Одна колонка' },
 ]
 

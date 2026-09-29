@@ -8,7 +8,7 @@ describe('useReviewWorkspace', () => {
   })
 
   it('по умолчанию показывает две колонки', () => {
-    expect(useReviewWorkspace.getState().viewMode).toBe('split')
+    expect(useReviewWorkspace.getState().view_mode).toBe('side_by_side')
   })
 
   it('режим не сбрасывается при выборе другого файла', () => {
@@ -16,9 +16,16 @@ describe('useReviewWorkspace', () => {
     useReviewWorkspace.getState().selectFile('b.ts')
 
     expect(useReviewWorkspace.getState()).toMatchObject({
-      selectedPath: 'b.ts',
-      viewMode: 'unified',
+      selected_file: 'b.ts',
+      view_mode: 'unified',
     })
+  })
+
+  it('повторное раскрытие не дублирует строки', () => {
+    useReviewWorkspace.getState().expandContext(['a', 'b'])
+    useReviewWorkspace.getState().expandContext(['b', 'c'])
+
+    expect(useReviewWorkspace.getState().expanded_context_line_ids).toEqual(['a', 'b', 'c'])
   })
 })
 

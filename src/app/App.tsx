@@ -1,22 +1,20 @@
 import { useState } from 'react'
-import { createBrowserRouter, RouterProvider } from 'react-router'
 
 import type { ApiTransport } from '../shared/api'
-import { createMockTransport } from './mocks/mockTransport'
+import { createMockAdapter } from './mocks/mockAdapter'
 import { AppProviders } from './providers/AppProviders'
-import { routes } from './router/routes'
+import { ReviewRunView } from './ReviewRunView'
 
 type Props = {
-  /** До готовности API интерфейс работает на mock adapter (FE-CON-06). */
+  /** До backend-контракта интерфейс работает на mock adapter (FE-DEC-06). */
   transport?: ApiTransport
 }
 
 export function App({ transport }: Props) {
-  const [router] = useState(() => createBrowserRouter(routes))
-  const [api] = useState(() => transport ?? createMockTransport())
+  const [adapter] = useState(() => transport ?? createMockAdapter())
   return (
-    <AppProviders transport={api}>
-      <RouterProvider router={router} />
+    <AppProviders transport={adapter}>
+      <ReviewRunView />
     </AppProviders>
   )
 }

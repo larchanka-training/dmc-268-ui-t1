@@ -1,8 +1,9 @@
-import type { DiffHunk, DiffLine } from '../../entities/diff'
+import type { DiffFile, DiffHunk, DiffLine } from '../../entities/diff'
 
 /**
- * Собирает hunk из строк с префиксом `' '`, `'+'` или `'-'` и сам считает номера строк
- * и размеры сторон: так фикстура не расходится с заголовком `@@`.
+ * Собирает hunk из строк с префиксом `' '`, `'+'`, `'-'` или `'~'` (свёрнутый контекст) и сам
+ * считает номера строк и размеры сторон: так фикстура не расходится с заголовком `@@`.
+ * Идентификаторы проставляет `withIds` — они зависят от пути файла.
  */
 export function hunk(oldStart: number, newStart: number, raw: string[], context = ''): DiffHunk {
   let oldLine = oldStart
@@ -10,10 +11,17 @@ export function hunk(oldStart: number, newStart: number, raw: string[], context 
   const lines: DiffLine[] = raw.map((text) => {
     const prefix = text[0]
     const content = text.slice(1)
-    if (prefix === '+') return { kind: 'added', old_line: null, new_line: newLine++, content }
-    if (prefix === '-') return { kind: 'removed', old_line: oldLine++, new_line: null, content }
-    if (prefix === ' ') {
-      return { kind: 'context', old_line: oldLine++, new_line: newLine++, content }
+    const base = { id: '', content, is_collapsed_context: false }
+    if (prefix === '+') return { ...base, kind: 'added', old_line: null, new_line: newLine++ }
+    if (prefix === '-') return { ...base, kind: 'removed', old_line: oldLine++, new_line: null }
+    if (prefix === ' ' || prefix === '~') {
+      return {
+        ...base,
+        kind: 'context',
+        old_line: oldLine++,
+        new_line: newLine++,
+        is_collapsed_context: prefix === '~',
+      }
     }
     throw new Error(`Строка hunk без префикса: ${JSON.stringify(text)}`)
   })
@@ -23,11 +31,27 @@ export function hunk(oldStart: number, newStart: number, raw: string[], context 
   const tail = context ? ` ${context}` : ''
 
   return {
+    id: '',
     header: `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@${tail}`,
     old_start: oldStart,
     old_count: oldCount,
     new_start: newStart,
     new_count: newCount,
     lines,
+  }
+}
+
+/** Стабильные идентификаторы hunk и строк из пути файла и позиции. */
+export function withIds(file: DiffFile): DiffFile {
+  return {
+    ...file,
+    hunks: file.hunks.map((item, h) => {
+      const hunkId = `${file.path}#${h}`
+      return {
+        ...item,
+        id: hunkId,
+        lines: item.lines.map((line, l) => ({ ...line, id: `${hunkId}:${l}` })),
+      }
+    }),
   }
 }

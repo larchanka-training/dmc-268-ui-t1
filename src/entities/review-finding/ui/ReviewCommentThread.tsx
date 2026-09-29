@@ -3,19 +3,23 @@ import { useId } from 'react'
 
 import { formatDateTime, stripCodeMarks } from '../../../shared/lib'
 import { TextWithCode } from '../../../shared/ui'
-import type { PublishedComment, ReviewFinding } from '../model/schema'
+import type { ReviewFinding } from '../model/schema'
 import { CATEGORY_LABEL } from '../model/labels'
 import { SeverityBadge } from './SeverityBadge'
 
+/** Достаточно даты публикации: сущность `PublishedComment` живёт в соседнем слайсе. */
+type Publication = { published_at: string }
+
 type Props = {
   finding: ReviewFinding
-  publication?: PublishedComment
+  publication?: Publication
   /** Текст строки, к которой привязано замечание: из него строится блок предлагаемого кода. */
   anchorContent?: string
   defaultOpen?: boolean
 }
 
-export function FindingCard({ finding, publication, anchorContent, defaultOpen }: Props) {
+/** Замечание AI у строки диффа: severity, текст, предлагаемый код и статус публикации. */
+export function ReviewCommentThread({ finding, publication, anchorContent, defaultOpen }: Props) {
   const open = defaultOpen ?? (finding.severity === 'critical' || finding.severity === 'high')
   const [headline] = finding.message.split('\n')
 

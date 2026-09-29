@@ -1,15 +1,19 @@
 import type { ReactNode } from 'react'
 
 import {
+  isTerminalStatus,
+  RunStatusBadge,
+  VerdictBadge,
+  type ReviewRun,
+  type RunTrigger,
+} from '../../../entities/review-run'
+import {
   formatDateTime,
   formatDuration,
   formatNumber,
   safeExternalUrl,
   shortSha,
 } from '../../../shared/lib'
-import { isTerminalStatus, type ReviewRun, type RunTrigger } from '../model/schema'
-import { RunStatusBadge } from './RunStatusBadge'
-import { VerdictBadge } from './VerdictBadge'
 
 const TRIGGER_LABEL: Record<RunTrigger, string> = {
   webhook: 'Вебхук',

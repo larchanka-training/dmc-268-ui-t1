@@ -1,14 +1,15 @@
-import { hunk } from '../app/mocks/builders'
+import { hunk, withIds } from '../app/mocks/builders'
 import type { DiffFile, DiffFileSummary } from '../entities/diff'
-import type { PublishedComment, ReviewFinding } from '../entities/review-finding'
+import type { PublishedComment } from '../entities/published-comment'
+import type { ReviewFinding } from '../entities/review-finding'
 import type { ReviewRun } from '../entities/review-run'
+import type { ReviewRunAction } from '../entities/review-run-action'
 
 export { hunk }
 
 export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   return {
     id: 'run-1',
-    merge_request_id: 'mr-1',
     head_sha: 'b3e1f0c9a8d7e6f5',
     base_sha: 'a1c2e3f4b5d6a7c8',
     status: 'completed',
@@ -34,8 +35,9 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   }
 }
 
+/** Идентификаторы hunk и строк выводятся из пути, как в mock-данных приложения. */
 export function makeDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
-  return {
+  return withIds({
     path: 'src/example.ts',
     previous_path: null,
     status: 'modified',
@@ -43,7 +45,7 @@ export function makeDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
     language: 'typescript',
     hunks: [],
     ...overrides,
-  }
+  })
 }
 
 export function makeFileSummary(overrides: Partial<DiffFileSummary> = {}): DiffFileSummary {
@@ -62,7 +64,6 @@ export function makeFileSummary(overrides: Partial<DiffFileSummary> = {}): DiffF
 export function makeFinding(overrides: Partial<ReviewFinding> = {}): ReviewFinding {
   return {
     id: 'finding-1',
-    review_run_id: 'run-1',
     file_path: 'src/example.ts',
     side: 'new',
     old_line: null,
@@ -78,12 +79,26 @@ export function makeFinding(overrides: Partial<ReviewFinding> = {}): ReviewFindi
 
 export function makePublishedComment(overrides: Partial<PublishedComment> = {}): PublishedComment {
   return {
-    id: 'comment-1',
-    review_run_id: 'run-1',
     finding_id: 'finding-1',
     provider_comment_id: '1001',
     kind: 'inline',
     published_at: '2026-09-20T14:07:10Z',
+    ...overrides,
+  }
+}
+
+export function makeAction(overrides: Partial<ReviewRunAction> = {}): ReviewRunAction {
+  return {
+    id: 'action-1',
+    review_run_id: 'run-1',
+    position: 1,
+    tool: 'get_diff',
+    status: 'completed',
+    request_preview: null,
+    response_preview: null,
+    error: null,
+    started_at: '2026-09-20T14:05:10Z',
+    duration_seconds: 2,
     ...overrides,
   }
 }

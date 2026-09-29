@@ -1,11 +1,11 @@
 import { useMemo } from 'react'
 
+import { publicationsByFinding, type PublishedComment } from '../../../entities/published-comment'
 import {
-  FindingCard,
   groupFindingsByLine,
+  ReviewCommentThread,
   SEVERITIES,
   SeverityBadge,
-  type PublishedComment,
   type ReviewFinding,
 } from '../../../entities/review-finding'
 import { isTerminalStatus, type ReviewRun } from '../../../entities/review-run'
@@ -18,10 +18,7 @@ type Props = {
 
 export function ReviewSummary({ run, findings, publishedComments }: Props) {
   const { unanchored } = useMemo(() => groupFindingsByLine(findings), [findings])
-  const publications = useMemo(
-    () => new Map(publishedComments.map((comment) => [comment.finding_id, comment])),
-    [publishedComments],
-  )
+  const publications = useMemo(() => publicationsByFinding(publishedComments), [publishedComments])
   const inlinePublished = publishedComments.filter((comment) => comment.kind === 'inline').length
   const finished = isTerminalStatus(run.status)
   // Отменённый или упавший прогон мог опубликовать часть замечаний — полным его не выдаём.
@@ -76,7 +73,7 @@ export function ReviewSummary({ run, findings, publishedComments }: Props) {
         <div className="mt-4 space-y-2">
           <h3 className="text-sm font-medium text-slate-700">Без привязки к строке</h3>
           {unanchored.map((finding) => (
-            <FindingCard
+            <ReviewCommentThread
               key={finding.id}
               finding={finding}
               publication={publications.get(finding.id)}

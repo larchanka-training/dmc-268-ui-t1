@@ -1,20 +1,21 @@
-import type { DiffFile } from '../../entities/diff'
-import type { PublishedComment, ReviewFinding } from '../../entities/review-finding'
+import type { DiffFile, DiffFileSummary } from '../../entities/diff'
+import type { PublishedComment } from '../../entities/published-comment'
+import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
-import { hunk } from './builders'
+import type { ReviewRunAction } from '../../entities/review-run-action'
+import type { MockReviewState } from '../model/mockReview'
+import { hunk, withIds } from './builders'
 
 /**
- * Предположение фронтенда о контракте: эндпоинтов ревью в бэкенде ещё нет.
- * Сверить с API в тот же день, когда он появится (docs/testing/TEST_PLAN.md).
+ * Mock-данные одного прогона (FRONTEND_ARCHITECTURE.md §8.1). `ReviewRun`, `ReviewFinding` и
+ * `PublishedComment` повторяют доменные значения бэкенда; diff-модели и действия —
+ * предположение фронтенда до browser-контракта (docs/testing/TEST_PLAN.md §3.5).
  */
 
-export const DEMO_RUN_ID = 'demo'
-export const ACTIVE_RUN_ID = 'active'
-export const LEGACY_RUN_ID = 'legacy'
+const RUN_ID = 'run-42'
 
-const baseRun: ReviewRun = {
-  id: DEMO_RUN_ID,
-  merge_request_id: 'mr-42',
+export const run: ReviewRun = {
+  id: RUN_ID,
   head_sha: '9f3c2a17e4b8d6c0a5f1',
   base_sha: '2b7e41d09c3a8f6e1d24',
   status: 'completed',
@@ -41,23 +42,7 @@ const baseRun: ReviewRun = {
   score: 38,
 }
 
-export const runs: Record<string, ReviewRun> = {
-  [DEMO_RUN_ID]: baseRun,
-  [ACTIVE_RUN_ID]: {
-    ...baseRun,
-    id: ACTIVE_RUN_ID,
-    status: 'queued',
-    model: null,
-    tokens_used: null,
-    duration_seconds: null,
-    rejected_findings: 0,
-    verdict: null,
-    score: null,
-  },
-  [LEGACY_RUN_ID]: { ...baseRun, id: LEGACY_RUN_ID, base_sha: null },
-}
-
-export const diffFiles: DiffFile[] = [
+const rawDiffFiles: DiffFile[] = [
   {
     path: 'app/api/review_runs.py',
     previous_path: null,
@@ -74,6 +59,14 @@ export const diffFiles: DiffFile[] = [
         '+from app.services.retry import with_retry',
         ' ',
         ' router = APIRouter(prefix="/review-runs")',
+        '~',
+        '~',
+        '~@router.get("")',
+        '~def list_runs(session=Depends(get_session)):',
+        '~    rows = session.execute("SELECT * FROM review_runs").all()',
+        '~    return [row._asdict() for row in rows]',
+        ' ',
+        ' ',
       ]),
       hunk(
         20,
@@ -141,9 +134,9 @@ export const diffFiles: DiffFile[] = [
         ' from sqlalchemy import create_engine',
         '-from sqlalchemy.orm import Session',
         '+from sqlalchemy.orm import sessionmaker',
-        ' ',
-        ' from app.config import DATABASE_URL',
-        ' ',
+        '~',
+        '~from app.config import DATABASE_URL',
+        '~',
         '-session = Session(create_engine(DATABASE_URL))',
         '+engine = create_engine(DATABASE_URL, pool_pre_ping=True)',
         '+SessionLocal = sessionmaker(engine)',
@@ -204,12 +197,9 @@ export const diffFiles: DiffFile[] = [
   },
 ]
 
-const finding = (fields: Omit<ReviewFinding, 'review_run_id'>): ReviewFinding => ({
-  review_run_id: DEMO_RUN_ID,
-  ...fields,
-})
+const finding = (fields: ReviewFinding): ReviewFinding => fields
 
-export const findings: ReviewFinding[] = [
+const findings: ReviewFinding[] = [
   finding({
     id: 'f-sql-injection',
     file_path: 'app/api/review_runs.py',
@@ -326,18 +316,89 @@ export const findings: ReviewFinding[] = [
 ]
 
 const published = (findingId: string | null, n: number): PublishedComment => ({
-  id: `pc-${n}`,
-  review_run_id: DEMO_RUN_ID,
   finding_id: findingId,
   provider_comment_id: String(2400000 + n),
   kind: findingId === null ? 'summary' : 'inline',
   published_at: '2026-09-26T09:14:12Z',
 })
 
-export const publishedComments: PublishedComment[] = [
+const publishedComments: PublishedComment[] = [
   published(null, 1),
   published('f-sql-injection', 2),
   published('f-auth-removed', 3),
   published('f-missing-404', 4),
   published('f-broad-except', 5),
 ]
+
+const action = (
+  position: number,
+  tool: string,
+  fields: Partial<ReviewRunAction> = {},
+): ReviewRunAction => ({
+  id: `a-${position}`,
+  review_run_id: RUN_ID,
+  position,
+  tool,
+  status: 'completed',
+  request_preview: null,
+  response_preview: null,
+  error: null,
+  started_at: new Date(Date.parse('2026-09-26T09:12:06Z') + position * 9000).toISOString(),
+  duration_seconds: 2,
+  ...fields,
+})
+
+const actions: ReviewRunAction[] = [
+  action(1, 'get_diff', {
+    request_preview: { head_sha: '9f3c2a1', base_sha: '2b7e41d' },
+    response_preview: { files: 6, additions: 43, deletions: 24 },
+  }),
+  action(2, 'get_tree', { response_preview: { entries: 128, truncated: false } }),
+  action(3, 'read_file', {
+    request_preview: { path: 'app/api/review_runs.py', window: '±30' },
+    response_preview: 'окно 1–53, 1 842 байта после редакции секретов',
+  }),
+  action(4, 'read_file', {
+    request_preview: { path: 'app/services/retry.py', window: 'whole_file' },
+    response_preview: 'файл целиком, 412 байт',
+  }),
+  action(5, 'build_context', {
+    response_preview: { tiers: ['diff', 'surrounding', 'whole_file'], tokens: 11840 },
+  }),
+  action(6, 'call_llm', {
+    status: 'failed',
+    duration_seconds: 30,
+    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
+    error: { code: 'LLM_TIMEOUT', message: 'Модель не ответила за 30 с, повтор' },
+  }),
+  action(7, 'call_llm', {
+    duration_seconds: 41,
+    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
+    response_preview: { findings: 11, rejected_by_validate_anchor: 2 },
+  }),
+  action(8, 'post_review', { response_preview: { inline: 4, summary: 1 } }),
+]
+
+const diffFiles = rawDiffFiles.map(withIds)
+
+const countLines = (file: DiffFile, kind: 'added' | 'removed') =>
+  file.hunks.reduce((sum, item) => sum + item.lines.filter((line) => line.kind === kind).length, 0)
+
+const summaries: DiffFileSummary[] = diffFiles.map((file) => ({
+  path: file.path,
+  previous_path: file.previous_path,
+  status: file.status,
+  is_binary: file.is_binary,
+  additions: countLines(file, 'added'),
+  deletions: countLines(file, 'removed'),
+  findings_count: findings.filter((item) => item.file_path === file.path).length,
+}))
+
+export const mockReviewState: MockReviewState = {
+  run,
+  files: summaries,
+  diffs_by_path: Object.fromEntries(diffFiles.map((file) => [file.path, file])),
+  findings,
+  published_comments: publishedComments,
+  actions,
+}

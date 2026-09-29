@@ -1,15 +1,21 @@
 import { z } from 'zod'
 
+/** UI mock-модели диффа (FRONTEND_ARCHITECTURE.md §8.2): публичного browser-контракта ещё нет. */
+
 const FileStatusSchema = z.enum(['added', 'modified', 'deleted', 'renamed'])
 
 export const DiffLineSchema = z.object({
+  id: z.string(),
   kind: z.enum(['added', 'removed', 'context']),
   old_line: z.number().int().nullable(),
   new_line: z.number().int().nullable(),
   content: z.string(),
+  /** Контекстная строка, которая по умолчанию свёрнута и раскрывается в `DiffHunk`. */
+  is_collapsed_context: z.boolean(),
 })
 
 export const DiffHunkSchema = z.object({
+  id: z.string(),
   header: z.string(),
   old_start: z.number().int(),
   old_count: z.number().int(),
