@@ -2,6 +2,30 @@
 
 Фронтенд на Vite + React + TypeScript для DMC-268 Team 1.
 
+## Правила разработки и агенты
+
+Критичный минимум — в [`AGENTS.md`](AGENTS.md). Детали лежат в `.agents/`:
+
+| Что                                                | Где                                                          |
+| -------------------------------------------------- | ------------------------------------------------------------ |
+| Правила стека: команды, слои FSD, состояние, тесты | [`.agents/rules/frontend.md`](.agents/rules/frontend.md)     |
+| Ветки, задачи, пул-реквесты, работа с замечаниями  | [`.agents/rules/git-and-pr.md`](.agents/rules/git-and-pr.md) |
+| Скиллы: TDD, ревью, пул-реквест                    | [`.agents/skills/`](.agents/skills/)                         |
+| Шаблоны кода и тестов                              | [`.agents/templates/frontend/`](.agents/templates/frontend/) |
+
+Свой инструмент каждый подключает локально — каталоги инструментов не коммитятся:
+
+```bash
+ln -s ../.agents/skills .opencode/skills   # или .claude/, .cursor/, .codex/
+openspec init --tools <tool>               # то же самое, если инструмент поддержан
+ln -s AGENTS.md CLAUDE.md                  # Claude Code читает CLAUDE.md
+```
+
+Симлинк, а не копия: копия разойдётся с оригиналом на первой же правке. Antigravity исключение —
+он читает `.agents/skills` сам.
+
+Системные промпты ревью-агента лежат в бэкендовом репозитории, `prompts/review/`.
+
 ## Требования
 
 - **Node.js 22 LTS** — версия зафиксирована в `.nvmrc` и в поле `engines` файла `package.json`.

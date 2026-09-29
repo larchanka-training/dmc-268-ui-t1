@@ -34,3 +34,13 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
+
+# Общий источник правил, скиллов и шаблонов — `.agents/`, он коммитится.
+# Каталоги конкретных инструментов у каждого свои: симлинк на `.agents/skills`
+# заводится локально, вручную или через `openspec init --tools <tool>`.
+.opencode/
+.claude/
+.cursor/
+.codex/
+.gemini/
+.windsurf/
