@@ -26,3 +26,8 @@ Authenticated users SHALL see a shell with sidebar navigation, header (user, pro
 ### Requirement: Russian UI copy
 
 All user-visible strings in the cabinet SHALL be in Russian.
+
+#### Scenario: Login screen language
+
+- **WHEN** an anonymous user opens `/login`
+- **THEN** primary actions and descriptions SHALL be displayed in Russian
