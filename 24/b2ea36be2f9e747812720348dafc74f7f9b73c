@@ -1,0 +1,14 @@
+openspec/changes/cabinet-mock-oauth/specs/cabinet-shell/spec.md
+  h_45ef188c4fff4f 29-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "24b2ea36be2f9e747812720348dafc74f7f9b73c",
+  "prompts": {},
+  "humans": {
+    "h_45ef188c4fff4f": {
+      "author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
