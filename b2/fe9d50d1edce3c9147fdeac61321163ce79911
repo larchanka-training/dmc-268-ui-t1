@@ -1,0 +1,16 @@
+openspec/changes/cabinet-mock-oauth/proposal.md
+  h_45ef188c4fff4f 35
+openspec/changes/cabinet-mock-oauth/tasks.md
+  h_45ef188c4fff4f 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b2fe9d50d1edce3c9147fdeac61321163ce79911",
+  "prompts": {},
+  "humans": {
+    "h_45ef188c4fff4f": {
+      "author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
