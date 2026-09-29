@@ -19,14 +19,12 @@ export function AppHeader() {
 
   return (
     <Header
+      className="app-shell-header-bar app-main-header"
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
+        height: 'var(--app-shell-header-height)',
         padding: '0 24px',
-        borderBottom: '1px solid var(--app-border)',
-        height: 56,
-        lineHeight: '56px',
+        margin: 0,
+        background: 'transparent',
       }}
     >
       <Typography.Text type="secondary" style={{ fontSize: 13 }}>

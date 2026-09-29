@@ -23,6 +23,7 @@ body {
 
 :root,
 [data-theme='light'] {
+  --app-shell-header-height: 56px;
   --app-surface: #fff;
   --app-border: #d0d7de;
   --app-text: #1f2328;
@@ -38,10 +39,38 @@ body {
   --app-accent-subtle: #051d4d;
 }
 
+.app-shell-header-bar {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--app-shell-header-height);
+  min-height: var(--app-shell-header-height);
+  border-bottom: 1px solid var(--app-border);
+  flex-shrink: 0;
+}
+
 .app-sidebar-brand {
   color: var(--app-text);
+  padding: 0 20px;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .app-sidebar-brand .anticon {
   color: var(--app-text);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.app-main-header {
+  justify-content: space-between;
+  padding: 0 24px;
+  line-height: 1;
+}
+
+.app-main-header .ant-typography {
+  line-height: 1;
+  font-size: 13px;
 }

@@ -26,18 +26,7 @@ export function AppSidebar() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <div
-        className="app-sidebar-brand"
-        style={{
-          padding: '16px 20px',
-          fontWeight: 600,
-          fontSize: 14,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          borderBottom: '1px solid var(--app-border)',
-        }}
-      >
+      <div className="app-shell-header-bar app-sidebar-brand">
         <GithubOutlined aria-hidden />
         DMC Console
       </div>
