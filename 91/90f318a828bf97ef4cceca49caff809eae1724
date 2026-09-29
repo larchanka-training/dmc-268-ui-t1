@@ -1,0 +1,29 @@
+openspec/changes/cabinet-mock-oauth/tasks.md
+  s_370e0e7bd1fd7e::t_5ada076d4d28f4 8-12,16-17,21-23,27-29,33
+package.json
+  s_370e0e7bd1fd7e::t_f22b168ade6136 43
+pnpm-lock.yaml
+  s_370e0e7bd1fd7e::t_2b352fa4f0a017 115-117,995-1002,3224-3230
+src/entities/session/index.ts
+  s_370e0e7bd1fd7e::t_6c42dc6a19dbf9 1-8
+src/features/auth/lib/oauth.test.ts
+  s_370e0e7bd1fd7e::t_b7177bbf3a1463 1-16
+src/pages/ConnectRepositoryPage.tsx
+  s_370e0e7bd1fd7e::t_8f41f94e697fd3 4,6-7,11-12,23,62,79-83,95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "9190f318a828bf97ef4cceca49caff809eae1724",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
