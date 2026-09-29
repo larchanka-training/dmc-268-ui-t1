@@ -39,8 +39,14 @@
     ]
   },
   "dependencies": {
+    "@git-diff-view/react": "^0.1.7",
+    "@headlessui/react": "^2.2.10",
+    "@tanstack/react-query": "^5.104.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "react-router": "^8.4.0",
+    "zod": "^4.6.5",
+    "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

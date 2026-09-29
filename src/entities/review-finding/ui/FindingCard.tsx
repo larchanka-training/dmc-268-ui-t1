@@ -1,0 +1,105 @@
+import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
+import { useId } from 'react'
+
+import { formatDateTime, stripCodeMarks } from '../../../shared/lib'
+import { TextWithCode } from '../../../shared/ui'
+import type { PublishedComment, ReviewFinding } from '../model/schema'
+import { CATEGORY_LABEL } from '../model/labels'
+import { SeverityBadge } from './SeverityBadge'
+
+type Props = {
+  finding: ReviewFinding
+  publication?: PublishedComment
+  /** Текст строки, к которой привязано замечание: из него строится блок предлагаемого кода. */
+  anchorContent?: string
+  defaultOpen?: boolean
+}
+
+export function FindingCard({ finding, publication, anchorContent, defaultOpen }: Props) {
+  const open = defaultOpen ?? (finding.severity === 'critical' || finding.severity === 'high')
+  const [headline] = finding.message.split('\n')
+
+  return (
+    <Disclosure
+      as="article"
+      defaultOpen={open}
+      aria-label={`Замечание: ${stripCodeMarks(headline)}`}
+      className="rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
+    >
+      <DisclosureButton className="group flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50">
+        <span aria-hidden className="text-slate-400 transition group-data-open:rotate-90">
+          ▸
+        </span>
+        <SeverityBadge severity={finding.severity} />
+        <span className="text-xs text-slate-500">{CATEGORY_LABEL[finding.category]}</span>
+        <span className="min-w-0 flex-1 truncate font-medium text-slate-900">
+          <TextWithCode text={headline} />
+        </span>
+      </DisclosureButton>
+
+      <DisclosurePanel className="space-y-3 border-t border-slate-100 px-3 py-3">
+        <p className="whitespace-pre-line text-slate-800">
+          <TextWithCode text={finding.message} />
+        </p>
+
+        {finding.suggestion !== null && (
+          <SuggestionBlock suggestion={finding.suggestion} anchorContent={anchorContent} />
+        )}
+
+        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+          <span>
+            {publication
+              ? `Опубликовано ${formatDateTime(publication.published_at)}`
+              : 'Не опубликовано у провайдера'}
+          </span>
+          {finding.confidence !== null && (
+            <span>Уверенность {Math.round(finding.confidence * 100)}%</span>
+          )}
+        </footer>
+      </DisclosurePanel>
+    </Disclosure>
+  )
+}
+
+function SuggestionBlock({
+  suggestion,
+  anchorContent,
+}: {
+  suggestion: string
+  anchorContent?: string
+}) {
+  const captionId = useId()
+  return (
+    <figure
+      aria-labelledby={captionId}
+      className="overflow-hidden rounded-md border border-slate-200"
+    >
+      <figcaption
+        id={captionId}
+        className="bg-slate-50 px-3 py-1 text-xs font-medium text-slate-600"
+      >
+        Предлагаемое исправление
+      </figcaption>
+      <pre className="font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+        {anchorContent !== undefined && (
+          <code className="block bg-red-50 px-3 text-red-900">
+            <span aria-hidden className="select-none pr-2">
+              -
+            </span>
+            <span className="sr-only">Было: </span>
+            {anchorContent}
+          </code>
+        )}
+        {suggestion.split('\n').map((line, index) => (
+          <code key={index} className="block bg-emerald-50 px-3 text-emerald-900">
+            <span aria-hidden className="select-none pr-2">
+              +
+            </span>
+            {index === 0 && <span className="sr-only">Стало: </span>}
+            {line}
+          </code>
+        ))}
+      </pre>
+    </figure>
+  )
+}
