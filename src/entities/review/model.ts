@@ -3,7 +3,12 @@ import { z } from 'zod'
 export const severitySchema = z.enum(['low', 'medium', 'high', 'critical'])
 export type Severity = z.infer<typeof severitySchema>
 export const reviewSchema = z.object({
-  run: z.object({ id: z.string(), status: z.string(), headSha: z.string() }),
+  run: z.object({
+    id: z.string(),
+    mergeRequestId: z.string(),
+    status: z.string(),
+    headSha: z.string(),
+  }),
   files: z.array(z.object({ path: z.string(), additions: z.number(), deletions: z.number() })),
   diffsByPath: z.record(
     z.string(),
@@ -23,6 +28,7 @@ export const reviewSchema = z.object({
   findings: z.array(
     z.object({
       id: z.string(),
+      reviewRunId: z.string(),
       filePath: z.string(),
       side: z.enum(['old', 'new']),
       oldLine: z.number().nullable(),
@@ -31,9 +37,20 @@ export const reviewSchema = z.object({
       message: z.string(),
     }),
   ),
+  publishedComments: z.array(
+    z.object({
+      id: z.string(),
+      reviewRunId: z.string(),
+      findingId: z.string().nullable(),
+      providerCommentId: z.string(),
+      kind: z.enum(['summary', 'inline']),
+      publishedAt: z.string(),
+    }),
+  ),
   actions: z.array(
     z.object({
       id: z.string(),
+      reviewRunId: z.string(),
       tool: z.string(),
       status: z.string(),
       durationSeconds: z.number(),

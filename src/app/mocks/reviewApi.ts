@@ -1,7 +1,12 @@
 import { parseReview, type ReviewState } from '../../entities/review/model'
 
 const payload: unknown = {
-  run: { id: 'run-42', status: 'completed', headSha: 'ab12cd3' },
+  run: {
+    id: 'run-42',
+    mergeRequestId: 'mr-17',
+    status: 'completed',
+    headSha: 'ab12cd3',
+  },
   files: [
     { path: 'src/auth.ts', additions: 2, deletions: 1 },
     { path: 'src/limits.ts', additions: 1, deletions: 1 },
@@ -48,6 +53,7 @@ const payload: unknown = {
   findings: [
     {
       id: 'f1',
+      reviewRunId: 'run-42',
       filePath: 'src/auth.ts',
       side: 'new',
       oldLine: null,
@@ -57,6 +63,7 @@ const payload: unknown = {
     },
     {
       id: 'f2',
+      reviewRunId: 'run-42',
       filePath: 'src/auth.ts',
       side: 'new',
       oldLine: null,
@@ -65,9 +72,28 @@ const payload: unknown = {
       message: 'Это замечание не должно появиться у context-строки.',
     },
   ],
+  publishedComments: [
+    {
+      id: 'published-1',
+      reviewRunId: 'run-42',
+      findingId: 'f1',
+      providerCommentId: 'github-comment-42',
+      kind: 'inline',
+      publishedAt: '2026-09-29T18:00:00Z',
+    },
+    {
+      id: 'published-2',
+      reviewRunId: 'run-42',
+      findingId: null,
+      providerCommentId: 'github-comment-43',
+      kind: 'summary',
+      publishedAt: '2026-09-29T18:00:01Z',
+    },
+  ],
   actions: [
     {
       id: 'action-1',
+      reviewRunId: 'run-42',
       tool: 'build_context',
       status: 'completed',
       durationSeconds: 2,
@@ -75,6 +101,7 @@ const payload: unknown = {
     },
     {
       id: 'action-2',
+      reviewRunId: 'run-42',
       tool: 'analyse',
       status: 'completed',
       durationSeconds: 5,

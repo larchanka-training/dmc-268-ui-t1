@@ -262,13 +262,15 @@ type MockReviewState = {
 ### 8.2. Модели компонентов
 
 `ReviewRun` повторяет поля и допустимые статусы merged backend PR #5, нужные
-для шапки и summary. Во frontend UI-модель называется `ReviewFinding`, а
+для шапки и summary, включая связь с запросом на изменения через
+`merge_request_id`. Во frontend UI-модель называется `ReviewFinding`, а
 соответствующая доменная сущность backend — `Finding`. Diff-модели ниже — UI
 mock-модели: PR #5 не определяет их как публичный browser-контракт.
 
 ```ts
 type ReviewRun = {
   id: string
+  merge_request_id: string
   head_sha: string
   status:
     | 'queued'
@@ -330,6 +332,7 @@ type DiffLine = {
 
 type ReviewFinding = {
   id: string
+  review_run_id: string
   file_path: string
   side: 'old' | 'new'
   old_line: number | null
@@ -342,6 +345,8 @@ type ReviewFinding = {
 }
 
 type PublishedComment = {
+  id: string
+  review_run_id: string
   finding_id: string | null
   provider_comment_id: string
   kind: 'summary' | 'inline'
