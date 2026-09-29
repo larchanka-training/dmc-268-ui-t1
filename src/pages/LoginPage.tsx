@@ -1,8 +1,7 @@
 import { GithubOutlined, GitlabOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Space, Typography } from 'antd'
 import { Navigate, useLocation } from 'react-router-dom'
-import { startOAuthLogin } from '@/auth/oauth'
-import { useAuth } from '@/auth/useAuth'
+import { startOAuthLogin, useAuth } from '@/features/auth'
 
 export function LoginPage() {
   const { isAuthenticated } = useAuth()

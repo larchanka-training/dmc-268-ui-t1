@@ -1,16 +1,11 @@
 import { Link } from 'react-router-dom'
 import { Button, Card, Col, Row, Statistic, Typography } from 'antd'
-import { useEffect, useState } from 'react'
-import { mockFetchConnectedRepositories } from '@/api/mock/repositoriesApi'
-import { useAuth } from '@/auth/useAuth'
+import { useAuth } from '@/features/auth'
+import { useConnectedRepositories } from '@/features/repository'
 
 export function OverviewPage() {
   const { user } = useAuth()
-  const [connectedCount, setConnectedCount] = useState(0)
-
-  useEffect(() => {
-    mockFetchConnectedRepositories().then((repos) => setConnectedCount(repos.length))
-  }, [])
+  const { data: repos = [] } = useConnectedRepositories()
 
   return (
     <div>
@@ -23,7 +18,7 @@ export function OverviewPage() {
       <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
         <Col xs={24} sm={12} md={8}>
           <Card className="app-content-card">
-            <Statistic title="Подключённых репозиториев" value={connectedCount} />
+            <Statistic title="Подключённых репозиториев" value={repos.length} />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={8}>

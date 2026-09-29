@@ -1,8 +1,7 @@
 import { Alert, Spin, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useAuth } from '@/auth/useAuth'
-import { completeOAuthCallback } from '@/auth/oauth'
+import { completeOAuthCallback, useAuth } from '@/features/auth'
 
 export function OAuthCallbackPage() {
   const [searchParams] = useSearchParams()

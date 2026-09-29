@@ -1,11 +1,10 @@
 import { Link } from 'react-router-dom'
-import { Button, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useEffect, useState } from 'react'
-import { mockFetchConnectedRepositories } from '@/api/mock/repositoriesApi'
-import { repositoryStatusLabel } from '@/i18n/repository'
-import type { ConnectedRepository } from '@/types/repository'
 import dayjs from 'dayjs'
+import type { ConnectedRepository } from '@/entities/repository'
+import { useConnectedRepositories } from '@/features/repository'
+import { repositoryStatusLabel } from '@/shared/lib/repositoryStatus'
 
 const statusColor: Record<ConnectedRepository['status'], string> = {
   connected: 'success',
@@ -14,31 +13,7 @@ const statusColor: Record<ConnectedRepository['status'], string> = {
 }
 
 export function RepositoriesPage() {
-  const [repos, setRepos] = useState<ConnectedRepository[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    let cancelled = false
-    mockFetchConnectedRepositories()
-      .then((data) => {
-        if (!cancelled) {
-          setRepos(data)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          message.error('Не удалось загрузить репозитории')
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const { data: repos = [], isLoading, isError } = useConnectedRepositories()
 
   const columns: ColumnsType<ConnectedRepository> = [
     {
@@ -97,10 +72,15 @@ export function RepositoriesPage() {
           <Button type="primary">Подключить репозиторий</Button>
         </Link>
       </div>
+      {isError && (
+        <Typography.Text type="danger" style={{ display: 'block', marginBottom: 12 }}>
+          Не удалось загрузить репозитории
+        </Typography.Text>
+      )}
       <div className="app-content-card">
         <Table
           rowKey="id"
-          loading={loading}
+          loading={isLoading}
           columns={columns}
           dataSource={repos}
           pagination={{ pageSize: 10 }}

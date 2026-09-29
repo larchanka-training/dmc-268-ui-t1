@@ -1,26 +1,7 @@
-import { ConfigProvider } from 'antd'
-import ruRU from 'antd/locale/ru_RU'
-import { AppRouter } from '@/routes/AppRouter'
-import { AuthProvider } from '@/auth/AuthContext'
-import { ThemeProvider, useAppTheme } from '@/theme/ThemeContext'
-
-function ThemedApp() {
-  const { antdTheme } = useAppTheme()
-  return (
-    <ConfigProvider theme={antdTheme} locale={ruRU}>
-      <AuthProvider>
-        <AppRouter />
-      </AuthProvider>
-    </ConfigProvider>
-  )
-}
+import { AppProviders } from '@/app/providers/AppProviders'
 
 export function App() {
-  return (
-    <ThemeProvider>
-      <ThemedApp />
-    </ThemeProvider>
-  )
+  return <AppProviders />
 }
 
 export default App
