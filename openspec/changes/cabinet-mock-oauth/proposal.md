@@ -32,4 +32,4 @@
 - Зависимости: `antd`, `@ant-design/icons`, `react-router-dom`, `dayjs`, `@tanstack/react-query`.
 - Структура `src/`: переезд с плоских `api/`, `auth/`, `routes/` на FSD-слои.
 - `README.md`: раздел кабинета и переменные `VITE_*`.
-- PR #16: после merge — `Closes #<номер задачи>` (номер issue уточнить в трекере команды).
+- Задача: [#17](https://github.com/larchanka-training/dmc-268-ui-t1/issues/17); в PR — `Closes #17`.

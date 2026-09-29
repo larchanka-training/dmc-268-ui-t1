@@ -1,7 +1,7 @@
 ## 1. OpenSpec и ветка
 
 - [x] 1.1 Создать change `cabinet-mock-oauth` (proposal, design, specs, tasks)
-- [ ] 1.2 В PR указать `Closes #<issue>` по задаче команды
+- [x] 1.2 В PR указать `Closes #17` ([задача](https://github.com/larchanka-training/dmc-268-ui-t1/issues/17))
 
 ## 2. FSD-структура
 
