@@ -1,5 +1,9 @@
-import type { AuthSession, OAuthProvider } from '@/entities/session'
-import { buildMockAuthorizeUrl, mockExchangeCode } from '@/shared/api/mock/authApi'
+import {
+  buildMockAuthorizeUrl,
+  mockExchangeCode,
+  type AuthSession,
+  type OAuthProvider,
+} from '@/entities/session'
 import { OAUTH_REDIRECT_URI, USE_MOCK_API } from '@/shared/config/env'
 
 const OAUTH_STATE_KEY = 'dmc268.oauth.state'
@@ -49,17 +53,17 @@ export async function completeOAuthCallback(
 
   inFlightCallbackKey = callbackKey
   inFlightCallback = (async () => {
-    const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY)
-    const provider = (sessionStorage.getItem(OAUTH_PROVIDER_KEY) ?? 'github') as OAuthProvider
-
-    if (!code) {
-      throw new Error('Код авторизации не передан')
-    }
-    if (!state || !expectedState || state !== expectedState) {
-      throw new Error('Неверный параметр OAuth state')
-    }
-
     try {
+      const expectedState = sessionStorage.getItem(OAUTH_STATE_KEY)
+      const provider = (sessionStorage.getItem(OAUTH_PROVIDER_KEY) ?? 'github') as OAuthProvider
+
+      if (!code) {
+        throw new Error('Код авторизации не передан')
+      }
+      if (!state || !expectedState || state !== expectedState) {
+        throw new Error('Неверный параметр OAuth state')
+      }
+
       let session: AuthSession
       if (USE_MOCK_API) {
         session = await mockExchangeCode(code, provider)

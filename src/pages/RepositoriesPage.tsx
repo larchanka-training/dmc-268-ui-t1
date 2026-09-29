@@ -2,9 +2,8 @@ import { Link } from 'react-router-dom'
 import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import type { ConnectedRepository } from '@/entities/repository'
+import { repositoryStatusLabel, type ConnectedRepository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
-import { repositoryStatusLabel } from '@/shared/lib/repositoryStatus'
 
 const statusColor: Record<ConnectedRepository['status'], string> = {
   connected: 'success',

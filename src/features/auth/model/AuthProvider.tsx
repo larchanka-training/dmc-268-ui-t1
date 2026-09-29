@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { clearSession, loadSession, saveSession, type AuthSession } from '@/entities/session'
+import {
+  clearSession,
+  loadSession,
+  mockRefreshTokens,
+  saveSession,
+  type AuthSession,
+} from '@/entities/session'
 import { AuthContext, type AuthContextValue } from '@/features/auth/model/auth-context'
-import { mockRefreshTokens } from '@/shared/api/mock/authApi'
 import { USE_MOCK_API } from '@/shared/config/env'
 
 const REFRESH_MARGIN_MS = 15_000
@@ -72,14 +77,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     scheduleRefreshRef.current = scheduleRefresh
   }, [scheduleRefresh])
 
-  const loginWithSession = useCallback(
-    (next: AuthSession) => {
-      setSession(next)
-      saveSession(next)
-      scheduleRefresh(next)
-    },
-    [scheduleRefresh],
-  )
+  const loginWithSession = useCallback((next: AuthSession) => {
+    setSession(next)
+    saveSession(next)
+  }, [])
 
   const logout = useCallback(() => {
     clearRefreshTimer()
@@ -88,12 +89,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [clearRefreshTimer])
 
   useEffect(() => {
-    const stored = readInitialSession()
-    if (stored) {
-      scheduleRefreshRef.current(stored)
+    if (session) {
+      scheduleRefreshRef.current(session)
     }
     return clearRefreshTimer
-  }, [clearRefreshTimer])
+  }, [clearRefreshTimer, session])
 
   const value = useMemo<AuthContextValue>(
     () => ({

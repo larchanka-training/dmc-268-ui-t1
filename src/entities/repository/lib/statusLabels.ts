@@ -1,4 +1,4 @@
-import type { RepositoryConnectionStatus } from '@/entities/repository'
+import type { RepositoryConnectionStatus } from '@/entities/repository/model/types'
 
 export const repositoryStatusLabel: Record<RepositoryConnectionStatus, string> = {
   connected: 'Подключён',

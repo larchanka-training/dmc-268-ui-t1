@@ -12,5 +12,7 @@ describe('completeOAuthCallback', () => {
     await expect(completeOAuthCallback('mock_github_auth_code', 'wrong')).rejects.toThrow(
       'Неверный параметр OAuth state',
     )
+    expect(sessionStorage.getItem('dmc268.oauth.state')).toBeNull()
+    expect(sessionStorage.getItem('dmc268.oauth.provider')).toBeNull()
   })
 })

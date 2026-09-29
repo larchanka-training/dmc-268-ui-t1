@@ -1,22 +1,4 @@
-import type { AuthUser } from '@/entities/session'
 import type { AvailableRepository, ConnectedRepository } from '@/entities/repository/model/types'
-
-export const MOCK_USERS: Record<string, AuthUser> = {
-  github: {
-    id: 'gh-1001',
-    login: 'dev-user',
-    name: 'Тестовый пользователь',
-    avatarUrl: 'https://avatars.githubusercontent.com/u/9919?s=64&v=4',
-    provider: 'github',
-  },
-  gitlab: {
-    id: 'gl-2001',
-    login: 'dev-user',
-    name: 'Тестовый пользователь',
-    avatarUrl: 'https://gitlab.com/uploads/-/system/user/avatar/1/avatar.png',
-    provider: 'gitlab',
-  },
-}
 
 let connectedRepos: ConnectedRepository[] = [
   {

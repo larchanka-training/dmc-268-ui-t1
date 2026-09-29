@@ -1,5 +1,26 @@
-import { MOCK_USERS } from '@/entities/repository/api/mockStore'
-import type { AuthSession, AuthTokens, OAuthProvider } from '@/entities/session'
+import type {
+  AuthSession,
+  AuthTokens,
+  AuthUser,
+  OAuthProvider,
+} from '@/entities/session/model/types'
+
+const MOCK_USERS: Record<OAuthProvider, AuthUser> = {
+  github: {
+    id: 'gh-1001',
+    login: 'dev-user',
+    name: 'Тестовый пользователь',
+    avatarUrl: 'https://avatars.githubusercontent.com/u/9919?s=64&v=4',
+    provider: 'github',
+  },
+  gitlab: {
+    id: 'gl-2001',
+    login: 'dev-user',
+    name: 'Тестовый пользователь',
+    avatarUrl: 'https://gitlab.com/uploads/-/system/user/avatar/1/avatar.png',
+    provider: 'gitlab',
+  },
+}
 
 const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms))
 
