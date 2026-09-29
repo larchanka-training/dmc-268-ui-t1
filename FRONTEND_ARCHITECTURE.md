@@ -37,14 +37,15 @@ worker. В merged backend PR #5 этой таблицы и её API ещё не�
 - Компоненты diff пригодны для mock-данных сейчас и реального adapter позднее.
 - Diff большого PR не рендерится целиком: viewer показывает только выбранный файл.
 - Finding появляется только у корректной строки и стороны diff.
-- Unified и side-by-side режимы используют один набор данных.
+- Diff Viewer отображает строки в unified-порядке: удалённые, добавленные и context-строки идут одним потоком.
 - Свёрнутый контекст раскрывается без отдельного компонента или нового формата данных.
 - Технический trace не показывает полный исходный код, prompt или raw LLM-response по умолчанию.
 
 ### 1.3. Вне scope
 
-Страницы и маршруты, HTTP API, polling, GitHub/GitLab integration, авторизация,
-backend worker, очередь, LLM, хранение diff, `context_payloads`,
+Маршрутизация и страницы за пределами технического просмотра одного прогона,
+HTTP API, polling, GitHub/GitLab integration, авторизация, backend worker,
+очередь, LLM, хранение diff, `context_payloads`,
 deployment и инфраструктура.
 
 ## 2. Ограничения
@@ -86,12 +87,14 @@ Frontend не строит diff из Git-репозитория и не публ
 ```mermaid
 flowchart TB
   app[app\nпровайдеры, mock setup, стили]
+  pages[pages\nтехническая страница прогона]
   widgets[widgets\nкрупные UI-области]
   features[features\nдействия пользователя]
   entities[entities\nмодели diff и findings]
   shared[shared\nUI-примитивы и adapter interface]
 
-  app --> widgets
+  app --> pages
+  pages --> widgets
   widgets --> features
   widgets --> entities
   features --> entities
@@ -122,6 +125,8 @@ src/
 │   ├── providers/                 # QueryClient, ErrorBoundary
 │   ├── mocks/                     # данные и mock adapter
 │   └── styles/
+├── pages/
+│   └── review-run/                # ReviewRunPage без привязки к маршруту
 ├── widgets/
 │   ├── review-run-view/           # RunHeader + ReviewSummary
 │   ├── review-workspace/          # FileList + DiffViewer
@@ -143,28 +148,30 @@ src/
 ### 5.2. Иерархия компонентов
 
 ```text
-ReviewRunView
-├── RunHeader
-├── ReviewSummary
-├── ReviewWorkspace
-│   ├── FileList
-│   └── DiffViewer
-│       └── DiffHunk
-│           └── DiffLine
-│               └── ReviewCommentThread
-└── RunInspector
-    ├── ActionTree
-    └── ActionDetails
+ReviewRunPage
+└── ReviewRunView
+    ├── RunHeader
+    ├── ReviewSummary
+    ├── ReviewWorkspace
+    │   ├── FileList
+    │   └── DiffViewer
+    │       └── DiffHunk
+    │           └── DiffLine
+    │               └── ReviewCommentThread
+    └── RunInspector
+        ├── ActionTree
+        └── ActionDetails
 ```
 
 | Компонент             | Зачем нужен                                                | Как работает                                                                                                                                          |
 | --------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ReviewRunView`       | Собирает экран одного прогона.                             | Получает типизированные mock-модели и передаёт их дочерним виджетам. Не отвечает за маршрут или загрузку из HTTP.                                     |
+| `ReviewRunPage`       | Точка входа слоя `pages`.                                  | Собирает `ReviewRunView` для технического просмотра одного mock-прогона; не определяет маршрут и не загружает HTTP-данные.                            |
+| `ReviewRunView`       | Собирает экран одного прогона.                             | Получает типизированные mock-модели и передаёт их дочерним виджетам.                                                                                  |
 | `RunHeader`           | Показывает контекст результата.                            | Отображает статус, `head_sha`, время, модель, длительность и безопасную причину ошибки из `ReviewRun`.                                                |
 | `ReviewSummary`       | Даёт краткий итог до чтения кода.                          | Считает findings по severity, отображает число отклонённых и статусы публикации.                                                                      |
-| `ReviewWorkspace`     | Соединяет список файлов, viewer и findings.                | Читает `selected_file`, фильтры и `view_mode` из Zustand; передаёт anchor-привязанные findings в `DiffViewer`, не храня копию diff.                   |
+| `ReviewWorkspace`     | Соединяет список файлов, viewer и findings.                | Читает `selected_file` и фильтры из Zustand; передаёт anchor-привязанные findings в `DiffViewer`, не храня копию diff.                                |
 | `FileList`            | Позволяет перейти к изменённому файлу.                     | Показывает путь, статус, additions/deletions и число findings; меняет `selected_file`.                                                                |
-| `DiffViewer`          | Показывает код, который пользователь сейчас рассматривает. | Рендерит только один `DiffFile`; в unified режиме использует исходный порядок строк, в side-by-side раскладывает строки hunk в две колонки.           |
+| `DiffViewer`          | Показывает код, который пользователь сейчас рассматривает. | Рендерит только один `DiffFile` в unified-режиме: removed, added и context-строки идут в исходном порядке одного hunk.                                |
 | `DiffHunk`            | Группирует непрерывное изменение.                          | Показывает заголовок `@@`, строки и свёрнутый context. Раскрытие context — часть этого компонента, отдельный `ContextExpander` не создаётся.          |
 | `DiffLine`            | Делает строку diff доступной и читаемой.                   | Отображает old/new номер, added/removed/context стиль и передаёт совпавшие findings дальше.                                                           |
 | `ReviewCommentThread` | Объясняет замечание ревьюера рядом с кодом.                | Получает finding от `DiffLine`, совпавший по `file_path`, `side` и номеру строки; показывает текст, severity, suggestion и статус `PublishedComment`. |
@@ -176,10 +183,17 @@ ReviewRunView
 если backend-команде ещё нужно согласовать реальный источник diff. Mock adapter
 позволяет реализовать и проверить UI до этого решения.
 
-Anchor-привязанные findings показываются внутри `ReviewWorkspace`: `DiffLine`
-находит их по `file_path`, `side` и номеру строки и рендерит
-`ReviewCommentThread`. Finding без корректного anchor не вставляется в код и
-остаётся в `ReviewSummary` как отдельный результат ревью.
+Anchor-привязанные `ReviewFinding` показываются внутри `ReviewWorkspace`:
+`DiffLine` находит их по `file_path`, `side` и номеру строки и рендерит
+`ReviewCommentThread`. Привязка допустима только к изменённой строке своей
+стороны: `added` использует `side: 'new'` и `new_line`, а `removed` —
+`side: 'old'` и `old_line`. Context-строка не может быть anchor. Бэкенд не
+сохраняет finding с невалидным anchor; `ReviewSummary` показывает только
+счётчик `rejected_findings` таких отклонений.
+
+В текущем scope поддерживается только unified-режим. Side-by-side требует
+отдельного правила выравнивания удалённых и добавленных строк и не входит в
+Issue #5; переключатель режима и `view_mode` пока не создаются.
 
 `RunInspector` включён не как произвольное расширение scope: его показывали в
 Sprint 2, а backend согласовал будущие `review_run_actions`. Он проектируется
@@ -198,10 +212,10 @@ ZIP — binary-файл: показываются имя, статус и соо
 2. `FileList` устанавливает `selected_file`.
 3. `DiffViewer` выбирает соответствующий `DiffFile` и отображает его hunks.
 4. `DiffHunk` показывает скрытые context-строки по состоянию `expanded_context_line_ids`.
-5. `DiffLine` сопоставляет строку с finding по `file_path`, `side` и номеру строки.
-6. Изменение unified / side-by-side меняет только представление, а не исходные данные.
-7. `ActionTree` сортирует действия по `position`; пользователь выбирает одно действие.
-8. `ActionDetails` показывает только preview и ошибку выбранного действия.
+5. `DiffLine` сопоставляет `ReviewFinding` с изменённой строкой по `file_path`,
+   `side` и номеру своей стороны; context-строки не получают anchor.
+6. `ActionTree` сортирует действия по `position`; пользователь выбирает одно действие.
+7. `ActionDetails` показывает только preview и ошибку выбранного действия.
 
 ## 7. Представление развёртывания
 
@@ -221,7 +235,6 @@ Issue #5. Для этой задачи достаточно запуска су�
 | Один прогон, файлы, diff, findings, публикации и actions | TanStack Query | `['mock-review']`           |
 | Выбранный файл                                           | Zustand        | `selected_file`             |
 | Фильтры severity                                         | Zustand        | `severity_filters`          |
-| Unified / side-by-side                                   | Zustand        | `view_mode`                 |
 | Раскрытые context-строки                                 | Zustand        | `expanded_context_line_ids` |
 | Выбранное действие                                       | Zustand        | `selected_action_id`        |
 | Hover и popover строки                                   | React state    | состояние `DiffLine`        |
@@ -240,8 +253,9 @@ type MockReviewState = {
 ### 8.2. Модели компонентов
 
 `ReviewRun` повторяет поля и допустимые статусы merged backend PR #5, нужные
-для шапки и summary. Diff-модели ниже — UI mock-модели: PR #5 не определяет их
-как публичный browser-контракт.
+для шапки и summary. Во frontend UI-модель называется `ReviewFinding`, а
+соответствующая доменная сущность backend — `Finding`. Diff-модели ниже — UI
+mock-модели: PR #5 не определяет их как публичный browser-контракт.
 
 ```ts
 type ReviewRun = {
@@ -353,30 +367,29 @@ type ReviewRunAction = {
 
 ## 9. Архитектурные решения
 
-| ID        | Решение                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------ |
-| FE-DEC-01 | Используется FSD с направлением зависимостей `app → widgets → features → entities → shared`.                 |
-| FE-DEC-02 | Tailwind CSS v4 + Headless UI составляют UI-основу; сторонний визуальный UI-kit не добавляется.              |
-| FE-DEC-03 | TanStack Query хранит данные adapter, Zustand — общий UI-state, React state — состояние одного компонента.   |
-| FE-DEC-04 | `DiffViewer` отображает один выбранный файл и поддерживает unified / side-by-side без изменения модели diff. |
-| FE-DEC-05 | Свёрнутый context отображает `DiffHunk`; отдельный `ContextExpander` не создаётся.                           |
-| FE-DEC-06 | До backend-контракта применяются Zod-валидируемые mock-модели и mock adapter.                                |
-| FE-DEC-07 | `RunInspector` использует mock `ReviewRunAction[]`; actions и `context_payloads` не смешиваются.             |
-| FE-DEC-08 | Inspector по умолчанию показывает только очищенные preview и ошибки, но не полный payload.                   |
+| ID        | Решение                                                                                                    |
+| --------- | ---------------------------------------------------------------------------------------------------------- |
+| FE-DEC-01 | Используется FSD с направлением зависимостей `app → pages → widgets → features → entities → shared`.       |
+| FE-DEC-02 | Tailwind CSS v4 + Headless UI составляют UI-основу; сторонний визуальный UI-kit не добавляется.            |
+| FE-DEC-03 | TanStack Query хранит данные adapter, Zustand — общий UI-state, React state — состояние одного компонента. |
+| FE-DEC-04 | `DiffViewer` отображает один выбранный файл в unified-режиме; side-by-side отложен за пределы Issue #5.    |
+| FE-DEC-05 | Свёрнутый context отображает `DiffHunk`; отдельный `ContextExpander` не создаётся.                         |
+| FE-DEC-06 | До backend-контракта применяются Zod-валидируемые mock-модели и mock adapter.                              |
+| FE-DEC-07 | `RunInspector` использует mock `ReviewRunAction[]`; actions и `context_payloads` не смешиваются.           |
+| FE-DEC-08 | Inspector по умолчанию показывает только очищенные preview и ошибки, но не полный payload.                 |
 
 ## 10. Требования качества
 
-| Область       | Проверяемый результат                                                                                        |
-| ------------- | ------------------------------------------------------------------------------------------------------------ |
-| Структура     | Импорты не нарушают направление FSD.                                                                         |
-| File list     | Файлы без findings тоже видны; выбран ровно один файл.                                                       |
-| Unified       | Added, removed и context строки имеют корректные номера и стили.                                             |
-| Side-by-side  | Удалённые и добавленные строки одного hunk корректно сопоставлены по колонкам.                               |
-| Context       | Раскрытие одного context-блока не раскрывает другой hunk.                                                    |
-| Findings      | Finding появляется у корректной стороны и строки; finding без anchor не приклеивается к произвольной строке. |
-| Binary        | ZIP и другие binary-файлы не отображаются как текст.                                                         |
-| Inspector     | Действия упорядочены по `position`; выбор действия не загружает полный payload.                              |
-| Accessibility | Переключатели, фильтры и раскрывающиеся элементы доступны с клавиатуры.                                      |
+| Область       | Проверяемый результат                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Структура     | Импорты не нарушают направление FSD.                                                                                       |
+| File list     | Файлы без findings тоже видны; выбран ровно один файл.                                                                     |
+| Unified       | Removed, added и context-строки одного hunk идут в исходном порядке и имеют корректные номера и стили.                     |
+| Context       | Раскрытие одного context-блока не раскрывает другой hunk.                                                                  |
+| Findings      | `ReviewFinding` появляется только у изменённой строки своей стороны; невалидные anchors учитываются в `rejected_findings`. |
+| Binary        | ZIP и другие binary-файлы не отображаются как текст.                                                                       |
+| Inspector     | Действия упорядочены по `position`; выбор действия не загружает полный payload.                                            |
+| Accessibility | Переключатели, фильтры и раскрывающиеся элементы доступны с клавиатуры.                                                    |
 
 Используются Vitest и React Testing Library: тесты проверяют видимое поведение
 и доступные роли, а не CSS-классы или внутреннюю реализацию.
@@ -392,14 +405,13 @@ type ReviewRunAction = {
 
 ## 12. Глоссарий
 
-| Термин             | Значение                                                        |
-| ------------------ | --------------------------------------------------------------- |
-| `ReviewRun`        | Один запуск AI-ревью конкретного commit.                        |
-| Diff               | Представление изменений файла между двумя версиями.             |
-| Hunk               | Непрерывный блок строк diff с заголовком `@@`.                  |
-| Finding            | Нормализованное замечание ревьюера, привязанное к строке diff.  |
-| `PublishedComment` | Запись о публикации finding или summary у провайдера.           |
-| `ReviewRunAction`  | Одно техническое действие worker внутри прогона.                |
-| `RunInspector`     | UI хронологии действий и безопасных preview одного прогона.     |
-| Unified            | Режим, где added, removed и context строки идут в одном потоке. |
-| Side-by-side       | Режим, где old и new стороны diff отображаются рядом.           |
+| Термин             | Значение                                                                                    |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| `ReviewRun`        | Один запуск AI-ревью конкретного commit.                                                    |
+| Diff               | Представление изменений файла между двумя версиями.                                         |
+| Hunk               | Непрерывный блок строк diff с заголовком `@@`.                                              |
+| `ReviewFinding`    | UI-модель нормализованного замечания ревьюера; в backend-домене ей соответствует `Finding`. |
+| `PublishedComment` | Запись о публикации finding или summary у провайдера.                                       |
+| `ReviewRunAction`  | Одно техническое действие worker внутри прогона.                                            |
+| `RunInspector`     | UI хронологии действий и безопасных preview одного прогона.                                 |
+| Unified            | Режим, где added, removed и context строки идут в одном потоке.                             |
