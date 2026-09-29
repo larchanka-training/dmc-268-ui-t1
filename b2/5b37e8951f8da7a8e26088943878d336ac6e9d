@@ -1,0 +1,18 @@
+src/styles/global.css
+  h_45ef188c4fff4f 26,42-51,54-58,63-75
+src/widgets/app-shell/ui/AppHeader.tsx
+  h_45ef188c4fff4f 22,24,26-27
+src/widgets/app-shell/ui/AppSidebar.tsx
+  h_45ef188c4fff4f 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "b25b37e8951f8da7a8e26088943878d336ac6e9d",
+  "prompts": {},
+  "humans": {
+    "h_45ef188c4fff4f": {
+      "author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
