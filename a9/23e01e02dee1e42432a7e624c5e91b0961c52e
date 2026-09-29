@@ -1,0 +1,21 @@
+openspec/changes/cabinet-mock-oauth/.openspec.yaml
+  s_370e0e7bd1fd7e::t_1078a59882be66 1-2
+openspec/changes/cabinet-mock-oauth/design.md
+  s_370e0e7bd1fd7e::t_f7960327225fe1 1-45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "a923e01e02dee1e42432a7e624c5e91b0961c52e",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
