@@ -25,7 +25,7 @@ export function RunInspector({ actions }: { actions: readonly ReviewRunAction[] 
           <EmptyState>Действий прогона пока нет.</EmptyState>
         </div>
       ) : (
-        <div className="mt-3 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
+        <div className="mt-3 grid grid-cols-[minmax(0,1fr)] gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
           <ActionTree actions={ordered} selectedId={selected?.id ?? null} onSelect={selectAction} />
           {selected ? (
             <ActionDetails action={selected} />

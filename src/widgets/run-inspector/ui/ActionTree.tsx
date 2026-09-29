@@ -38,7 +38,7 @@ export function ActionTree({ actions, selectedId, onSelect }: Props) {
               </span>
               <span className="min-w-0 flex-1 truncate font-mono text-xs">{action.tool}</span>
               <span className={`text-xs ${status.className}`}>{status.label}</span>
-              <span className="w-16 text-right text-xs text-slate-500">
+              <span className="w-12 shrink-0 text-right text-xs text-slate-500">
                 {action.duration_seconds === null ? '—' : formatDuration(action.duration_seconds)}
               </span>
               <span className="sr-only">начато {formatDateTime(action.started_at)}</span>

@@ -30,13 +30,13 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
       aria-label={`Замечание: ${stripCodeMarks(headline)}`}
       className="rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
     >
-      <DisclosureButton className="group flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-slate-50">
+      <DisclosureButton className="group flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left hover:bg-slate-50">
         <span aria-hidden className="text-slate-400 transition group-data-open:rotate-90">
           ▸
         </span>
         <SeverityBadge severity={finding.severity} />
         <span className="text-xs text-slate-500">{CATEGORY_LABEL[finding.category]}</span>
-        <span className="min-w-0 flex-1 truncate font-medium text-slate-900">
+        <span className="min-w-0 flex-1 basis-40 truncate font-medium text-slate-900">
           <TextWithCode text={headline} />
         </span>
       </DisclosureButton>

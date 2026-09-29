@@ -73,8 +73,11 @@ export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedCo
   if (files.length === 0) return <EmptyState>В прогоне нет изменённых файлов.</EmptyState>
 
   return (
-    <section aria-label="Изменения" className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
-      <aside className="rounded-xl border border-slate-200 bg-white p-2 lg:sticky lg:top-4 lg:self-start">
+    <section
+      aria-label="Изменения"
+      className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]"
+    >
+      <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-2 lg:sticky lg:top-4 lg:self-start">
         <FileList
           files={files}
           findingsCount={findingsCount}
