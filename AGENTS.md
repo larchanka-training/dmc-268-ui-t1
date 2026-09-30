@@ -47,6 +47,7 @@
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Требования к поведению (источник правды) | [`openspec/specs/`](openspec/specs/)                                                               |
 | Слои, состояние, доменные модели         | `FRONTEND_ARCHITECTURE.md` (готовится, PR #6)                                                      |
+| Уровни тестов, сценарии, гейты           | [`docs/testing/TEST_PLAN.md`](docs/testing/TEST_PLAN.md)                                           |
 | Правила стека                            | [`.agents/rules/frontend.md`](.agents/rules/frontend.md)                                           |
 | Ветки, задачи, пул-реквесты, треды       | [`.agents/rules/git-and-pr.md`](.agents/rules/git-and-pr.md)                                       |
 | Скиллы и шаблоны                         | [`.agents/skills/`](.agents/skills/), [`.agents/templates/frontend/`](.agents/templates/frontend/) |
