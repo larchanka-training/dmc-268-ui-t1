@@ -2,6 +2,7 @@ import { Alert, Spin, Typography } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { completeOAuthCallback, useAuth } from '@/features/auth'
+import styles from '@/pages/OAuthCallbackPage.module.css'
 
 export function OAuthCallbackPage() {
   const [searchParams] = useSearchParams()
@@ -30,7 +31,7 @@ export function OAuthCallbackPage() {
 
   if (error) {
     return (
-      <div style={{ maxWidth: 480, margin: '80px auto', padding: 24 }}>
+      <div className="mx-auto my-20 max-w-[480px] p-6">
         <Alert
           type="error"
           message="Не удалось войти"
@@ -46,9 +47,9 @@ export function OAuthCallbackPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 80 }}>
+    <div className="flex flex-col items-center p-20">
       <Spin size="large" />
-      <Typography.Paragraph type="secondary" style={{ marginTop: 16 }}>
+      <Typography.Paragraph type="secondary" className={styles.hint}>
         Завершаем вход…
       </Typography.Paragraph>
     </div>

@@ -2,6 +2,7 @@ import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Layout, Space, Tag, Typography } from 'antd'
 import { useAuth } from '@/features/auth'
 import { useAppTheme } from '@/features/theme'
+import styles from '@/widgets/app-shell/ui/AppHeader.module.css'
 
 const { Header } = Layout
 
@@ -18,18 +19,8 @@ export function AppHeader() {
   ]
 
   return (
-    <Header
-      className="app-shell-header-bar app-main-header"
-      style={{
-        height: 'var(--app-shell-header-height)',
-        padding: '0 24px',
-        margin: 0,
-        background: 'transparent',
-      }}
-    >
-      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-        Учебное рабочее пространство · мок API
-      </Typography.Text>
+    <Header className={`app-shell-header-bar app-main-header ${styles.header}`}>
+      <Typography.Text type="secondary">Учебное рабочее пространство · мок API</Typography.Text>
       <Space size="middle">
         <Button
           type="text"
@@ -39,9 +30,9 @@ export function AppHeader() {
         />
         {user && (
           <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-            <Space style={{ cursor: 'pointer' }}>
+            <Space className="cursor-pointer">
               <Avatar size="small" src={user.avatarUrl} />
-              <span style={{ fontWeight: 500 }}>{user.login}</span>
+              <span className="font-medium">{user.login}</span>
               <Tag color={user.provider === 'github' ? 'default' : 'orange'}>{user.provider}</Tag>
             </Space>
           </Dropdown>

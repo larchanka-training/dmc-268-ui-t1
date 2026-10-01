@@ -5,12 +5,13 @@ import 'dayjs/locale/ru'
 import App from '@/App.tsx'
 import '@/index.css'
 import '@/styles/global.css'
-import { applyThemeCssVariables } from '@/shared/theme'
+import { applyThemeCssVariables, readStoredThemeMode } from '@/shared/theme'
 
 dayjs.locale('ru')
 
-const storedTheme = localStorage.getItem('dmc268.theme')
-const initialTheme = storedTheme === 'dark' ? 'dark' : 'light'
+// Переменные `--app-*` выставляются до первого рендера: в CSS их значений нет,
+// единственный источник палитры — `shared/theme/palette.ts`.
+const initialTheme = readStoredThemeMode()
 document.documentElement.dataset.theme = initialTheme
 applyThemeCssVariables(initialTheme)
 

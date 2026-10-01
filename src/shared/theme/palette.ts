@@ -3,6 +3,13 @@ import { theme as antTheme } from 'antd'
 
 export type ThemeMode = 'light' | 'dark'
 
+/** Ключ `localStorage`, под которым хранится выбранная тема. */
+export const THEME_STORAGE_KEY = 'dmc268.theme'
+
+export function readStoredThemeMode(): ThemeMode {
+  return localStorage.getItem(THEME_STORAGE_KEY) === 'dark' ? 'dark' : 'light'
+}
+
 /** Единый источник цветов: CSS-переменные и токены antd. */
 export interface ThemePalette {
   surface: string

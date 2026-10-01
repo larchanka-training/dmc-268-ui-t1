@@ -21,23 +21,8 @@ body {
   border-radius: 6px;
 }
 
-/* Начальные значения до ThemeProvider; далее синхронизируются из shared/theme/palette.ts */
-:root,
-[data-theme='light'] {
+:root {
   --app-shell-header-height: 56px;
-  --app-surface: #fff;
-  --app-border: #d0d7de;
-  --app-text: #1f2328;
-  --app-muted: #656d76;
-  --app-accent-subtle: #ddf4ff;
-}
-
-[data-theme='dark'] {
-  --app-surface: #161b22;
-  --app-border: #30363d;
-  --app-text: #e6edf3;
-  --app-muted: #8b949e;
-  --app-accent-subtle: #051d4d;
 }
 
 .app-shell-header-bar {

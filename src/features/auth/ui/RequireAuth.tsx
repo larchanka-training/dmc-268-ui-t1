@@ -8,7 +8,7 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: 80 }}>
+      <div className="flex justify-center p-20">
         <Spin size="large" />
       </div>
     )
