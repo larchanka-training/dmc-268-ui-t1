@@ -1,0 +1,41 @@
+README.md
+  s_370e0e7bd1fd7e::t_e41ce6ca19f81c 71
+openspec/changes/cabinet-mock-oauth/tasks.md
+  s_370e0e7bd1fd7e::t_cf391df354644c 16-18
+src/entities/session/api/authApi.ts
+  s_370e0e7bd1fd7e::t_ce24ff99a6b280 1-40
+src/entities/session/lib/parseSession.test.ts
+  s_370e0e7bd1fd7e::t_02f3c32cbc0b62 1-6,8,23-25,31,35-59
+src/entities/session/lib/parseSession.ts
+  s_370e0e7bd1fd7e::t_d69e0a3ec31beb 1-7,17,39-65,74,77,83
+src/entities/session/model/types.ts
+  s_cba77a8e28258b::t_6264313ff0e878 11-16,20-21
+src/features/auth/ui/RequireAuth.test.tsx
+  s_370e0e7bd1fd7e::t_2b3a1655929066 8,26
+src/widgets/app-shell/ui/AppLayout.tsx
+  s_370e0e7bd1fd7e::t_87d93b057a43ec 23-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "6f3ce99aca8d3864c9c20ca8ecd71cf6ef405f47",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    },
+    "s_cba77a8e28258b": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "e61e704c-a5ee-40b5-a0cf-a36a9e6fb604",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
