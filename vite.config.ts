@@ -5,6 +5,10 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [tailwindcss(), react()],
+  resolve: {
+    // Алиас `@` берётся из `paths` в tsconfig.json — одно место вместо двух.
+    tsconfigPaths: true,
+  },
   server: {
     port: 3000,
     open: true,
