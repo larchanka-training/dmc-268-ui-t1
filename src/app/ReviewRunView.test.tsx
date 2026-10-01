@@ -186,6 +186,20 @@ describe('ReviewRunView', () => {
     ).toBeInTheDocument()
   })
 
+  it('свёрнутый блок между удалёнными строками тоже можно раскрыть', async () => {
+    const user = userEvent.setup()
+    const removals = makeDiffFile({
+      path: 'app/legacy.py',
+      status: 'deleted',
+      hunks: [hunk(1, 0, ['-import os', '~def unused():', '~    pass', '-print(os.name)'])],
+    })
+    renderView(fakeAdapter({ files: [removals], findings: [] }))
+
+    await user.click(await screen.findByRole('button', { name: /Показать 2 скрытых строк$/ }))
+
+    await waitFor(() => expect(changesText()).toContain('def unused'))
+  })
+
   it('фильтр по severity прячет остальные замечания в диффе', async () => {
     const user = userEvent.setup()
     renderView(fakeAdapter())

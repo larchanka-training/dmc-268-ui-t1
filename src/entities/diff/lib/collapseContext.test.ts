@@ -54,6 +54,25 @@ describe('collapseContext', () => {
     expect(gaps.map((gap) => gap.hunkId)).toEqual(['a.py#1'])
   })
 
+  it('блок между удалёнными строками раскрывается со старой стороны', () => {
+    const removals = makeDiffFile({
+      path: 'c.py',
+      hunks: [hunk(10, 10, ['-x()', '~one()', '~two()', '-y()'])],
+    })
+
+    const { gaps } = collapseContext(removals, new Set())
+
+    expect(gaps).toEqual([
+      {
+        lineIds: ['c.py#0:1', 'c.py#0:2'],
+        hunkId: 'c.py#0',
+        anchorSide: 'old',
+        anchorLine: 10,
+        position: 'after',
+      },
+    ])
+  })
+
   it('hunk из одного свёрнутого блока показывается целиком', () => {
     const only = makeDiffFile({ path: 'b.py', hunks: [hunk(1, 1, ['~x', '~y'])] })
 

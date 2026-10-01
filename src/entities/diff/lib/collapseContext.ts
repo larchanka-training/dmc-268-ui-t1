@@ -5,7 +5,11 @@ export type CollapsedGap = {
   /** Идентификаторы скрытых строк: раскрытие добавляет их все в `expanded_context_line_ids`. */
   lineIds: string[]
   hunkId: string
-  /** Видимая строка-якорь новой стороны. */
+  /**
+   * Видимая строка-якорь: на новой стороне, если она там есть. Удалённая строка есть только
+   * на старой — тогда кнопка встаёт под ней, иначе блок между удалениями остался бы без кнопки.
+   */
+  anchorSide: 'old' | 'new'
   anchorLine: number
   /** Блок идёт после якоря или перед ним — когда в начале hunk видимой строки выше нет. */
   position: 'after' | 'before'
@@ -39,13 +43,13 @@ function splitHunk(hunk: DiffHunk, expanded: ReadonlySet<string>) {
   const closeHidden = (next: DiffLine | undefined) => {
     if (hidden.length === 0) return
     const current = visible[visible.length - 1]
-    const before = [...current].reverse().find((line) => line.new_line !== null)
-    const anchor = before ?? next
-    if (anchor?.new_line != null) {
+    const before = current[current.length - 1]
+    const anchor = anchorOf(before ?? next)
+    if (anchor) {
       gaps.push({
         lineIds: hidden.map((line) => line.id),
         hunkId: hunk.id,
-        anchorLine: anchor.new_line,
+        ...anchor,
         position: before ? 'after' : 'before',
       })
     }
@@ -63,6 +67,14 @@ function splitHunk(hunk: DiffHunk, expanded: ReadonlySet<string>) {
   }
   closeHidden(undefined)
   return { visible, gaps }
+}
+
+function anchorOf(
+  line: DiffLine | undefined,
+): Pick<CollapsedGap, 'anchorSide' | 'anchorLine'> | null {
+  if (line?.new_line != null) return { anchorSide: 'new', anchorLine: line.new_line }
+  if (line?.old_line != null) return { anchorSide: 'old', anchorLine: line.old_line }
+  return null
 }
 
 function toHunk(source: DiffHunk, lines: DiffLine[], index: number): DiffHunk {

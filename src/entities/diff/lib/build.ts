@@ -1,11 +1,16 @@
-import type { DiffFile, DiffHunk, DiffLine } from '../../entities/diff'
+import type { DiffFile, DiffHunk, DiffLine } from '../model/schema'
 
 /**
  * Собирает hunk из строк с префиксом `' '`, `'+'`, `'-'` или `'~'` (свёрнутый контекст) и сам
  * считает номера строк и размеры сторон: так фикстура не расходится с заголовком `@@`.
- * Идентификаторы проставляет `withIds` — они зависят от пути файла.
+ * Идентификаторы проставляет `withLineIds` — они зависят от пути файла.
  */
-export function hunk(oldStart: number, newStart: number, raw: string[], context = ''): DiffHunk {
+export function buildHunk(
+  oldStart: number,
+  newStart: number,
+  raw: string[],
+  context = '',
+): DiffHunk {
   let oldLine = oldStart
   let newLine = newStart
   const lines: DiffLine[] = raw.map((text) => {
@@ -42,7 +47,7 @@ export function hunk(oldStart: number, newStart: number, raw: string[], context 
 }
 
 /** Стабильные идентификаторы hunk и строк из пути файла и позиции. */
-export function withIds(file: DiffFile): DiffFile {
+export function withLineIds(file: DiffFile): DiffFile {
   return {
     ...file,
     hunks: file.hunks.map((item, h) => {

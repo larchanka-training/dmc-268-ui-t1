@@ -69,7 +69,7 @@ export function DiffViewer({
         if (shownLines[side].has(line)) slot(side, line).findings.push(...items)
       }
     }
-    for (const gap of gaps) slot('new', gap.anchorLine).gaps.push(gap)
+    for (const gap of gaps) slot(gap.anchorSide, gap.anchorLine).gaps.push(gap)
 
     // Замечание на строке, которой нет ни в одном hunk, иначе потерялось бы молча.
     const outside = findings.filter((finding) => {

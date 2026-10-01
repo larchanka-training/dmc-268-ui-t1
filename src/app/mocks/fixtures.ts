@@ -1,10 +1,14 @@
-import type { DiffFile, DiffFileSummary } from '../../entities/diff'
+import {
+  buildHunk as hunk,
+  withLineIds,
+  type DiffFile,
+  type DiffFileSummary,
+} from '../../entities/diff'
 import type { PublishedComment } from '../../entities/published-comment'
 import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
 import type { ReviewRunAction } from '../../entities/review-run-action'
 import type { MockReviewState } from '../model/mockReview'
-import { hunk, withIds } from './builders'
 
 /**
  * Mock-данные одного прогона (FRONTEND_ARCHITECTURE.md §8.1). `ReviewRun`, `ReviewFinding` и
@@ -379,7 +383,7 @@ const actions: ReviewRunAction[] = [
   action(8, 'post_review', { response_preview: { inline: 4, summary: 1 } }),
 ]
 
-const diffFiles = rawDiffFiles.map(withIds)
+const diffFiles = rawDiffFiles.map(withLineIds)
 
 const countLines = (file: DiffFile, kind: 'added' | 'removed') =>
   file.hunks.reduce((sum, item) => sum + item.lines.filter((line) => line.kind === kind).length, 0)

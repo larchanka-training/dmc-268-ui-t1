@@ -1,11 +1,10 @@
-import { hunk, withIds } from '../app/mocks/builders'
-import type { DiffFile, DiffFileSummary } from '../entities/diff'
+import { buildHunk, withLineIds, type DiffFile, type DiffFileSummary } from '../entities/diff'
 import type { PublishedComment } from '../entities/published-comment'
 import type { ReviewFinding } from '../entities/review-finding'
 import type { ReviewRun } from '../entities/review-run'
 import type { ReviewRunAction } from '../entities/review-run-action'
 
-export { hunk }
+export { buildHunk as hunk }
 
 export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   return {
@@ -37,7 +36,7 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
 
 /** Идентификаторы hunk и строк выводятся из пути, как в mock-данных приложения. */
 export function makeDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
-  return withIds({
+  return withLineIds({
     path: 'src/example.ts',
     previous_path: null,
     status: 'modified',
