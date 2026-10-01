@@ -63,6 +63,7 @@ const fontFamily =
 export function applyThemeCssVariables(mode: ThemeMode): void {
   const p = themePalette[mode]
   const root = document.documentElement
+  root.style.setProperty('--app-bg', p.bgLayout)
   root.style.setProperty('--app-surface', p.surface)
   root.style.setProperty('--app-border', p.border)
   root.style.setProperty('--app-text', p.text)
