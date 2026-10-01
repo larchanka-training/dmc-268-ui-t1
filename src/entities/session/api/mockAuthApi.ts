@@ -24,11 +24,15 @@ const MOCK_USERS: Record<OAuthProvider, AuthUser> = {
 
 const delay = (ms = 400) => new Promise((resolve) => setTimeout(resolve, ms))
 
+let mockRefreshToken: string | null = null
+
 function createTokens(provider: OAuthProvider): AuthTokens {
   const now = Date.now()
+  const refreshToken = `mock_refresh_${provider}_${now}`
+  mockRefreshToken = refreshToken
   return {
     accessToken: `mock_access_${provider}_${now}`,
-    refreshToken: `mock_refresh_${provider}_${now}`,
+    refreshToken,
     expiresAt: now + 60 * 1000,
   }
 }
@@ -48,13 +52,23 @@ export async function mockExchangeCode(
   }
 }
 
-export async function mockRefreshTokens(refreshToken: string): Promise<AuthTokens> {
+export async function mockRefreshTokens(refreshToken?: string): Promise<AuthTokens> {
   await delay(300)
-  if (!refreshToken.startsWith('mock_refresh_')) {
+  const token = refreshToken ?? mockRefreshToken
+  if (!token || !token.startsWith('mock_refresh_')) {
     throw new Error('Неверный refresh-токен')
   }
-  const provider = refreshToken.includes('gitlab') ? 'gitlab' : 'github'
+  const provider = token.includes('gitlab') ? 'gitlab' : 'github'
   return createTokens(provider)
+}
+
+export async function mockRestoreSession(user: AuthUser): Promise<AuthSession> {
+  try {
+    const tokens = await mockRefreshTokens()
+    return { user, tokens }
+  } catch {
+    return { user, tokens: createTokens(user.provider) }
+  }
 }
 
 export function buildMockAuthorizeUrl(provider: OAuthProvider, state: string): string {

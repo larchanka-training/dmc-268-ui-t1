@@ -60,7 +60,7 @@ export function RepositoriesPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
         <div>
-          <Typography.Title level={3} style={{ margin: 0 }}>
+          <Typography.Title level={1} style={{ margin: 0, fontSize: 24 }}>
             Репозитории
           </Typography.Title>
           <Typography.Text type="secondary">

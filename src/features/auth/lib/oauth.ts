@@ -1,6 +1,8 @@
 import {
   buildMockAuthorizeUrl,
+  exchangeOAuthToken,
   mockExchangeCode,
+  placeholderUserFromProvider,
   type AuthSession,
   type OAuthProvider,
 } from '@/entities/session'
@@ -68,15 +70,11 @@ export async function completeOAuthCallback(
       if (USE_MOCK_API) {
         session = await mockExchangeCode(code, provider)
       } else {
-        const response = await fetch('/api/auth/oauth/token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ code, provider, redirectUri: OAUTH_REDIRECT_URI }),
-        })
-        if (!response.ok) {
-          throw new Error('Не удалось обменять код авторизации')
+        const tokens = await exchangeOAuthToken(provider, code)
+        session = {
+          user: placeholderUserFromProvider(provider),
+          tokens,
         }
-        session = (await response.json()) as AuthSession
       }
       completedCallbacks.set(callbackKey, session)
       return session

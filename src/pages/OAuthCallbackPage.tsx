@@ -23,7 +23,6 @@ export function OAuthCallbackPage() {
         navigate('/repositories', { replace: true })
       })
       .catch((err: unknown) => {
-        handledRef.current = false
         const message = err instanceof Error ? err.message : 'Ошибка OAuth'
         setError(message)
       })

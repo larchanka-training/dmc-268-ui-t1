@@ -1,31 +1,67 @@
-import { parseAuthSession } from '@/entities/session/lib/parseSession'
-import type { AuthSession } from '@/entities/session/model/types'
+import { parseAuthUser, parseLegacyStoredSession } from '@/entities/session/lib/parseSession'
+import type { AuthUser } from '@/entities/session/model/types'
 
-const SESSION_KEY = 'dmc268.auth.session'
+const USER_KEY = 'dmc268.auth.user'
+const LEGACY_SESSION_KEY = 'dmc268.auth.session'
 
-export function loadSession(): AuthSession | null {
+function migrateLegacySession(): void {
+  const raw = localStorage.getItem(LEGACY_SESSION_KEY)
+  if (!raw) {
+    return
+  }
   try {
-    const raw = localStorage.getItem(SESSION_KEY)
+    const parsed: unknown = JSON.parse(raw)
+    const legacy = parseLegacyStoredSession(parsed)
+    if (legacy?.user && !localStorage.getItem(USER_KEY)) {
+      savePersistedUser(legacy.user)
+    }
+  } catch {
+    // ignore
+  } finally {
+    localStorage.removeItem(LEGACY_SESSION_KEY)
+  }
+}
+
+export function loadPersistedUser(): AuthUser | null {
+  migrateLegacySession()
+  try {
+    const raw = localStorage.getItem(USER_KEY)
     if (!raw) {
       return null
     }
     const parsed: unknown = JSON.parse(raw)
-    const session = parseAuthSession(parsed)
-    if (!session) {
-      clearSession()
+    const user = parseAuthUser(parsed)
+    if (!user) {
+      clearPersistedUser()
       return null
     }
-    return session
+    return user
   } catch {
-    clearSession()
+    clearPersistedUser()
     return null
   }
 }
 
-export function saveSession(session: AuthSession): void {
-  localStorage.setItem(SESSION_KEY, JSON.stringify(session))
+export function savePersistedUser(user: AuthUser): void {
+  localStorage.setItem(USER_KEY, JSON.stringify(user))
+}
+
+export function clearPersistedUser(): void {
+  localStorage.removeItem(USER_KEY)
 }
 
 export function clearSession(): void {
-  localStorage.removeItem(SESSION_KEY)
+  clearPersistedUser()
+  localStorage.removeItem(LEGACY_SESSION_KEY)
+}
+
+/** @deprecated Используйте loadPersistedUser; оставлено для совместимости тестов/миграции */
+export function loadSession(): null {
+  migrateLegacySession()
+  return null
+}
+
+/** Сохраняет только профиль; access-токен держится в памяти вкладки (React state). */
+export function saveSession(session: { user: AuthUser }): void {
+  savePersistedUser(session.user)
 }

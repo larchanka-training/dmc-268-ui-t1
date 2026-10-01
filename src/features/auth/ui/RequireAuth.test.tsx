@@ -5,7 +5,7 @@ import { AuthProvider } from '@/features/auth/model/AuthProvider'
 import { RequireAuth } from '@/features/auth/ui/RequireAuth'
 
 describe('RequireAuth', () => {
-  it('перенаправляет неавторизованного пользователя на /login', () => {
+  it('перенаправляет неавторизованного пользователя на /login', async () => {
     render(
       <MemoryRouter initialEntries={['/private']}>
         <AuthProvider>
@@ -23,6 +23,6 @@ describe('RequireAuth', () => {
         </AuthProvider>
       </MemoryRouter>,
     )
-    expect(screen.getByText('login page')).toBeInTheDocument()
+    expect(await screen.findByText('login page')).toBeInTheDocument()
   })
 })

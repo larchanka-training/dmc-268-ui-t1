@@ -8,10 +8,17 @@ export interface AuthUser {
   provider: OAuthProvider
 }
 
+/** Ответ POST /auth/oauth/token и POST /auth/refresh (OpenAPI AuthSession). */
+export interface ApiAuthSession {
+  accessToken: string
+  expiresIn: number
+}
+
 export interface AuthTokens {
   accessToken: string
-  refreshToken: string
   expiresAt: number
+  /** Только mock; в проде refresh в httpOnly cookie на /api/v1/auth/refresh */
+  refreshToken?: string
 }
 
 export interface AuthSession {

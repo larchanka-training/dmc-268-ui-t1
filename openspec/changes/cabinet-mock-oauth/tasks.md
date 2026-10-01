@@ -13,8 +13,9 @@
 
 ## 3. Auth и границы данных
 
-- [x] 3.1 Реализовать `parseAuthSession(unknown)` и использовать в `loadSession`
-- [x] 3.2 Тесты на битые записи в storage (блокер ревью PR #16)
+- [x] 3.1 Валидация сессии (`parseAuthUser`, `parseApiAuthSession`); в storage только профиль
+- [x] 3.2 Реальный API: `/api/v1/auth/oauth/token`, `/auth/refresh` с cookie (`dmc-268-api-t1` #25)
+- [x] 3.3 Тесты storage/парсеров (блокер ревью PR #16)
 
 ## 4. Репозитории и Query
 

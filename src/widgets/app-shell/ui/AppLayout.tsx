@@ -20,7 +20,9 @@ export function AppLayout() {
       <Layout>
         <AppHeader />
         <Content style={{ padding: 24, minHeight: 280 }}>
-          <Outlet />
+          <main>
+            <Outlet />
+          </main>
         </Content>
       </Layout>
     </Layout>

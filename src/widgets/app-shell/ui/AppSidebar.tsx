@@ -36,6 +36,7 @@ export function AppSidebar() {
         items={navItems}
         onClick={({ key }) => navigate(key)}
         style={{ flex: 1, borderInlineEnd: 0, padding: '8px 0' }}
+        aria-label="Основная навигация"
       />
       <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-muted)' }}>
         <GitlabOutlined style={{ marginRight: 6 }} />

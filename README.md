@@ -68,7 +68,7 @@ Dev-сервер запускается на `http://localhost:3000` и авто
 | `VITE_USE_MOCK_API`       | `true`                    | `false` — когда бэкенд OAuth готов |
 | `VITE_OAUTH_REDIRECT_URI` | `{origin}/oauth/callback` | Redirect URI OAuth                 |
 | `VITE_OAUTH_CLIENT_ID`    | —                         | Client id провайдера               |
-| `VITE_API_BASE_URL`       | `/api`                    | Базовый URL API                    |
+| `VITE_API_BASE_URL`       | `/api/v1`                 | Базовый URL API (OpenAPI v1)       |
 
 ## Скрипты
 
