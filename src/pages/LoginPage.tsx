@@ -29,7 +29,7 @@ export function LoginPage() {
           <Alert
             type="info"
             showIcon
-            message="Демо-режим"
+            title="Демо-режим"
             description="Вход имитирует редирект GitHub/GitLab; профиль в localStorage, access-токен — в памяти вкладки."
           />
           <Space direction="vertical" className={styles.actions}>

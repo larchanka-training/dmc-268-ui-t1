@@ -34,7 +34,7 @@ export function OAuthCallbackPage() {
       <div className="mx-auto my-20 max-w-[480px] p-6">
         <Alert
           type="error"
-          message="Не удалось войти"
+          title="Не удалось войти"
           description={error}
           action={
             <Typography.Link onClick={() => navigate('/login', { replace: true })}>
