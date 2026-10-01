@@ -1,0 +1,21 @@
+README.md
+  s_370e0e7bd1fd7e::t_5169b1e86a1102 60,64-67
+src/widgets/app-shell/ui/AppLayout.tsx
+  s_370e0e7bd1fd7e::t_f3fb9572d23d49 12-13,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.21",
+  "base_commit_sha": "ae9119f0a6b8676f5537bf3e2ff83ba334528257",
+  "prompts": {},
+  "sessions": {
+    "s_370e0e7bd1fd7e": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7081571c-c5f4-4b30-a658-34cfcc0f0b4a",
+        "model": "composer-2.5"
+      },
+      "human_author": "pnaumov <naumov.p.m@gmail.com>"
+    }
+  }
+}
