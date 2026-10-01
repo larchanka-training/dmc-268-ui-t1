@@ -57,9 +57,13 @@ Dev-сервер запускается на `http://localhost:3000` и авто
 
 ## Кабинет (mock API)
 
-- OAuth: редирект, callback, JWT в `localStorage`, автообновление токена
+- OAuth: редирект, callback; профиль в `localStorage`, access-токен в памяти вкладки, refresh по контракту API
 - App shell: sidebar, header, навигация, статус авторизации, светлая/тёмная тема
 - Список подключённых репозиториев и экран подключения нового репозитория
+
+### UI: Ant Design и Tailwind
+
+Кабинет собран на **antd** (формы, таблицы, layout). **Tailwind v4** подключён только как утилиты (`theme` + `utilities` в `src/index.css`, без preflight), чтобы не перебивать стили antd. Палитра и токены antd синхронизируются из `src/shared/theme/palette.ts` (CSS-переменные `--app-*`).
 
 Дополнительные переменные (опционально):
 

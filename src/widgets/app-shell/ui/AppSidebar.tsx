@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons'
 import { Menu } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
+import styles from '@/widgets/app-shell/ui/AppSidebar.module.css'
 
 const navItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Обзор' },
@@ -25,21 +26,22 @@ export function AppSidebar() {
       .sort((a, b) => b.length - a.length)[0] ?? '/'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className={styles.root}>
       <div className="app-shell-header-bar app-sidebar-brand">
         <GithubOutlined aria-hidden />
         DMC Console
       </div>
-      <Menu
-        mode="inline"
-        selectedKeys={[selectedKey]}
-        items={navItems}
-        onClick={({ key }) => navigate(key)}
-        style={{ flex: 1, borderInlineEnd: 0, padding: '8px 0' }}
-        aria-label="Основная навигация"
-      />
-      <div style={{ padding: '12px 16px', fontSize: 12, color: 'var(--app-muted)' }}>
-        <GitlabOutlined style={{ marginRight: 6 }} />
+      <nav className={styles.nav} aria-label="Основная навигация">
+        <Menu
+          mode="inline"
+          selectedKeys={[selectedKey]}
+          items={navItems}
+          onClick={({ key }) => navigate(key)}
+          className={styles.menu}
+        />
+      </nav>
+      <div className={styles.footer}>
+        <GitlabOutlined className={styles['footer-icon']} aria-hidden />
         OAuth GitHub и GitLab
       </div>
     </div>

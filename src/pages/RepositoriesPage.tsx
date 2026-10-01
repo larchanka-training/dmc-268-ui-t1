@@ -22,7 +22,7 @@ export function RepositoriesPage() {
       render: (value, record) => (
         <Space direction="vertical" size={0}>
           <Typography.Text strong>{value}</Typography.Text>
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+          <Typography.Text type="secondary" className="text-meta">
             ветка по умолчанию: {record.defaultBranch}
           </Typography.Text>
         </Space>
@@ -58,9 +58,9 @@ export function RepositoriesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+      <div className="page-toolbar">
         <div>
-          <Typography.Title level={1} style={{ margin: 0, fontSize: 24 }}>
+          <Typography.Title level={1} className="page-title">
             Репозитории
           </Typography.Title>
           <Typography.Text type="secondary">
@@ -72,7 +72,7 @@ export function RepositoriesPage() {
         </Link>
       </div>
       {isError && (
-        <Typography.Text type="danger" style={{ display: 'block', marginBottom: 12 }}>
+        <Typography.Text type="danger" className="page-error">
           Не удалось загрузить репозитории
         </Typography.Text>
       )}

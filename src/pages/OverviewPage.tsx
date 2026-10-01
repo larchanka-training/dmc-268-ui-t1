@@ -9,13 +9,13 @@ export function OverviewPage() {
 
   return (
     <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
+      <Typography.Title level={1} className="page-title">
         С возвращением, {user?.name}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
         Управляйте подключёнными репозиториями и статусом синхронизации в рабочем пространстве.
       </Typography.Paragraph>
-      <Row gutter={[16, 16]} style={{ marginTop: 24 }}>
+      <Row gutter={[16, 16]} className="page-section">
         <Col xs={24} sm={12} md={8}>
           <Card className="app-content-card">
             <Statistic title="Подключённых репозиториев" value={repos.length} />
@@ -32,12 +32,12 @@ export function OverviewPage() {
           </Card>
         </Col>
       </Row>
-      <Card className="app-content-card" style={{ marginTop: 24 }}>
-        <Typography.Title level={5}>Быстрые действия</Typography.Title>
+      <Card className={`app-content-card page-section`}>
+        <Typography.Title level={2}>Быстрые действия</Typography.Title>
         <Link to="/repositories">
           <Button type="primary">Список репозиториев</Button>
         </Link>
-        <Link to="/repositories/connect" style={{ marginLeft: 8 }}>
+        <Link to="/repositories/connect" className="link-spaced">
           <Button>Подключить репозиторий</Button>
         </Link>
       </Card>

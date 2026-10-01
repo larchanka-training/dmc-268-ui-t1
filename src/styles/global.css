@@ -21,6 +21,7 @@ body {
   border-radius: 6px;
 }
 
+/* Начальные значения до ThemeProvider; далее синхронизируются из shared/theme/palette.ts */
 :root,
 [data-theme='light'] {
   --app-shell-header-height: 56px;
@@ -73,4 +74,51 @@ body {
 .app-main-header .ant-typography {
   line-height: 1;
   font-size: 13px;
+}
+
+.app-layout-root {
+  min-height: 100%;
+}
+
+.app-layout-sider {
+  border-right: 1px solid var(--app-border);
+}
+
+.app-layout-content {
+  padding: 24px;
+  min-height: 280px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.page-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-section {
+  margin-top: 24px;
+}
+
+.page-error {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.text-meta {
+  font-size: 12px;
+}
+
+.page-search {
+  max-width: 360px;
+  margin-bottom: 16px;
+}
+
+.link-spaced {
+  margin-left: 8px;
 }

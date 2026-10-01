@@ -2,6 +2,7 @@ import { GithubOutlined, GitlabOutlined } from '@ant-design/icons'
 import { Alert, Button, Card, Space, Typography } from 'antd'
 import { Navigate, useLocation } from 'react-router-dom'
 import { startOAuthLogin, useAuth } from '@/features/auth'
+import styles from '@/pages/LoginPage.module.css'
 
 export function LoginPage() {
   const { isAuthenticated } = useAuth()
@@ -13,23 +14,14 @@ export function LoginPage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-        background: 'var(--app-surface)',
-      }}
-    >
-      <Card style={{ width: 420, maxWidth: '100%' }} className="app-content-card">
-        <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <div className={styles.page}>
+      <Card className={`app-content-card ${styles.card}`}>
+        <Space direction="vertical" size="large" className={styles.stack}>
           <div>
-            <Typography.Title level={3} style={{ marginBottom: 8 }}>
+            <Typography.Title level={1} className={`page-title ${styles['intro-title']}`}>
               Вход в DMC Console
             </Typography.Title>
-            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+            <Typography.Paragraph type="secondary" className={styles['intro-text']}>
               Войдите через учётную запись VCS, чтобы управлять репозиториями. Пока бэкенд не готов,
               используется имитация OAuth.
             </Typography.Paragraph>
@@ -38,9 +30,9 @@ export function LoginPage() {
             type="info"
             showIcon
             message="Демо-режим"
-            description="Вход имитирует редирект GitHub/GitLab и сохраняет JWT в localStorage с автообновлением."
+            description="Вход имитирует редирект GitHub/GitLab; профиль в localStorage, access-токен — в памяти вкладки."
           />
-          <Space direction="vertical" style={{ width: '100%' }}>
+          <Space direction="vertical" className={styles.actions}>
             <Button
               type="primary"
               size="large"

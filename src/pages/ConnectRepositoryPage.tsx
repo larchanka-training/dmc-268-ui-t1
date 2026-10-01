@@ -1,5 +1,5 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons'
-import { Button, Input, Space, Table, Tag, Typography, message } from 'antd'
+import { Button, Input, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -70,25 +70,23 @@ export function ConnectRepositoryPage() {
 
   return (
     <div>
-      <Typography.Title level={3} style={{ marginTop: 0 }}>
+      <Typography.Title level={1} className="page-title">
         Подключение репозитория
       </Typography.Title>
       <Typography.Paragraph type="secondary">
         Выберите репозиторий из вашей учётной записи VCS. Данные имитируются до появления API.
       </Typography.Paragraph>
       {isError && (
-        <Typography.Text type="danger" style={{ display: 'block', marginBottom: 12 }}>
+        <Typography.Text type="danger" className="page-error">
           Не удалось загрузить список репозиториев
         </Typography.Text>
       )}
-      <Space style={{ marginBottom: 16, width: '100%' }} direction="vertical">
-        <Input.Search
-          placeholder="Поиск по имени…"
-          allowClear
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ maxWidth: 360 }}
-        />
-      </Space>
+      <Input.Search
+        className="page-search"
+        placeholder="Поиск по имени…"
+        allowClear
+        onChange={(e) => setSearch(e.target.value)}
+      />
       <div className="app-content-card">
         <Table
           rowKey="id"

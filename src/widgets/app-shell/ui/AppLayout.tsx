@@ -9,17 +9,13 @@ const { Content, Sider } = Layout
 export function AppLayout() {
   const { mode } = useAppTheme()
   return (
-    <Layout style={{ minHeight: '100%' }}>
-      <Sider
-        width={240}
-        theme={mode === 'dark' ? 'dark' : 'light'}
-        style={{ borderRight: '1px solid var(--app-border)' }}
-      >
+    <Layout className="app-layout-root">
+      <Sider width={240} theme={mode === 'dark' ? 'dark' : 'light'} className="app-layout-sider">
         <AppSidebar />
       </Sider>
       <Layout>
         <AppHeader />
-        <Content style={{ padding: 24, minHeight: 280 }}>
+        <Content className="app-layout-content">
           <main>
             <Outlet />
           </main>

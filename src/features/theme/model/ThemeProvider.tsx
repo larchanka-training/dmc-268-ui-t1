@@ -1,46 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { theme as antTheme } from 'antd'
 import {
   ThemeContext,
   type AppThemeMode,
   type ThemeContextValue,
 } from '@/features/theme/model/theme-context'
+import { applyThemeCssVariables, buildAntdThemeConfig } from '@/shared/theme'
 
 const THEME_KEY = 'dmc268.theme'
-
-const githubLikeTokens = {
-  colorPrimary: '#0969da',
-  borderRadius: 6,
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif",
-}
-
-function buildAntdTheme(mode: AppThemeMode) {
-  const isDark = mode === 'dark'
-  return {
-    algorithm: isDark ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,
-    token: {
-      ...githubLikeTokens,
-      colorBgLayout: isDark ? '#0d1117' : '#f6f8fa',
-      colorBgContainer: isDark ? '#161b22' : '#ffffff',
-      colorBorder: isDark ? '#30363d' : '#d0d7de',
-      colorText: isDark ? '#e6edf3' : '#1f2328',
-      colorTextSecondary: isDark ? '#8b949e' : '#656d76',
-    },
-    components: {
-      Layout: {
-        headerBg: isDark ? '#161b22' : '#ffffff',
-        siderBg: isDark ? '#010409' : '#f6f8fa',
-        bodyBg: isDark ? '#0d1117' : '#ffffff',
-      },
-      Menu: {
-        itemBg: 'transparent',
-        itemSelectedBg: isDark ? '#21262d' : '#eaeef2',
-        itemHoverBg: isDark ? '#21262d' : '#f3f4f6',
-      },
-    },
-  }
-}
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<AppThemeMode>(() => {
@@ -51,6 +17,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem(THEME_KEY, mode)
     document.documentElement.dataset.theme = mode
+    applyThemeCssVariables(mode)
   }, [mode])
 
   const toggleMode = useCallback(() => {
@@ -61,7 +28,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     () => ({
       mode,
       toggleMode,
-      antdTheme: buildAntdTheme(mode),
+      antdTheme: buildAntdThemeConfig(mode),
     }),
     [mode, toggleMode],
   )
