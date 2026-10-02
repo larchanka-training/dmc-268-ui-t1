@@ -1,2 +1,7 @@
 onlyBuiltDependencies:
   - esbuild
+
+# Настройки pnpm живут здесь: pnpm 12 не читает из .npmrc ничего, кроме
+# авторизации, и engine-strict оттуда молча игнорировался.
+engineStrict: true
+autoInstallPeers: true

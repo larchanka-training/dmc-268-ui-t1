@@ -13,7 +13,7 @@
 
 - Зависимости ставим и обновляем **только через `pnpm`**: `pnpm install --frozen-lockfile`.
   Ни `npm`, ни `yarn` — lock-файл в репозитории один.
-- Node 22, версия зафиксирована в `.nvmrc`.
+- Node 24, версия зафиксирована в `.nvmrc`.
 - Проверки перед коммитом: `pnpm run typecheck`, `pnpm run lint`, `pnpm run stylelint`,
   `pnpm run format:check`, `pnpm run test`.
 - **Импорт только вниз по слоям** Feature-Sliced Design: `app` → `pages` → `widgets` →

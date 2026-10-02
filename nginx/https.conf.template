@@ -1,0 +1,45 @@
+# Режим стенда: PUBLIC_HOST задан. Сертификат на этот адрес выпускает и
+# продлевает модуль ngx_http_acme_module внутри процесса nginx и подменяет
+# без перезапуска. Переменные ${PUBLIC_HOST} и ${ACME_DIRECTORY} подставляет
+# скрипт выбора режима при старте контейнера.
+
+# DNS докера: по нему nginx находит и dmc268-api, и ACME-сервер — внешние
+# имена он передаёт резолверу хоста.
+resolver 127.0.0.11 valid=10s ipv6=off;
+
+acme_issuer letsencrypt {
+    uri ${ACME_DIRECTORY};
+    # На IP Let's Encrypt выдаёт сертификаты только с этим профилем: 160
+    # часов. require — не откатываться молча на другой профиль, а падать.
+    profile shortlived require;
+    # Ключ аккаунта и выпущенные сертификаты. Каталог лежит на томе: без
+    # этого каждый передеплой выпускал бы сертификат заново и упирался в
+    # лимиты Let's Encrypt.
+    state_path /var/lib/nginx-acme;
+    accept_terms_of_service;
+}
+
+server {
+    # Порт 80 нужен модулю для проверки HTTP-01: запросы проверки он
+    # обслуживает сам, раньше этого location. Остальное уходит на HTTPS.
+    listen 80;
+    server_name _;
+
+    location / {
+        return 301 https://${PUBLIC_HOST}$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name ${PUBLIC_HOST};
+
+    acme_certificate letsencrypt ${PUBLIC_HOST};
+
+    ssl_certificate $acme_certificate;
+    ssl_certificate_key $acme_certificate_key;
+    # Не разбирать сертификат на каждый запрос.
+    ssl_certificate_cache max=2;
+
+    include /etc/nginx/site.conf;
+}

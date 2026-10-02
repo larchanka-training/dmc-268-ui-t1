@@ -28,20 +28,14 @@ ln -s AGENTS.md CLAUDE.md                  # Claude Code читает CLAUDE.md
 
 ## Требования
 
-- **Node.js 22 LTS** — версия зафиксирована в `.nvmrc` и в поле `engines` файла `package.json`.
+- **Node.js 24 LTS** — версия зафиксирована в `.nvmrc` и в поле `engines` файла `package.json`.
   Если используется [nvm](https://github.com/nvm-sh/nvm), выполните `nvm use` для автоматического переключения.
 - **pnpm 12+** — точная версия зафиксирована в поле `packageManager` файла `package.json`.
-  Установите глобально, если ещё не установлен:
-
-  ```bash
-  npm install -g pnpm@12.3.4
-  ```
-
-  Либо включите через [Corepack](https://nodejs.org/api/corepack.html):
+  Отдельно pnpm не ставится: он приходит с Node.js через [Corepack](https://nodejs.org/api/corepack.html),
+  который сам берёт версию из `packageManager`. Один раз включите обёртки:
 
   ```bash
   corepack enable
-  corepack prepare pnpm@12.3.4 --activate
   ```
 
 ## Быстрый старт
@@ -125,14 +119,14 @@ cp .env.example .env
 .
 ├── .env.example           # Шаблон переменных окружения
 ├── .gitignore             # Правила игнорирования Git
-├── .npmrc                 # Конфигурация pnpm
-├── .nvmrc                 # Версия Node.js (22 LTS)
+├── .nvmrc                 # Версия Node.js (24 LTS)
 ├── .prettierrc.mjs        # Конфигурация Prettier
 ├── .prettierignore        # Список игнорирования Prettier
 ├── eslint.config.mjs      # ESLint flat config
 ├── stylelint.config.mjs   # Конфигурация Stylelint
 ├── index.html             # HTML точка входа
 ├── package.json           # Скрипты, зависимости, engines
+├── pnpm-workspace.yaml    # Настройки pnpm (engineStrict, сборка esbuild)
 ├── tsconfig.json          # Конфигурация TypeScript (строгий режим)
 ├── vite.config.ts         # Конфигурация Vite + Tailwind + Vitest
 ├── .githooks/             # Git-хуки (pre-commit, pre-push)
@@ -160,4 +154,12 @@ cp .env.example .env
 
 ## Деплой
 
-Деплой UI на хост с Docker — Terraform в каталоге `infra/` (nginx отдаёт сборку Vite). PostgreSQL и RabbitMQ в этом репозитории нет; они живут в `dmc-268-api-t1`.
+Стенд: **https://62.169.24.237** — интерфейс на `/`, ручки бэкенда на `/api/v1/`. Сертификат Let's Encrypt выписан на IP и продлевается сам, подробности — в [`infra/README.md`](infra/README.md#https).
+
+Выкатывается сам при мерже в `develop`: образ собирается в CI и публикуется в ghcr, затем OpenTofu применяет конфигурацию из `infra/` на сервере, и прогон проверяет по HTTPS, что по адресу отдаётся именно интерфейс и что API через него отвечает. Руками ничего запускать не нужно.
+
+Запросы к API идут через тот же адрес: `nginx` внутри контейнера проксирует `/api/` на бэкенд по внутренней сети сервера, поэтому второго адреса браузеру не нужно и CORS не требуется.
+
+**Стек бэкенда применяется первым** — интерфейс подключается к сети, которую создаёт он. PostgreSQL и RabbitMQ живут в [`dmc-268-api-t1`](https://github.com/larchanka-training/dmc-268-api-t1), здесь их нет.
+
+Подробности — [`infra/README.md`](infra/README.md): откуда берётся образ, где лежит состояние, какие переменные обязательны. Контракт доставки записан в спеке `openspec/specs/frontend-delivery/`.

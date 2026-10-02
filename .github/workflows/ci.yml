@@ -5,39 +5,76 @@ on:
     branches: [main, develop]
   pull_request:
 
+# У токена прогона только чтение: CI ничего не пишет в репозиторий.
+permissions:
+  contents: read
+
+# Новый пуш в ветку пул-реквеста отменяет прогон по устаревшему коммиту.
+# Пуши в main и develop не отменяются: там нужен результат по каждому коммиту.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   syntax:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      # pnpm берётся из Node через corepack, версия — из packageManager в
+      # package.json. Шаг идёт до setup-node: кешу pnpm нужен сам pnpm.
+      - run: corepack enable
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      # pnpm берётся из Node через corepack, версия — из packageManager в
+      # package.json. Шаг идёт до setup-node: кешу pnpm нужен сам pnpm.
+      - run: corepack enable
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run lint
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      # pnpm берётся из Node через corepack, версия — из packageManager в
+      # package.json. Шаг идёт до setup-node: кешу pnpm нужен сам pnpm.
+      - run: corepack enable
+      - uses: actions/setup-node@v7
         with:
-          node-version: "22"
+          node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm run test
+
+  # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
+  # registry_auth и переменные, от которых зависит деплой. Без этого job'а
+  # ошибка в них обнаруживалась бы только самим деплоем.
+  #
+  # Версия та же, что в deploy.yml: проверять на одной, катить на другой —
+  # значит проверять не то. `-backend=false` позволяет обойтись без доступа к
+  # состоянию, который у CI и не должен быть при простой валидации.
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+      - run: tofu fmt -check -recursive infra/
+      - run: cd infra && tofu init -backend=false && tofu validate
