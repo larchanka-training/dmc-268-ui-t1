@@ -1,5 +1,5 @@
 import { ApiError, type ApiTransport } from '../../shared/api'
-import { MOCK_REVIEW_PATH } from '../model/mockReview'
+import { MOCK_REVIEW_PATH } from '../../pages/review-run'
 import { mockReviewState } from './fixtures'
 
 /**

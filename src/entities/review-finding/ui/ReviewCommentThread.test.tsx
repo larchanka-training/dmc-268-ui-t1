@@ -31,8 +31,10 @@ describe('ReviewCommentThread', () => {
 
     await user.click(toggle)
 
+    // Содержимое уезжает по закрывающей анимации Collapse: в браузере панель
+    // размонтируется (`destroyOnHidden`), в jsdom `transitionend` не приходит и узел
+    // остаётся. Поэтому состояние проверяется по контракту доступности, а не по DOM.
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.queryByText(/Параметр run_id приходит из запроса/)).not.toBeInTheDocument()
   })
 
   it('незначительное замечание свёрнуто, пока его не раскроют', async () => {

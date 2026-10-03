@@ -1,3 +1,5 @@
+import { Button } from 'antd'
+
 import type { DiffFileStatus, DiffFileSummary } from '../../../entities/diff'
 
 const STATUS_VIEW: Record<DiffFileStatus, { mark: string; label: string; className: string }> = {
@@ -25,13 +27,14 @@ export function FileList({ files, findingsCount, selectedPath, onSelect }: Props
           const count = findingsCount.get(file.path) ?? 0
           return (
             <li key={file.path}>
-              <button
-                type="button"
+              <Button
+                block
+                type="text"
                 onClick={() => onSelect(file.path)}
                 aria-current={selected ? 'true' : undefined}
                 title={file.previous_path ? `${file.previous_path} → ${file.path}` : file.path}
-                className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${
-                  selected ? 'bg-blue-50 text-blue-900' : 'text-slate-700 hover:bg-slate-100'
+                className={`flex h-auto w-full items-center gap-2 px-2 py-1.5 text-left text-sm ${
+                  selected ? 'bg-blue-50 text-blue-900' : 'text-slate-700'
                 }`}
               >
                 <span aria-hidden className={`w-3 font-mono text-xs font-bold ${status.className}`}>
@@ -49,7 +52,7 @@ export function FileList({ files, findingsCount, selectedPath, onSelect }: Props
                   <span className="text-emerald-700">+{file.additions}</span>{' '}
                   <span className="text-red-700">−{file.deletions}</span>
                 </span>
-              </button>
+              </Button>
             </li>
           )
         })}

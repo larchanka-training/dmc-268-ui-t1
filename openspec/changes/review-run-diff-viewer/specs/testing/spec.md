@@ -2,7 +2,7 @@
 
 ### Requirement: Smoke-тест App
 
-Интеграционный тест `src/app/ReviewRunView.test.tsx` SHALL рендерить экран прогона с подменённым adapter данных и проверять её наблюдаемое поведение через `@testing-library/user-event`. Данные SHALL подменяться на уровне `ApiTransport`, а не `fetch`.
+Интеграционный тест `src/pages/review-run/ui/ReviewRunView.test.tsx` SHALL рендерить экран прогона с подменённым adapter данных и проверять её наблюдаемое поведение через `@testing-library/user-event`. Данные SHALL подменяться на уровне `ApiTransport`, а не `fetch`.
 
 #### Scenario: Рендер экрана прогона
 

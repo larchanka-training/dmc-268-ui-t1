@@ -1,3 +1,4 @@
+import { Button } from 'antd'
 import type { ReactNode } from 'react'
 
 export function LoadingState({ label = 'Загрузка…' }: { label?: string }) {
@@ -23,13 +24,9 @@ export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
       <p className="font-medium">{title}</p>
       {error instanceof Error && <p className="mt-1 text-red-700">{error.message}</p>}
       {onRetry && (
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-3 rounded-md border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-100"
-        >
+        <Button size="small" danger onClick={onRetry} className="mt-3 font-medium">
           Повторить
-        </button>
+        </Button>
       )}
     </div>
   )

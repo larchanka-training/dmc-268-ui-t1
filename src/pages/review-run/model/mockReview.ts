@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 
-import { DiffFileSchema, DiffFileSummarySchema } from '../../entities/diff'
-import { PublishedCommentSchema } from '../../entities/published-comment'
-import { ReviewFindingSchema } from '../../entities/review-finding'
-import { ReviewRunSchema } from '../../entities/review-run'
-import { ReviewRunActionSchema } from '../../entities/review-run-action'
-import { parseResponse, useTransport } from '../../shared/api'
+import { DiffFileSchema, DiffFileSummarySchema } from '../../../entities/diff'
+import { PublishedCommentSchema } from '../../../entities/published-comment'
+import { ReviewFindingSchema } from '../../../entities/review-finding'
+import { ReviewRunSchema } from '../../../entities/review-run'
+import { ReviewRunActionSchema } from '../../../entities/review-run-action'
+import { parseResponse, useTransport } from '../../../shared/api'
 
 /** Всё, что нужно экрану одного прогона (FRONTEND_ARCHITECTURE.md §8.1). */
 export const MockReviewStateSchema = z.object({

@@ -1,3 +1,4 @@
+import { Button } from 'antd'
 import type { ActionStatus, ReviewRunAction } from '../../../entities/review-run-action'
 import { formatDateTime, formatDuration } from '../../../shared/lib'
 
@@ -23,14 +24,13 @@ export function ActionTree({ actions, selectedId, onSelect }: Props) {
         const repeated = index > 0 && actions[index - 1].tool === action.tool
         return (
           <li key={action.id} className={repeated ? 'pl-4' : undefined}>
-            <button
-              type="button"
+            <Button
+              block
+              type="text"
               onClick={() => onSelect(action.id)}
               aria-current={action.id === selectedId ? 'true' : undefined}
-              className={`flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-sm ${
-                action.id === selectedId
-                  ? 'bg-blue-50 text-blue-900'
-                  : 'text-slate-700 hover:bg-slate-100'
+              className={`flex h-auto w-full items-center gap-3 px-2 py-1.5 text-left text-sm ${
+                action.id === selectedId ? 'bg-blue-50 text-blue-900' : 'text-slate-700'
               }`}
             >
               <span className="w-6 text-right font-mono text-xs text-slate-400">
@@ -42,7 +42,7 @@ export function ActionTree({ actions, selectedId, onSelect }: Props) {
                 {action.duration_seconds === null ? '—' : formatDuration(action.duration_seconds)}
               </span>
               <span className="sr-only">начато {formatDateTime(action.started_at)}</span>
-            </button>
+            </Button>
           </li>
         )
       })}

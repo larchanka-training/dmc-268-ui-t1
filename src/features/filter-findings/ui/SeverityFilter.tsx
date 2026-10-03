@@ -1,3 +1,5 @@
+import { Button } from 'antd'
+
 import { SEVERITIES, SEVERITY_LABEL, type ReviewFinding } from '../../../entities/review-finding'
 import { useFilterFindings } from '../model/store'
 
@@ -11,29 +13,23 @@ export function SeverityFilter({ findings }: { findings: readonly ReviewFinding[
         const count = findings.filter((finding) => finding.severity === severity).length
         const active = severity_filters.includes(severity)
         return (
-          <button
+          <Button
             key={severity}
-            type="button"
+            size="small"
+            shape="round"
+            type={active ? 'primary' : 'default'}
             aria-pressed={active}
             onClick={() => toggleSeverity(severity)}
-            className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${
-              active
-                ? 'border-slate-900 bg-slate-900 text-white'
-                : 'border-slate-300 text-slate-700 hover:bg-slate-100'
-            }`}
+            className="text-xs font-medium"
           >
             {SEVERITY_LABEL[severity]} · {count}
-          </button>
+          </Button>
         )
       })}
       {severity_filters.length > 0 && (
-        <button
-          type="button"
-          onClick={resetSeverities}
-          className="px-2 text-xs text-slate-500 underline hover:text-slate-900"
-        >
+        <Button size="small" type="link" onClick={resetSeverities} className="text-xs">
           Сбросить
-        </button>
+        </Button>
       )}
     </div>
   )

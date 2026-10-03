@@ -8,7 +8,7 @@ import type { PublishedComment } from '../../entities/published-comment'
 import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
 import type { ReviewRunAction } from '../../entities/review-run-action'
-import type { MockReviewState } from '../model/mockReview'
+import type { MockReviewState } from '../../pages/review-run'
 
 /**
  * Mock-данные одного прогона (FRONTEND_ARCHITECTURE.md §8.1). `ReviewRun`, `ReviewFinding` и

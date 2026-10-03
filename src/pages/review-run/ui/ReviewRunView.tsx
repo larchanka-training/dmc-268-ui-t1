@@ -1,12 +1,12 @@
-import { ErrorState, LoadingState } from '../shared/ui'
-import { ReviewSummary, RunHeader } from '../widgets/review-run-view'
-import { ReviewWorkspace } from '../widgets/review-workspace'
-import { RunInspector } from '../widgets/run-inspector'
-import { useMockReview } from './model/mockReview'
+import { ErrorState, LoadingState } from '../../../shared/ui'
+import { ReviewSummary, RunHeader } from '../../../widgets/review-run-view'
+import { ReviewWorkspace } from '../../../widgets/review-workspace'
+import { RunInspector } from '../../../widgets/run-inspector'
+import { useMockReview } from '../model/mockReview'
 
 /**
  * Экран одного прогона: получает модели из adapter и раздаёт их виджетам.
- * Собран в `app`, потому что соединяет несколько виджетов, а виджет не импортирует соседа.
+ * Живёт в `pages`: это экран предметной области, а не корень приложения (§3).
  */
 export function ReviewRunView() {
   const review = useMockReview()

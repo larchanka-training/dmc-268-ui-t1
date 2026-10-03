@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { ApiTransport } from '../shared/api'
 import { createMockAdapter } from './mocks/mockAdapter'
 import { AppProviders } from './providers/AppProviders'
-import { ReviewRunView } from './ReviewRunView'
+import { ReviewRunView } from '../pages/review-run'
 
 type Props = {
   /** До backend-контракта интерфейс работает на mock adapter (FE-DEC-06). */

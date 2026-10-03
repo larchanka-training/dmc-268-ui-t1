@@ -1,3 +1,4 @@
+import { Button } from 'antd'
 import { DiffModeEnum, DiffView, SplitSide } from '@git-diff-view/react'
 import '@git-diff-view/react/styles/diff-view-pure.css'
 import { useMemo } from 'react'
@@ -104,15 +105,16 @@ export function DiffViewer({
         />
       ))}
       {lineGaps.map((gap) => (
-        <button
+        <Button
           key={gap.lineIds[0]}
-          type="button"
+          size="small"
+          block
           onClick={() => onExpand(gap.lineIds)}
-          className="w-full rounded-md border border-dashed border-sky-300 bg-sky-50 px-3 py-1 text-left text-xs font-medium text-sky-800 hover:bg-sky-100"
+          className="justify-start border-dashed border-sky-300 bg-sky-50 text-left text-xs font-medium text-sky-800"
         >
           {gap.position === 'before' ? '↑' : '↕'} Показать {gap.lineIds.length} скрытых строк
           {gap.position === 'before' ? ' выше' : ''}
-        </button>
+        </Button>
       ))}
     </div>
   )

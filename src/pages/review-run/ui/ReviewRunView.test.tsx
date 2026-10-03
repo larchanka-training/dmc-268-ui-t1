@@ -2,12 +2,12 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { DiffFile } from '../entities/diff'
-import type { ReviewFinding } from '../entities/review-finding'
-import type { ReviewRun } from '../entities/review-run'
-import type { ReviewRunAction } from '../entities/review-run-action'
-import { initialFilterFindingsState, useFilterFindings } from '../features/filter-findings'
-import { ApiError, type ApiTransport } from '../shared/api'
+import type { DiffFile } from '../../../entities/diff'
+import type { ReviewFinding } from '../../../entities/review-finding'
+import type { ReviewRun } from '../../../entities/review-run'
+import type { ReviewRunAction } from '../../../entities/review-run-action'
+import { initialFilterFindingsState, useFilterFindings } from '../../../features/filter-findings'
+import { ApiError, type ApiTransport } from '../../../shared/api'
 import {
   hunk,
   makeAction,
@@ -16,12 +16,12 @@ import {
   makeFinding,
   makePublishedComment,
   makeReviewRun,
-} from '../test/factories'
-import { initialReviewWorkspaceState, useReviewWorkspace } from '../widgets/review-workspace'
-import { initialRunInspectorState, useRunInspector } from '../widgets/run-inspector'
-import { MOCK_REVIEW_PATH } from './model/mockReview'
-import { AppProviders } from './providers/AppProviders'
-import { createQueryClient } from './providers/queryClient'
+} from '../../../test/factories'
+import { initialReviewWorkspaceState, useReviewWorkspace } from '../../../widgets/review-workspace'
+import { initialRunInspectorState, useRunInspector } from '../../../widgets/run-inspector'
+import { MOCK_REVIEW_PATH } from '../model/mockReview'
+import { AppProviders } from '../../../app/providers/AppProviders'
+import { createQueryClient } from '../../../app/providers/queryClient'
 import { ReviewRunView } from './ReviewRunView'
 
 const api = makeDiffFile({

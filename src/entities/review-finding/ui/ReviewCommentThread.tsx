@@ -1,4 +1,4 @@
-import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/react'
+import { Collapse } from 'antd'
 import { useId } from 'react'
 
 import { formatDateTime, stripCodeMarks } from '../../../shared/lib'
@@ -24,44 +24,52 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
   const [headline] = finding.message.split('\n')
 
   return (
-    <Disclosure
-      as="article"
-      defaultOpen={open}
+    <article
       aria-label={`Замечание: ${stripCodeMarks(headline)}`}
-      className="rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
     >
-      <DisclosureButton className="group flex w-full flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 text-left hover:bg-slate-50">
-        <span aria-hidden className="text-slate-400 transition group-data-open:rotate-90">
-          ▸
-        </span>
-        <SeverityBadge severity={finding.severity} />
-        <span className="text-xs text-slate-500">{CATEGORY_LABEL[finding.category]}</span>
-        <span className="min-w-0 flex-1 basis-40 truncate font-medium text-slate-900">
-          <TextWithCode text={headline} />
-        </span>
-      </DisclosureButton>
+      <Collapse
+        ghost
+        destroyOnHidden
+        defaultActiveKey={open ? ['finding'] : []}
+        items={[
+          {
+            key: 'finding',
+            label: (
+              <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <SeverityBadge severity={finding.severity} />
+                <span className="text-xs text-slate-500">{CATEGORY_LABEL[finding.category]}</span>
+                <span className="min-w-0 flex-1 basis-40 truncate font-medium text-slate-900">
+                  <TextWithCode text={headline} />
+                </span>
+              </span>
+            ),
+            children: (
+              <div className="space-y-3">
+                <p className="whitespace-pre-line text-slate-800">
+                  <TextWithCode text={finding.message} />
+                </p>
 
-      <DisclosurePanel className="space-y-3 border-t border-slate-100 px-3 py-3">
-        <p className="whitespace-pre-line text-slate-800">
-          <TextWithCode text={finding.message} />
-        </p>
+                {finding.suggestion !== null && (
+                  <SuggestionBlock suggestion={finding.suggestion} anchorContent={anchorContent} />
+                )}
 
-        {finding.suggestion !== null && (
-          <SuggestionBlock suggestion={finding.suggestion} anchorContent={anchorContent} />
-        )}
-
-        <footer className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-          <span>
-            {publication
-              ? `Опубликовано ${formatDateTime(publication.published_at)}`
-              : 'Не опубликовано у провайдера'}
-          </span>
-          {finding.confidence !== null && (
-            <span>Уверенность {Math.round(finding.confidence * 100)}%</span>
-          )}
-        </footer>
-      </DisclosurePanel>
-    </Disclosure>
+                <footer className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                  <span>
+                    {publication
+                      ? `Опубликовано ${formatDateTime(publication.published_at)}`
+                      : 'Не опубликовано у провайдера'}
+                  </span>
+                  {finding.confidence !== null && (
+                    <span>Уверенность {Math.round(finding.confidence * 100)}%</span>
+                  )}
+                </footer>
+              </div>
+            ),
+          },
+        ]}
+      />
+    </article>
   )
 }
 

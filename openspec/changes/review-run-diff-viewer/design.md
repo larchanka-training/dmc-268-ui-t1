@@ -31,11 +31,11 @@
 
 ### Граница данных — adapter, а не `fetch`
 
-`shared/api` задаёт `ApiTransport { get(path): Promise<unknown> }`. `app/model/mockReview` запрашивает `MockReviewState` одним запросом `['mock-review']` и валидирует его Zod-схемой, собранной из схем сущностей. Mock adapter и будущий HTTP-клиент реализуют один интерфейс; тесты подменяют adapter.
+`shared/api` задаёт `ApiTransport { get(path): Promise<unknown> }`. `pages/review-run/model/mockReview` запрашивает `MockReviewState` одним запросом `['mock-review']` и валидирует его Zod-схемой, собранной из схем сущностей. Mock adapter и будущий HTTP-клиент реализуют один интерфейс; тесты подменяют adapter.
 
-### Композиция экрана в `app`
+### Композиция экрана в `pages`
 
-§5.2 архитектуры кладёт `ReviewRunView` в `widgets/review-run-view`, но он содержит `ReviewWorkspace` и `RunInspector` — соседние виджеты, а FSD запрещает импорт внутри слоя. Поэтому `widgets/review-run-view` отдаёт `RunHeader` и `ReviewSummary` (как в дереве §5.1), а `ReviewRunView`, соединяющий виджеты, живёт в `app` — единственном слое выше `widgets`.
+`ReviewRunView` содержит `ReviewWorkspace` и `RunInspector` — соседние виджеты, а FSD запрещает импорт внутри слоя, поэтому композиция обязана жить слоем выше. Ревизия 5.0 такого слоя не предусматривала, и экран временно собирался в `app`; ревизия 6.0 завела `pages/review-run` (§3) и прямо говорит: «`ReviewRunView` находится в `pages`, не в `app`». Сейчас так и сделано: `widgets/review-run-view` отдаёт `RunHeader` и `ReviewSummary`, `pages/review-run` владеет запросом экрана и композицией, `app` остаётся корнем приложения с провайдерами и mock adapter.
 
 ### Статус прогона — строка, а не закрытый enum
 
@@ -43,13 +43,13 @@
 
 ### Состояние
 
-| Данные                                                    | Владелец                                 |
-| --------------------------------------------------------- | ---------------------------------------- |
-| `MockReviewState`                                         | TanStack Query, `['mock-review']`        |
-| `selected_file`, `view_mode`, `expanded_context_line_ids` | Zustand-стор `widgets/review-workspace`  |
-| `severity_filters`                                        | Zustand-стор `features/filter-findings`  |
-| `selected_action_id`                                      | Zustand-стор `widgets/run-inspector`     |
-| раскрыта ли карточка замечания                            | Headless UI `Disclosure` внутри карточки |
+| Данные                                                    | Владелец                                |
+| --------------------------------------------------------- | --------------------------------------- |
+| `MockReviewState`                                         | TanStack Query, `['mock-review']`       |
+| `selected_file`, `view_mode`, `expanded_context_line_ids` | Zustand-стор `widgets/review-workspace` |
+| `severity_filters`                                        | Zustand-стор `features/filter-findings` |
+| `selected_action_id`                                      | Zustand-стор `widgets/run-inspector`    |
+| раскрыта ли карточка замечания                            | Ant Design `Collapse` внутри карточки   |
 
 Имена полей стора — как в §8.1 архитектуры.
 
@@ -78,7 +78,7 @@ change_request: { provider: string; url: string } | null
 
 - `@git-diff-view` моложе альтернатив и менее популярен → обёрнут в один компонент `DiffViewer`, замена затронет только его.
 - Сбой библиотеки на неожиданном диффе → `DiffViewer` обёрнут в `ErrorBoundary`, падает только блок файла.
-- Композиция `ReviewRunView` в `app` отступает от §5.1 архитектуры → записано здесь; противоречие самой архитектуре (виджет внутри виджета) стоит поправить в #6.
+- Композиция `ReviewRunView` вне `widgets` → закрыто ревизией 6.0 архитектуры: экран переехал в `pages/review-run`.
 
 ## Open Questions
 

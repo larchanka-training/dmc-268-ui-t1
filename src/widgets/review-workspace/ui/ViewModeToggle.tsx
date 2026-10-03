@@ -1,3 +1,5 @@
+import { Button } from 'antd'
+
 import type { DiffViewMode } from '../model/store'
 
 const MODES: { mode: DiffViewMode; label: string }[] = [
@@ -18,17 +20,16 @@ export function ViewModeToggle({ value, onChange }: Props) {
       className="inline-flex rounded-md border border-slate-300 p-0.5"
     >
       {MODES.map(({ mode, label }) => (
-        <button
+        <Button
           key={mode}
-          type="button"
+          size="small"
+          type={value === mode ? 'primary' : 'text'}
           aria-pressed={value === mode}
           onClick={() => onChange(mode)}
-          className={`rounded px-2.5 py-1 text-xs font-medium ${
-            value === mode ? 'bg-slate-900 text-white' : 'text-slate-700 hover:bg-slate-100'
-          }`}
+          className="text-xs font-medium"
         >
           {label}
-        </button>
+        </Button>
       ))}
     </div>
   )
