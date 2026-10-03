@@ -11,6 +11,10 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Интеграционные тесты экрана рендерят настоящий diff viewer на сотнях строк:
+    // локально самый тяжёлый идёт ~1.7 с, на раннере CI втрое дольше, и дефолтные 5 с
+    // срабатывают как ложный провал, а не как сигнал.
+    testTimeout: 15000,
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
