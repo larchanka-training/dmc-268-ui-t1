@@ -23,8 +23,8 @@
 ## 4. Тесты
 
 - [x] 4.1 Unit: форматтеры, схемы, `toUnifiedDiff`, `indexLines`, `collapseContext`, `groupFindingsByLine`, сторы
-- [x] 4.2 Компонентные: `ReviewCommentThread`, `TextWithCode`
-- [x] 4.3 Интеграционные: `ReviewRunView` с подменённым adapter — INT-01…INT-08, раскрытие контекста, фильтр, `RunInspector`
+- [x] 4.2 Компонентные: `ReviewCommentThread`, `TextWithCode`, `RunStatusBadge` — все семь статусов и незнакомое значение
+- [x] 4.3 Интеграционные: `ReviewRunView` с подменённым adapter — INT-01…INT-08, loading, бинарный файл, замечание без строки, раскрытие контекста, фильтр, `RunInspector`
 - [x] 4.4 Заменить smoke-тест счётчика `App`
 
 ## 5. Согласование

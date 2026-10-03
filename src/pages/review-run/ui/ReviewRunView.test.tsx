@@ -45,6 +45,12 @@ const util = makeDiffFile({
   language: 'python',
   hunks: [hunk(10, 10, [' def a():', '+    return 1'])],
 })
+const logo = makeDiffFile({
+  path: 'docs/logo.png',
+  language: 'binary',
+  is_binary: true,
+  hunks: [],
+})
 
 const leak = makeFinding({
   id: 'leak',
@@ -92,7 +98,7 @@ function fakeAdapter({
       if (path !== MOCK_REVIEW_PATH) throw new ApiError(404, path)
       return {
         run,
-        files: files.map((file) => makeFileSummary({ path: file.path })),
+        files: files.map((file) => makeFileSummary({ path: file.path, is_binary: file.is_binary })),
         diffs_by_path: Object.fromEntries(files.map((file) => [file.path, file])),
         findings,
         published_comments: [makePublishedComment({ finding_id: 'leak' })],
@@ -121,6 +127,32 @@ describe('ReviewRunView', () => {
     useReviewWorkspace.setState(initialReviewWorkspaceState)
     useFilterFindings.setState(initialFilterFindingsState)
     useRunInspector.setState(initialRunInspectorState)
+  })
+
+  it('пока adapter не ответил, экран говорит, что идёт загрузка', () => {
+    renderView({ get: () => new Promise(() => {}) })
+
+    expect(screen.getByRole('status')).toHaveTextContent('Загружаем прогон')
+  })
+
+  it('бинарный файл не притворяется диффом', async () => {
+    const user = userEvent.setup()
+    renderView(fakeAdapter({ files: [api, logo], findings: [] }))
+
+    await user.click(await screen.findByRole('button', { name: /docs\/logo\.png/ }))
+
+    // Просмотрщик грузится отдельным чанком, поэтому ответ ждём, а не читаем сразу.
+    expect(await screen.findByText('Бинарный файл — текстового диффа нет.')).toBeVisible()
+  })
+
+  it('замечание без строки видно в сводке, а не теряется', async () => {
+    renderView(fakeAdapter())
+    const summary = await screen.findByRole('region', { name: 'Сводка' })
+
+    expect(within(summary).getByRole('heading', { name: 'Без привязки к строке' })).toBeVisible()
+    expect(
+      within(summary).getByRole('article', { name: /Нет тестов на чтение окружения/ }),
+    ).toBeInTheDocument()
   })
 
   it('показывает метаданные прогона и сводку', async () => {
