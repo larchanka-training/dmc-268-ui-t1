@@ -109,6 +109,9 @@ importers:
 
   .:
     dependencies:
+      '@ant-design/cssinjs':
+        specifier: ^2.1.2
+        version: 2.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@git-diff-view/react':
         specifier: ^0.1.7
         version: 0.1.7(react-dom@19.3.0(react@19.3.0))(react@19.3.0)

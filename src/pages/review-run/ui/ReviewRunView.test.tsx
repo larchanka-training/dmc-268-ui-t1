@@ -222,8 +222,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     const removals = makeDiffFile({
       path: 'app/legacy.py',
-      status: 'deleted',
-      hunks: [hunk(1, 0, ['-import os', '~def unused():', '~    pass', '-print(os.name)'])],
+      hunks: [hunk(1, 1, ['-import os', '~def unused():', '~    pass', '-print(os.name)'])],
     })
     renderView(fakeAdapter({ files: [removals], findings: [] }))
 

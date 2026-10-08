@@ -32,6 +32,21 @@ describe('collapseContext', () => {
     expect(toUnifiedDiff(shown)).not.toContain('one()')
   })
 
+  it('у куска без строк одной стороны начало — последняя строка этой стороны перед ним', () => {
+    const oneSided = makeDiffFile({
+      path: 'd.py',
+      hunks: [hunk(10, 10, [' a', '~b', '~c', '+d', '+e', '~f', '-g'])],
+    })
+
+    const { file: shown } = collapseContext(oneSided, new Set())
+
+    expect(shown.hunks.map((item) => item.header)).toEqual([
+      '@@ -10,1 +10,1 @@',
+      '@@ -12,0 +13,2 @@',
+      '@@ -14,1 +15,0 @@',
+    ])
+  })
+
   it('кнопка раскрытия стоит под последней видимой строкой перед блоком', () => {
     const { gaps } = collapseContext(file, new Set())
 

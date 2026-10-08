@@ -1,3 +1,6 @@
+/* Порядок слоёв: antd идёт до utilities, поэтому классы Tailwind на его компонентах применяются. */
+@layer theme, base, antd, components, utilities;
+
 @import 'tailwindcss';
 
 body {

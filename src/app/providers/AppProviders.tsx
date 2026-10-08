@@ -1,3 +1,4 @@
+import { StyleProvider } from '@ant-design/cssinjs'
 import { QueryClientProvider, type QueryClient } from '@tanstack/react-query'
 import { ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
@@ -17,9 +18,12 @@ export function AppProviders({ transport, queryClient, children }: Props) {
   return (
     <QueryClientProvider client={client}>
       {/* Волна при клике — лишний шум в плотном интерфейсе диффа, где кнопок десятки. */}
-      <ConfigProvider locale={ruRU} wave={{ disabled: true }}>
-        <TransportContext value={transport}>{children}</TransportContext>
-      </ConfigProvider>
+      {/* Стили antd — в слое `antd`, ниже `utilities`: иначе они перебивают классы Tailwind. */}
+      <StyleProvider layer>
+        <ConfigProvider locale={ruRU} wave={{ disabled: true }}>
+          <TransportContext value={transport}>{children}</TransportContext>
+        </ConfigProvider>
+      </StyleProvider>
     </QueryClientProvider>
   )
 }

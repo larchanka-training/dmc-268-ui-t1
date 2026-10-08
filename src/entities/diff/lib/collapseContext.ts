@@ -77,11 +77,33 @@ function anchorOf(
   return null
 }
 
+/**
+ * Начало стороны куска. Если строк этой стороны в куске нет, по правилам unified-диффа это
+ * номер последней строки стороны перед куском — с учётом скрытых строк, а не начало hunk.
+ */
+function startOf(
+  source: DiffHunk,
+  lines: readonly DiffLine[],
+  side: 'old_line' | 'new_line',
+  count: number,
+): number {
+  if (count > 0) return lines.find((line) => line[side] !== null)?.[side] ?? 0
+  const before = source.lines.slice(0, source.lines.indexOf(lines[0]))
+  const last = [...before].reverse().find((line) => line[side] !== null)?.[side]
+  if (last != null) return last
+  // Перед куском в hunk строк этой стороны нет: строка перед самим hunk.
+  const [start, total] =
+    side === 'old_line'
+      ? [source.old_start, source.old_count]
+      : [source.new_start, source.new_count]
+  return Math.max(0, total === 0 ? start : start - 1)
+}
+
 function toHunk(source: DiffHunk, lines: DiffLine[], index: number): DiffHunk {
   const oldCount = lines.filter((line) => line.kind !== 'added').length
   const newCount = lines.filter((line) => line.kind !== 'removed').length
-  const oldStart = lines.find((line) => line.old_line !== null)?.old_line ?? source.old_start
-  const newStart = lines.find((line) => line.new_line !== null)?.new_line ?? source.new_start
+  const oldStart = startOf(source, lines, 'old_line', oldCount)
+  const newStart = startOf(source, lines, 'new_line', newCount)
   const context = index === 0 ? (source.header.match(/^@@[^@]*@@(.*)$/)?.[1] ?? '') : ''
   return {
     ...source,

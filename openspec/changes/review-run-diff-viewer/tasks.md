@@ -1,6 +1,6 @@
 ## 1. Основа
 
-- [x] 1.1 Подключить `@tanstack/react-query`, `zustand`, `zod`, `antd`, `@git-diff-view/react`
+- [x] 1.1 Подключить `@tanstack/react-query`, `zustand`, `zod`, `antd`, `@ant-design/cssinjs`, `@git-diff-view/react`
 - [x] 1.2 `shared/api`: `ApiTransport`, `ApiError`, `parseResponse` с `ContractError`
 - [x] 1.3 `shared/lib`: форматирование даты, длительности, sha, безопасная внешняя ссылка
 - [x] 1.4 `shared/ui`: `LoadingState`, `ErrorState`, `EmptyState`, `ErrorBoundary`, `TextWithCode`
@@ -33,3 +33,4 @@
 - [ ] 5.2 Решить расхождение severity: в задаче Critical / Warning / Info, в модели четыре уровня
 - [x] 5.3 Композиция `ReviewRunView`: ревизия 6.0 завела слой `pages`, экран перенесён в `pages/review-run`
 - [ ] 5.4 Сверить фикстуры с API, когда появится browser-контракт
+- [ ] 5.5 Решить в #18, нужен ли `rejected_findings` в ответе `GET /api/v1/reviews/{id}`

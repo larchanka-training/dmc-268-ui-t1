@@ -4,7 +4,7 @@
 
 В интерфейсе пока только стартовый счётчик. Задача спринта для Инженера 2 (#18) — экран прогона ревью: метаданные, Diff Viewer в двух режимах и замечания AI прямо под строками, к которым они относятся. Definition of Done: страница показывает файлы диффа, а под строками с замечаниями корректно рендерятся раскрывающиеся карточки.
 
-Структура, модели и состояние следуют `FRONTEND_ARCHITECTURE.md` ревизии 6.0: FSD со слоем `pages`, Ant Design как единственный UI-kit, один mock adapter, Zod-валидация, `ReviewRunView` с `RunHeader`, `ReviewSummary`, `ReviewWorkspace` и `RunInspector`.
+Структура, модели и состояние следуют `FRONTEND_ARCHITECTURE.md` ревизии 6.1: FSD со слоем `pages`, Ant Design как единственный UI-kit, один mock adapter, Zod-валидация, `ReviewRunView` с `RunHeader`, `ReviewSummary`, `ReviewWorkspace` и `RunInspector`.
 
 ## What Changes
 
@@ -31,7 +31,7 @@
 
 ## Impact
 
-- Код: `src/app`, `src/widgets/{review-run-view,review-workspace,run-inspector}`, `src/features/filter-findings`, `src/entities/{review-run,diff,review-finding,published-comment,review-run-action}`, `src/shared/{api,lib,ui}`. Удалены `src/App.tsx` и `src/App.test.tsx`.
-- Зависимости: `@git-diff-view/react`, `@tanstack/react-query`, `zustand`, `zod`, `antd`.
-- Бандл: просмотрщик диффа тянет подсветку всех языков highlight.js (~340 КБ gzip) и грузится отдельным чанком; основной чанк ~124 КБ gzip.
-- Бэкенду: в `ReviewRun` фронтенд добавляет `merge_request` (название, автор, ветки), `verdict`, `score` и `change_request` — их нет в §8.2, в моках они есть; нужно согласовать. Browser-контракта диффа и действий пока нет (FE-CON-05, FE-CON-06).
+- Код: `src/app`, `src/pages/review-run`, `src/widgets/{review-run-view,review-workspace,run-inspector}`, `src/features/filter-findings`, `src/entities/{review-run,diff,review-finding,published-comment,review-run-action}`, `src/shared/{api,lib,ui}`. Удалены `src/App.tsx` и `src/App.test.tsx`.
+- Зависимости: `@git-diff-view/react`, `@tanstack/react-query`, `zustand`, `zod`, `antd`, `@ant-design/cssinjs` — для слоя стилей antd под утилитами Tailwind.
+- Бандл: просмотрщик диффа тянет подсветку всех языков highlight.js (~340 КБ gzip) и грузится отдельным чанком; основной чанк с antd ~173 КБ gzip.
+- Бэкенду: `GET /api/v1/reviews/{id}` (dmc-268-api-t1#36) не отдаёт `rejected_findings` и расширения ТЗ — `merge_request` (название, автор, ветки), `verdict`, `score`, `change_request`; схема их не требует, но для экрана их нужно согласовать. Browser-контракта диффа и действий пока нет (FE-CON-05, FE-CON-06).

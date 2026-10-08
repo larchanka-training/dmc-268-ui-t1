@@ -26,7 +26,6 @@ export const run: ReviewRun = {
   trigger: 'webhook',
   created_at: '2026-09-26T09:12:04Z',
   updated_at: '2026-09-26T09:14:18Z',
-  last_progress_at: '2026-09-26T09:14:18Z',
   failure_reason: null,
   model: 'claude-sonnet-5',
   tokens_used: 48213,

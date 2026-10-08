@@ -50,18 +50,19 @@ export const ReviewRunSchema = z.object({
   trigger: z.enum(['webhook', 'manual', 'mention']),
   created_at: z.string(),
   updated_at: z.string(),
-  last_progress_at: z.string(),
   failure_reason: z.string().nullable(),
   model: z.string().nullable(),
   tokens_used: z.number().int().nullable(),
   duration_seconds: z.number().nullable(),
-  rejected_findings: z.number().int(),
-  // Ниже — расширения ТЗ, их нет в §8.2: ссылка на источник, запрос на изменения, итог.
-  change_request: ChangeRequestLinkSchema.nullable(),
-  merge_request: MergeRequestSummarySchema.nullable(),
-  verdict: z.enum(VERDICTS).nullable(),
+  // GET /api/v1/reviews/{id} его пока не отдаёт (dmc-268-api-t1#36); нужен ли он — решаем в #18.
+  rejected_findings: z.number().int().nullable().default(null),
+  // Ниже — расширения ТЗ, их нет ни в §8.2, ни в ответе бэкенда: ссылка на источник, запрос на
+  // изменения, итог. Отсутствие поля — то же, что `null`, чтобы экран не падал на ответе API.
+  change_request: ChangeRequestLinkSchema.nullable().default(null),
+  merge_request: MergeRequestSummarySchema.nullable().default(null),
+  verdict: z.enum(VERDICTS).nullable().default(null),
   /** Общая оценка изменений, 0–100. */
-  score: z.number().min(0).max(100).nullable(),
+  score: z.number().min(0).max(100).nullable().default(null),
 })
 
 export type ReviewRun = z.infer<typeof ReviewRunSchema>
