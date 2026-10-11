@@ -8,7 +8,7 @@
 
 ## 2. API-функции и запросы
 
-- [ ] 2.1 Добавить в `entities/repository/api/repositoryApi.ts` fetch-функции настроек, статуса правил и истории и `saveRepositorySettings` с задержкой по образцу существующих; экспорт через публичный `index.ts` слайса; `pnpm run typecheck` без ошибок
+- [x] 2.1 Добавить в `entities/repository/api/repositoryApi.ts` fetch-функции настроек, статуса правил и истории и `saveRepositorySettings` с задержкой по образцу существующих; экспорт через публичный `index.ts` слайса; `pnpm run typecheck` без ошибок
 - [ ] 2.2 Расширить `features/repository/model/repositoryQueries.ts`: ключи `['repositories', id, 'settings' | 'rules' | 'history']`, hooks `useRepositorySettings`, `useRulesStatus`, `useRepositoryHistory`, mutation `useSaveRepositorySettings` с инвалидацией настроек; поведение проверяется интеграционными тестами страницы в 4.3
 
 ## 3. UI сущностей
