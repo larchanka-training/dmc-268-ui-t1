@@ -22,4 +22,8 @@ export {
 } from '@/entities/repository/api/repositoryApi'
 export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'
 export { RulesPreview } from '@/entities/repository/ui/RulesPreview'
+export {
+  SEVERITY_THRESHOLD_LABEL,
+  SEVERITY_THRESHOLD_OPTIONS,
+} from '@/entities/repository/lib/severityThresholdLabels'
 export { repositoryStatusLabel } from '@/entities/repository/lib/statusLabels'
