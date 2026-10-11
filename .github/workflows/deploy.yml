@@ -244,6 +244,20 @@ jobs:
             *) echo "::error::HTTP не перенаправляет на HTTPS: '${location}'"; exit 1 ;;
           esac
 
+      - name: Проверить сжатие статики
+        env:
+          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+        run: |
+          set -uo pipefail
+          # Бандл берём из index.html: имя с хэшем меняется от сборки к сборке.
+          asset="$(curl -sS --max-time 5 "https://${HOST}/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
+          [ -n "$asset" ] || { echo "::error::в index.html не нашёлся JS-бандл"; exit 1; }
+          encoding="$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: gzip' --max-time 5 "https://${HOST}${asset}" | tr -d '\r' | grep -i '^content-encoding:' || true)"
+          case "$encoding" in
+            *gzip*) echo "${asset} отдаётся сжатым: $encoding" ;;
+            *) echo "::error::${asset} отдаётся без gzip"; exit 1 ;;
+          esac
+
       - name: Проверить HTTP/2 и HTTP/3
         env:
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}
