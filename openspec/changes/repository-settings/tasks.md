@@ -23,5 +23,5 @@
 
 ## 5. Проверки и доставка
 
-- [ ] 5.1 Прогнать гейты: `pnpm run typecheck`, `pnpm run lint`, `pnpm run stylelint`, `pnpm run format:check`, `pnpm run test` — все зелёные
+- [x] 5.1 Прогнать гейты: `pnpm run typecheck`, `pnpm run lint`, `pnpm run stylelint`, `pnpm run format:check`, `pnpm run test` — все зелёные
 - [ ] 5.2 Открыть PR из `feat/repository-settings` в `develop`: осмысленные заголовок и описание (первый контекст для ревью-бота), `Closes #28`, запросить ревью у всей команды
