@@ -33,12 +33,21 @@ import {
 } from '@/features/repository'
 
 /** Ошибка одного блока: сообщение и повтор, соседние блоки продолжают работать. */
-function BlockError({ text, onRetry }: { text: string; onRetry: () => void }) {
+function BlockError({
+  text,
+  onRetry,
+  error,
+}: {
+  text: string
+  onRetry: () => void
+  error?: Error | null
+}) {
   return (
     <Alert
       type="error"
       showIcon
       message={text}
+      description={error instanceof Error ? error.message : undefined}
       action={
         <Button size="small" onClick={onRetry}>
           Повторить
@@ -54,7 +63,7 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
   // Пропускаем один sync после успешного сохранения: кэш в этот момент ещё отдаёт старые
   // данные, а форма уже показывает отправленные (design.md — refetch не затирает форму).
   const skipSync = useRef(false)
-  const { data, isLoading, isError, refetch } = useRepositorySettings(repositoryId)
+  const { data, isLoading, isError, error, refetch } = useRepositorySettings(repositoryId)
   const save = useSaveRepositorySettings(repositoryId)
 
   useEffect(() => {
@@ -70,7 +79,13 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
     return <Skeleton active paragraph={{ rows: 4 }} />
   }
   if (isError || !data) {
-    return <BlockError text="Не удалось загрузить настройки" onRetry={() => void refetch()} />
+    return (
+      <BlockError
+        text="Не удалось загрузить настройки"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    )
   }
 
   return (
@@ -134,13 +149,19 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
 }
 
 function RulesPanel({ repositoryId }: { repositoryId: string }) {
-  const { data, isLoading, isError, refetch } = useRulesStatus(repositoryId)
+  const { data, isLoading, isError, error, refetch } = useRulesStatus(repositoryId)
 
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 6 }} />
   }
   if (isError || !data) {
-    return <BlockError text="Не удалось загрузить статус правил" onRetry={() => void refetch()} />
+    return (
+      <BlockError
+        text="Не удалось загрузить статус правил"
+        error={error}
+        onRetry={() => void refetch()}
+      />
+    )
   }
 
   return (
@@ -152,7 +173,7 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
 }
 
 function HistoryTable({ repositoryId }: { repositoryId: string }) {
-  const { data, isLoading, isError, refetch } = useRepositoryHistory(repositoryId)
+  const { data, isLoading, isError, error, refetch } = useRepositoryHistory(repositoryId)
 
   const columns: ColumnsType<HistoryRun> = [
     {
@@ -178,7 +199,11 @@ function HistoryTable({ repositoryId }: { repositoryId: string }) {
 
   if (isError) {
     return (
-      <BlockError text="Не удалось загрузить историю проверок" onRetry={() => void refetch()} />
+      <BlockError
+        text="Не удалось загрузить историю проверок"
+        error={error}
+        onRetry={() => void refetch()}
+      />
     )
   }
 
@@ -206,6 +231,7 @@ export function RepositorySettingsPage() {
     return (
       <BlockError
         text="Не удалось загрузить репозитории"
+        error={reposQuery.error}
         onRetry={() => void reposQuery.refetch()}
       />
     )
