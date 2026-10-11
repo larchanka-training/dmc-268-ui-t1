@@ -27,6 +27,6 @@
 - Файлы: `nginx/https.conf.template`, `nginx/site.conf`, `infra/main.tf`, `Dockerfile`, `.github/workflows/deploy.yml`, `.github/workflows/ci.yml`, `infra/README.md`.
 - Сервер: на VPS файрвол не настроен (`vps-bootstrap`), и проба показала, что UDP 443 доходит до хоста через сеть провайдера.
 - Деплой: шаг проверки HTTP/3 ставит curl в `debian:trixie-slim` — около 20 секунд. curl на раннере собран без HTTP/3.
-- CI: новый job `nginx` собирает образ — около минуты, параллельно остальным.
+- CI: новый job `nginx` собирает образ — около 25 секунд, параллельно остальным; общее время CI почти не растёт.
 - Образ: рядом со статикой лежат `.gz`, примерно +30% к размеру `dist`.
 - Порядок: ветка отведена от `feat/frontend-delivery-spec` (PR #14), в котором появились `https.conf.template` и деплой. После его мерджа база переедет на `develop`.
