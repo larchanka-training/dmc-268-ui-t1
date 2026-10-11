@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
+import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 
 function renderRepositoriesPage() {
   const queryClient = new QueryClient({
@@ -10,8 +12,11 @@ function renderRepositoriesPage() {
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <RepositoriesPage />
+      <MemoryRouter initialEntries={['/repositories']}>
+        <Routes>
+          <Route path="/repositories" element={<RepositoriesPage />} />
+          <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -34,5 +39,16 @@ describe('RepositoriesPage', () => {
     expect(screen.getByText('Подключён')).toBeInTheDocument()
     // Время — общим форматтером `shared/lib`, как на экране прогона.
     expect(screen.getByText('28.09.2026, 08:30 UTC')).toBeInTheDocument()
+  })
+
+  it('из списка открывает экран настроек репозитория', async () => {
+    const user = userEvent.setup()
+    renderRepositoriesPage()
+
+    const [settingsLink] = await screen.findAllByRole('link', { name: 'Настройки' })
+    await user.click(settingsLink)
+
+    expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
+    expect(screen.getByText('larchanka-training/platform-api')).toBeInTheDocument()
   })
 })
