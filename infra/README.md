@@ -16,7 +16,7 @@ flowchart TD
     img --> ghcr[("ghcr.io<br/>тег = commit sha")]
     ghcr -. "образ по тегу" .-> apply["tofu apply<br/>ключ хоста сверяется с known_hosts"]
     apply -.-> state[("состояние: бакет dmc268-tfstate,<br/>ключ ui/terraform.tfstate")]
-    apply --> ui["контейнер dmc268-ui :80, :443<br/>PUBLIC_HOST = адрес стенда"]
+    apply --> ui["контейнер dmc268-ui :80, :443 tcp+udp<br/>PUBLIC_HOST = адрес стенда"]
     ui --> vol{"на томе dmc268-ui-acme<br/>есть действующий сертификат?"}
     vol -- "да" --> serve["HTTPS с сертификатом с тома"]
     vol -- "нет" --> le["модуль ACME: заказ у Let's Encrypt,<br/>профиль shortlived, проверка HTTP-01 на :80"]
@@ -63,6 +63,8 @@ sequenceDiagram
 ```
 
 Интерфейс и API отдаёт только `:443`. На `:80` браузер получает лишь `301`, а Let's Encrypt — ответ на проверку.
+
+На `:443` по TCP идёт HTTP/2, по UDP — HTTP/3. Браузер всегда приходит по TCP, из заголовка `Alt-Svc` узнаёт про QUIC и следующие запросы шлёт уже по нему. Если UDP по пути закрыт, браузер остаётся на HTTP/2. Поэтому на хосте и у провайдера должен быть открыт и `443/tcp`, и `443/udp`.
 
 TLS снимает сам `nginx` интерфейса встроенным модулем [`ngx_http_acme_module`](https://nginx.org/en/docs/http/ngx_http_acme_module.html) — он уже есть в образе `nginx:1.30-alpine`. Модуль получает сертификат при первом старте, продлевает его до истечения и подменяет без перезапуска. Порт 80 он использует для проверки HTTP-01, остальные запросы на 80 перенаправляются на HTTPS.
 

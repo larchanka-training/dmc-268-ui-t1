@@ -244,6 +244,37 @@ jobs:
             *) echo "::error::HTTP не перенаправляет на HTTPS: '${location}'"; exit 1 ;;
           esac
 
+      - name: Проверить HTTP/2 и HTTP/3
+        env:
+          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+        run: |
+          set -uo pipefail
+          # HTTP/2 снимает лимит браузера в 6 соединений на адрес — без него
+          # несколько открытых SSE-подписок занимают все соединения.
+          version="$(curl -sS -o /dev/null -w '%{http_version}' --http2 --max-time 5 "https://${HOST}/" || true)"
+          [ "$version" = "2" ] || { echo "::error::по TCP отдаётся HTTP/${version}, ожидался HTTP/2"; exit 1; }
+          echo "по TCP отдаётся HTTP/2"
+
+          # Alt-Svc нужен именно на index.html: из него браузер узнаёт о QUIC.
+          alt_svc="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^alt-svc:' || true)"
+          case "$alt_svc" in
+            *'h3=":443"'*) echo "интерфейс объявляет HTTP/3: $alt_svc" ;;
+            *) echo "::error::в ответе нет Alt-Svc с h3"; exit 1 ;;
+          esac
+
+          # curl на раннере собран без HTTP/3 — берём собранный с ним из Debian.
+          # Запрос только по QUIC заодно проверяет, что UDP 443 открыт до стенда.
+          h3_version="$(docker run --rm debian:trixie-slim sh -c "
+            apt-get -qq update >/dev/null && apt-get -qq install -y --no-install-recommends curl ca-certificates >/dev/null || { echo no-curl; exit; }
+            curl -sS -o /dev/null -w '%{http_version}' --http3-only --max-time 10 https://${HOST}/
+          " || true)"
+          # Сбой apt — не повод искать проблему в сети стенда.
+          case "$h3_version" in
+            3) echo "по QUIC отдаётся HTTP/3" ;;
+            no-curl) echo "::error::не удалось поставить curl в debian:trixie-slim — проверка HTTP/3 не выполнена"; exit 1 ;;
+            *) echo "::error::по QUIC стенд не ответил — проверьте UDP 443"; exit 1 ;;
+          esac
+
       - name: Проверить, что API доступен через тот же адрес
         env:
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}
