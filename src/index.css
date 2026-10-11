@@ -1,7 +1,11 @@
-/* Утилиты Tailwind — layout; компоненты — antd. Preflight не подключаем, чтобы не ломать стили antd. */
+/* Порядок слоёв: antd идёт до utilities, поэтому классы Tailwind на его компонентах применяются. */
+@layer theme, base, antd, components, utilities;
 
-/* Слои: antd объявлен первым — его стили проигрывают слоям Tailwind и неслоёным классам проекта. */
-@layer antd, theme, utilities;
+@import 'tailwindcss';
 
-@import 'tailwindcss/theme' layer(theme);
-@import 'tailwindcss/utilities' layer(utilities);
+body {
+  /* Фон страниц вне Layout antd (вход, OAuth-колбэк) — из палитры темы кабинета. */
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  -webkit-font-smoothing: antialiased;
+}

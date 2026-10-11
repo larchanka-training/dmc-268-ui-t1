@@ -6,6 +6,7 @@ import { LoginPage } from '@/pages/LoginPage'
 import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
+import { ReviewRunView } from '@/pages/review-run'
 
 export function AppRouter() {
   return (
@@ -13,6 +14,8 @@ export function AppRouter() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
+        {/* Экран прогона из #19: публичный, как до интеграции с кабинетом. */}
+        <Route path="/reviews/:reviewId" element={<ReviewRunView />} />
         <Route
           element={
             <RequireAuth>
