@@ -12,6 +12,7 @@
 - Контейнер интерфейса публикует `443/udp` вместе с `443/tcp`.
 - Статика сжимается gzip при сборке образа, nginx отдаёт готовые `.gz` (`gzip_static`). Ответы API сжимаются на лету. Поток SSE не сжимается.
 - Проверка после деплоя убеждается, что по TCP отдаётся HTTP/2, в ответе есть `Alt-Svc` с `h3`, а запрос только по QUIC получает HTTP/3.
+- CI на каждый пул-реквест собирает образ и проверяет конфиг nginx (`nginx -t`) в режимах HTTP и HTTPS: ошибка в конфиге ловится до мерджа, а не падением контейнера на стенде.
 - Локальный режим без TLS (`nginx/http.conf`) получает сжатие, но остаётся на HTTP/1.1: HTTP/2 и HTTP/3 без TLS браузеры не поддерживают.
 - Заголовки кэширования не меняются: `index.html` — `no-cache` с `ETag`, `/assets/` — `immutable` на год.
 
@@ -23,8 +24,9 @@
 
 ## Impact
 
-- Файлы: `nginx/https.conf.template`, `nginx/site.conf`, `infra/main.tf`, `Dockerfile`, `.github/workflows/deploy.yml`, `infra/README.md`.
+- Файлы: `nginx/https.conf.template`, `nginx/site.conf`, `infra/main.tf`, `Dockerfile`, `.github/workflows/deploy.yml`, `.github/workflows/ci.yml`, `infra/README.md`.
 - Сервер: на VPS файрвол не настроен (`vps-bootstrap`), и проба показала, что UDP 443 доходит до хоста через сеть провайдера.
 - Деплой: шаг проверки HTTP/3 ставит curl в `debian:trixie-slim` — около 20 секунд. curl на раннере собран без HTTP/3.
+- CI: новый job `nginx` собирает образ — около минуты, параллельно остальным.
 - Образ: рядом со статикой лежат `.gz`, примерно +30% к размеру `dist`.
 - Порядок: ветка отведена от `feat/frontend-delivery-spec` (PR #14), в котором появились `https.conf.template` и деплой. После его мерджа база переедет на `develop`.

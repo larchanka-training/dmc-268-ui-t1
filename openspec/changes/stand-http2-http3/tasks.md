@@ -15,3 +15,4 @@
 - [x] 2.5 UDP-проба до VPS: ICMP port unreachable, провайдер UDP не режет
 - [x] 2.6 `deploy.yml`: шаг проверки HTTP/2, `Alt-Svc` и HTTP/3
 - [ ] 2.7 Первый деплой: шаг HTTP/3 зелёный, в браузере на стенде Protocol `h3`
+- [x] 2.8 CI: `nginx -t` на собранном образе в режимах HTTP и HTTPS
