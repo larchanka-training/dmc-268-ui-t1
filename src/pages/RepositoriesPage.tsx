@@ -54,6 +54,15 @@ export function RepositoriesPage() {
       key: 'lastSyncAt',
       render: (value?: string) => (value ? dayjs(value).format('D MMM, HH:mm') : '—'),
     },
+    {
+      title: 'Действия',
+      key: 'actions',
+      render: (_, record) => (
+        <Link to={`/repositories/${record.id}/settings`}>
+          <Button>Настройки</Button>
+        </Link>
+      ),
+    },
   ]
 
   return (
