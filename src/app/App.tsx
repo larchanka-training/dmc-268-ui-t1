@@ -3,7 +3,7 @@ import { useState } from 'react'
 import type { ApiTransport } from '../shared/api'
 import { createMockAdapter } from './mocks/mockAdapter'
 import { AppProviders } from './providers/AppProviders'
-import { ReviewRunView } from '../pages/review-run'
+import { AppRouter } from './router/AppRouter'
 
 type Props = {
   /** До backend-контракта интерфейс работает на mock adapter (FE-DEC-06). */
@@ -14,7 +14,7 @@ export function App({ transport }: Props) {
   const [adapter] = useState(() => transport ?? createMockAdapter())
   return (
     <AppProviders transport={adapter}>
-      <ReviewRunView />
+      <AppRouter />
     </AppProviders>
   )
 }

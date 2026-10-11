@@ -1,0 +1,113 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+
+  /* Фон страниц вне Layout antd (вход, OAuth-колбэк) — из той же палитры. */
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+
+.app-content-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}
+
+:root {
+  --app-shell-header-height: 56px;
+}
+
+.app-shell-header-bar {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: var(--app-shell-header-height);
+  min-height: var(--app-shell-header-height);
+  border-bottom: 1px solid var(--app-border);
+  flex-shrink: 0;
+}
+
+.app-sidebar-brand {
+  color: var(--app-text);
+  padding: 0 20px;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1;
+}
+
+.app-sidebar-brand .anticon {
+  color: var(--app-text);
+  font-size: 16px;
+  line-height: 1;
+}
+
+.app-main-header {
+  justify-content: space-between;
+  padding: 0 24px;
+  line-height: 1;
+}
+
+.app-main-header .ant-typography {
+  line-height: 1;
+  font-size: 13px;
+}
+
+.app-layout-root {
+  min-height: 100%;
+}
+
+.app-layout-sider {
+  border-right: 1px solid var(--app-border);
+}
+
+.app-layout-content {
+  padding: 24px;
+  min-height: 280px;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.25;
+}
+
+.page-toolbar {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.page-section {
+  margin-top: 24px;
+}
+
+.page-error {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.text-meta {
+  font-size: 12px;
+}
+
+.page-search {
+  max-width: 360px;
+  margin-bottom: 16px;
+}
+
+.link-spaced {
+  margin-left: 8px;
+}

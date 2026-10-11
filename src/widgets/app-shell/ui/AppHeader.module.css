@@ -1,0 +1,5 @@
+/* Высота и отступы — в `.app-shell-header-bar` и `.app-main-header`; здесь только то,
+   что перебивает фон шапки antd: шапка прозрачная поверх раскладки. */
+.header {
+  background: transparent;
+}

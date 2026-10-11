@@ -1,0 +1,29 @@
+.page {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--app-surface);
+}
+
+.card {
+  width: 420px;
+  max-width: 100%;
+}
+
+.stack {
+  width: 100%;
+}
+
+.intro-title {
+  margin-bottom: 8px;
+}
+
+.intro-text {
+  margin-bottom: 0;
+}
+
+.actions {
+  width: 100%;
+}

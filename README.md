@@ -53,6 +53,27 @@ pnpm dev
 
 Dev-сервер запускается на `http://localhost:3000` и автоматически открывает вкладку в браузере.
 
+Откройте `http://localhost:3000/login` для входа через GitHub или GitLab (пока используется имитация OAuth).
+
+## Кабинет (mock API)
+
+- OAuth: редирект, callback; профиль в `localStorage`, access-токен в памяти вкладки, refresh по контракту API
+- App shell: sidebar, header, навигация, статус авторизации, светлая/тёмная тема
+- Список подключённых репозиториев и экран подключения нового репозитория
+
+### UI: Ant Design и Tailwind
+
+Кабинет собран на **antd** (формы, таблицы, layout). **Tailwind v4** подключён только как утилиты (`theme` + `utilities` в `src/index.css`, без preflight), чтобы не перебивать стили antd. Палитра и токены antd синхронизируются из `src/shared/theme/palette.ts` (CSS-переменные `--app-*`).
+
+Дополнительные переменные (опционально):
+
+| Переменная                | По умолчанию              | Описание                           |
+| ------------------------- | ------------------------- | ---------------------------------- |
+| `VITE_USE_MOCK_API`       | `true`                    | `false` — когда бэкенд OAuth готов |
+| `VITE_OAUTH_REDIRECT_URI` | `{origin}/oauth/callback` | Redirect URI OAuth                 |
+| `VITE_OAUTH_CLIENT_ID`    | —                         | Client id провайдера               |
+| `VITE_API_BASE_URL`       | `/api/v1`                 | Базовый URL API (OpenAPI v1)       |
+
 ## Скрипты
 
 | Команда              | Описание                                                          |
