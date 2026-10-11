@@ -20,4 +20,6 @@ export {
   fetchRulesStatus,
   saveRepositorySettings,
 } from '@/entities/repository/api/repositoryApi'
+export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'
+export { RulesPreview } from '@/entities/repository/ui/RulesPreview'
 export { repositoryStatusLabel } from '@/entities/repository/lib/statusLabels'
