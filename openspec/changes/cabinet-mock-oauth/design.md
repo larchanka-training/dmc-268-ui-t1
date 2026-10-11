@@ -23,7 +23,7 @@
 
 - **Мок:** сессия в `localStorage` допустима для демо; refresh/access короткоживущие.
 - **Граница:** `loadSession()` парсит JSON как `unknown`, валидирует форму `AuthSession`; при ошибке — `clearSession()` и `null` (без падения в `useState`).
-- **Прод:** refresh в httpOnly-cookie, access в памяти вкладки — контракт с API (`dmc-268-api-t1`); в design зафиксировано, не блокирует мок-PR.
+- **Прод:** сессия — httpOnly cookie, выдаётся API после OAuth-callback, на все запросы к `/api/`, включая SSE. Access-токена в заголовке и refresh по таймеру нет: интерфейс и API на одном origin за nginx, cookie уходит сама (`credentials: 'include'`, `EventSource` с `withCredentials`). Контракт с API (`dmc-268-api-t1`); в design зафиксировано, не блокирует мок-PR.
 
 ### Данные репозиториев
 
