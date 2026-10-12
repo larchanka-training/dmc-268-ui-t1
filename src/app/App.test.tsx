@@ -1,11 +1,90 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
-import { App } from '@/app/App'
+import { act, render, screen, within } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import type { ApiTransport, EventStream } from '../shared/api'
+import { App } from './App'
+import { createMockAdapter } from './mocks/mockAdapter'
+import { createScenarioEventStream } from './mocks/mockEventStream'
+import { createMockServer, FAILED_SCENARIO } from './mocks/mockServer'
+
+const STEP_MS = 4_000
+
+/** Собирает приложение на mock adapter и mock-потоке с общим «сервером» и считает обращения. */
+function setup(scenario?: Parameters<typeof createMockServer>[0]) {
+  const server = createMockServer({ ...scenario, stepMs: STEP_MS })
+  const adapter = createMockAdapter({ latencyMs: 0, server })
+  const stream = createScenarioEventStream(server)
+  const calls = { get: 0, subscribe: 0 }
+  const transport: ApiTransport = {
+    get: (path) => {
+      calls.get += 1
+      return adapter.get(path)
+    },
+  }
+  const eventStream: EventStream = {
+    subscribe: (path, handlers) => {
+      calls.subscribe += 1
+      return stream.subscribe(path, handlers)
+    },
+  }
+  // Экран прогона — публичный маршрут роутера: входить не нужно.
+  window.history.pushState({}, '', '/reviews/run-42')
+  render(<App transport={transport} eventStream={eventStream} />)
+  return { calls }
+}
 
 describe('App', () => {
   it('показывает экран входа для неавторизованного пользователя', async () => {
+    window.history.pushState({}, '', '/')
     render(<App />)
     expect(await screen.findByRole('button', { name: /Войти через GitHub/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Войти через GitLab/i })).toBeInTheDocument()
+  })
+})
+
+const progress = () => screen.getByRole('region', { name: 'Прогресс прогона' })
+
+describe('App на mock adapter и mock-потоке', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('прогон доходит до completed, затем один перезапрос и подписка больше не открывается', async () => {
+    const { calls } = setup()
+
+    expect(await screen.findByText('В очереди', { selector: 'span' })).toBeInTheDocument()
+    expect(calls).toEqual({ get: 1, subscribe: 1 })
+    expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 3))
+    expect(await screen.findByText('Публикация', { selector: 'span' })).toBeInTheDocument()
+    expect(calls.get).toBe(1)
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS))
+
+    // Замечания и вердикт приходят перезапросом, который вызвало терминальное событие.
+    expect(await screen.findByLabelText(/^Вердикт:/)).toBeInTheDocument()
+    expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
+    expect(calls).toEqual({ get: 2, subscribe: 1 })
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
+    expect(calls).toEqual({ get: 2, subscribe: 1 })
+  })
+
+  it('сценарий сбоя заканчивается failed с этапом и причиной, без новых подписок', async () => {
+    const { calls } = setup({ scenario: FAILED_SCENARIO })
+    await screen.findByText('В очереди', { selector: 'span' })
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 2))
+
+    expect(await screen.findByText('Ошибка')).toBeInTheDocument()
+    expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('ошибка')
+    expect(within(progress()).getByText('LLM не ответила за отведённое время')).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
+    expect(calls).toEqual({ get: 2, subscribe: 1 })
   })
 })

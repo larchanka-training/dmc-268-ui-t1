@@ -1,8 +1,8 @@
 export { ReviewRunView } from './ui/ReviewRunView'
 export {
-  MOCK_REVIEW_PATH,
   MockReviewStateSchema,
   mockReviewKey,
+  mockReviewPath,
   useMockReview,
   type MockReviewState,
 } from './model/mockReview'

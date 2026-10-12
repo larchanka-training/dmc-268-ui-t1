@@ -20,14 +20,21 @@ export const MockReviewStateSchema = z.object({
 
 export type MockReviewState = z.infer<typeof MockReviewStateSchema>
 
-export const MOCK_REVIEW_PATH = '/mock-review'
-export const mockReviewKey = ['mock-review'] as const
+/** Путь mock-ресурса прогона; до REST-контракта экрана — один ресурс на всё, что видно на экране. */
+export function mockReviewPath(reviewId: string) {
+  return `/mock-review/${encodeURIComponent(reviewId)}`
+}
 
-export function useMockReview() {
+/** Ключ кэша прогона. Новый массив на каждый вызов: в компоненте его держат в `useMemo`. */
+export function mockReviewKey(reviewId: string) {
+  return ['mock-review', reviewId] as const
+}
+
+export function useMockReview(reviewId: string) {
   const transport = useTransport()
+  const path = mockReviewPath(reviewId)
   return useQuery({
-    queryKey: mockReviewKey,
-    queryFn: async () =>
-      parseResponse(MockReviewStateSchema, MOCK_REVIEW_PATH, await transport.get(MOCK_REVIEW_PATH)),
+    queryKey: mockReviewKey(reviewId),
+    queryFn: async () => parseResponse(MockReviewStateSchema, path, await transport.get(path)),
   })
 }

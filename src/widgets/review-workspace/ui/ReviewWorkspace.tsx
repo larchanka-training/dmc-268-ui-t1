@@ -1,3 +1,4 @@
+import { Button } from 'antd'
 import { lazy, Suspense, useMemo } from 'react'
 
 import type { DiffFile, DiffFileSummary } from '../../../entities/diff'
@@ -5,8 +6,12 @@ import { publicationsByFinding, type PublishedComment } from '../../../entities/
 import type { ReviewFinding } from '../../../entities/review-finding'
 import type { ReviewRun } from '../../../entities/review-run'
 import {
-  applySeverityFilter,
+  applyFileFilters,
+  applyFindingFilters,
+  FileFilter,
+  FilterSummary,
   SeverityFilter,
+  TextFilter,
   useFilterFindings,
 } from '../../../features/filter-findings'
 import { EmptyState, ErrorBoundary, ErrorState, LoadingState } from '../../../shared/ui'
@@ -39,15 +44,33 @@ export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedCo
     expandContext,
   } = useReviewWorkspace()
   const severities = useFilterFindings((state) => state.severity_filters)
-
-  const paths = useMemo(() => files.map((file) => file.path), [files])
-  const activePath = resolveSelectedPath(selected_file, paths)
-  const diff = activePath === null ? undefined : diffsByPath[activePath]
+  const textQuery = useFilterFindings((state) => state.text_query)
+  const fileQuery = useFilterFindings((state) => state.file_query)
+  const onlyWithFindings = useFilterFindings((state) => state.only_with_findings)
+  const resetFilters = useFilterFindings((state) => state.resetFilters)
 
   const publications = useMemo(() => publicationsByFinding(publishedComments), [publishedComments])
   const visibleFindings = useMemo(
-    () => applySeverityFilter(findings, severities),
-    [findings, severities],
+    () => applyFindingFilters(findings, { severity_filters: severities, text_query: textQuery }),
+    [findings, severities, textQuery],
+  )
+  const visibleFiles = useMemo(
+    () =>
+      applyFileFilters(files, visibleFindings, {
+        file_query: fileQuery,
+        only_with_findings: onlyWithFindings,
+      }),
+    [files, visibleFindings, fileQuery, onlyWithFindings],
+  )
+
+  // Выбранный файл, выпавший из списка, заменяет первый оставшийся (`resolveSelectedPath`).
+  const paths = useMemo(() => visibleFiles.map((file) => file.path), [visibleFiles])
+  const activePath = resolveSelectedPath(selected_file, paths)
+  const diff = activePath === null ? undefined : diffsByPath[activePath]
+
+  const shownCount = useMemo(
+    () => visibleFindings.filter((finding) => paths.includes(finding.file_path)).length,
+    [visibleFindings, paths],
   )
   const findingsCount = useMemo(() => {
     const counts = new Map<string, number>()
@@ -78,8 +101,9 @@ export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedCo
       className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]"
     >
       <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-2 lg:sticky lg:top-4 lg:self-start">
+        <FileFilter />
         <FileList
-          files={files}
+          files={visibleFiles}
           findingsCount={findingsCount}
           selectedPath={activePath}
           onSelect={selectFile}
@@ -91,11 +115,20 @@ export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedCo
           <h2 className="truncate font-mono text-sm font-medium text-slate-900">{activePath}</h2>
           <div className="flex flex-wrap items-center gap-3">
             <SeverityFilter findings={findings} />
+            <TextFilter />
             <ViewModeToggle value={view_mode} onChange={setViewMode} />
           </div>
         </div>
+        <FilterSummary shown={shownCount} total={findings.length} withReset={paths.length > 0} />
 
-        {diff === undefined ? (
+        {activePath === null ? (
+          <EmptyState>
+            <p>Под выбранные фильтры не подходит ни один файл.</p>
+            <Button size="small" onClick={resetFilters} className="mt-3">
+              Сбросить фильтры
+            </Button>
+          </EmptyState>
+        ) : diff === undefined ? (
           <ErrorState title="Для выбранного файла нет диффа в данных прогона" />
         ) : (
           <ErrorBoundary

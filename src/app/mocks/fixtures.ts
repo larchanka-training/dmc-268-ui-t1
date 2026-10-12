@@ -27,6 +27,8 @@ export const run: ReviewRun = {
   created_at: '2026-09-26T09:12:04Z',
   updated_at: '2026-09-26T09:14:18Z',
   failure_reason: null,
+  last_progress_at: null,
+  failed_stage: null,
   model: 'claude-sonnet-5',
   tokens_used: 48213,
   duration_seconds: 134,
