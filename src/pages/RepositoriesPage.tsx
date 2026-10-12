@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+import { formatDateTime } from '@/shared/lib'
 import { repositoryStatusLabel, type ConnectedRepository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
 
@@ -52,7 +52,7 @@ export function RepositoriesPage() {
       title: 'Последняя синхронизация',
       dataIndex: 'lastSyncAt',
       key: 'lastSyncAt',
-      render: (value?: string) => (value ? dayjs(value).format('D MMM, HH:mm') : '—'),
+      render: (value?: string) => (value ? formatDateTime(value) : '—'),
     },
     {
       title: 'Действия',
