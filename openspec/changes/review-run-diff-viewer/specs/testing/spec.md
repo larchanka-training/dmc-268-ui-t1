@@ -1,6 +1,14 @@
-## MODIFIED Requirements
+## REMOVED Requirements
 
 ### Requirement: Smoke-тест App
+
+**Reason**: счётчика из стартового шаблона больше нет — `App` рендерит роутер с экраном прогона.
+
+**Migration**: smoke-тест переезжает на экран прогона — требование «Smoke-тест экрана прогона» ниже.
+
+## ADDED Requirements
+
+### Requirement: Smoke-тест экрана прогона
 
 Интеграционный тест `src/pages/review-run/ui/ReviewRunView.test.tsx` SHALL рендерить экран прогона с подменённым adapter данных и проверять её наблюдаемое поведение через `@testing-library/user-event`. Данные SHALL подменяться на уровне `ApiTransport`, а не `fetch`.
 
@@ -13,6 +21,8 @@
 
 - **WHEN** пользователь выбирает другой файл в списке изменённых файлов
 - **THEN** показывается дифф выбранного файла
+
+## MODIFIED Requirements
 
 ### Requirement: Co-location тестов
 

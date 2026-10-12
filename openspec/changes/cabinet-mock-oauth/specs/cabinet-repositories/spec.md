@@ -23,3 +23,9 @@ Repository lists and connect actions SHALL use TanStack Query (queries and mutat
 ### Requirement: Filter available repositories
 
 The connect page SHALL allow filtering available repositories by name (client-side filter on query data).
+
+#### Scenario: Filter by part of the name
+
+- **WHEN** the user types `Front` in the search field on `/repositories/connect`
+- **THEN** the list SHALL show only repositories whose full name contains `front`, case-insensitive
+- **AND** clearing the field SHALL show all available repositories again
