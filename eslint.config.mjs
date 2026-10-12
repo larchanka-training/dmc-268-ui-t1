@@ -24,6 +24,18 @@ export default tseslint.config(
     rules: {
       ...reactHooks.configs.recommended.rules,
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      // Даты и числа — через Intl и общий форматтер: один формат и один пояс на всё приложение.
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['dayjs', 'dayjs/*', 'moment', 'moment/*', 'date-fns', 'date-fns/*', 'luxon'],
+              message: 'Даты форматируем через Intl: formatDateTime из @/shared/lib.',
+            },
+          ],
+        },
+      ],
     },
   },
   {
