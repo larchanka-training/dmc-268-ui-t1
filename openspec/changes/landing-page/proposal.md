@@ -28,4 +28,4 @@
 
 - Файлы: `index.html` (теперь лендинг), `app/index.html` (новый, HTML приложения), `vite.config.ts`, `src/landing/`, `public/`, `nginx/site.conf`, `Dockerfile`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`.
 - Адреса: приложение переезжает с `/` на `/app/`. Callback в OAuth-приложениях GitHub и GitLab прописывается с `/app` — это настройка у провайдеров, а не в коде.
-- Порядок: ветка отведена от `feat/stand-http2-http3` (#22), где появились `site.conf`, gzip и проверки после деплоя. Маршруты роутера кабинета — в #16, префикс `/app` ставится там или следующим PR после его мерджа.
+- Порядок: ветка отведена от `feat/stand-http2-http3` (#22), где появились `site.conf`, gzip и проверки после деплоя. Кабинет из #16 уже в `develop`, префикс `/app` его роутеру ставится здесь.

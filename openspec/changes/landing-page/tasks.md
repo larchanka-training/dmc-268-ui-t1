@@ -21,7 +21,7 @@
 
 ## 4. Приложение
 
-- [ ] 4.1 `basename="/app"` у роутера кабинета, экран входа и `/oauth/callback` убрать из SPA: здесь или в #16, по договорённости с его автором
+- [ ] 4.1 `basename="/app"` у роутера кабинета, экран входа и `/oauth/callback` убрать из SPA
 - [x] 4.3 Статичная `login.html` со ссылками на `/api/v1/auth/{provider}/login`; `location = /login` с редиректом на `/app/` при cookie сессии; `STATIC_PAGES` для dev-сервера
 - [x] 4.2 Ссылки внутри приложения и редиректы после входа ведут под `/app/`
 
@@ -32,7 +32,7 @@
 
 ## 6. Вход и `redirect`
 
-- [ ] 6.1 `nginx/site.conf`: `location /app/` и `location = /app` без cookie сессии — `302` на `/login?redirect=$uri`
-- [ ] 6.2 `login.html`: неблокирующий скрипт в конце `<body>` — `redirect` в ссылки входа, сообщение по `error`
-- [ ] 6.3 `scripts/check-routes.sh`: `/app/reviews/42` без cookie → `302` на `/login?redirect=…`, с cookie — приложение
-- [ ] 6.4 Сообщения для `denied`, `state_mismatch`, `provider_unavailable`
+- [x] 6.1 `nginx/site.conf`: `location /app/` и `location = /app` без cookie сессии — `302` на `/login?redirect=<путь из $request_uri>`
+- [x] 6.2 `login.html`: неблокирующий модуль `src/landing/login.ts` — `redirect` в ссылки входа, сообщение по `error`
+- [x] 6.3 `scripts/check-routes.sh`: `/app/reviews/42` без cookie → `302` на `/login?redirect=…`, с cookie — приложение
+- [x] 6.4 Сообщения для `denied`, `state_mismatch`, `provider_unavailable`
