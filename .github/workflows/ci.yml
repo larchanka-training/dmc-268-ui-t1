@@ -5,39 +5,71 @@ on:
     branches: [main, develop]
   pull_request:
 
+# У токена прогона только чтение: CI ничего не пишет в репозиторий.
+permissions:
+  contents: read
+
+# Новый пуш в ветку пул-реквеста отменяет прогон по устаревшему коммиту.
+# Пуши в main и develop не отменяются: там нужен результат по каждому коммиту.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  syntax:
+  # Те же проверки, что AGENTS.md требует перед коммитом: хуки можно обойти
+  # (--no-verify), CI — нет. Setup общий — .github/actions/setup.
+  typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: pnpm run typecheck
 
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: pnpm run lint
+      - run: pnpm run stylelint
+      - run: pnpm run format:check
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
       - run: pnpm run test
+
+  # Ошибка в спеке иначе всплывает только при архиве change: требование без
+  # сценария, MODIFIED, теряющий сценарии. --strict ловит и стилистику —
+  # слишком длинные требования. Версия openspec закреплена в package.json:
+  # новые проверки приходят с обновлением зависимости, а не сами по себе.
+  openspec:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm run spec:validate
+
+  # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
+  # registry_auth и переменные, от которых зависит деплой. Без этого job'а
+  # ошибка в них обнаруживалась бы только самим деплоем.
+  #
+  # Версия та же, что в deploy.yml: проверять на одной, катить на другой —
+  # значит проверять не то. `-backend=false` позволяет обойтись без доступа к
+  # состоянию, который у CI и не должен быть при простой валидации.
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+      - run: tofu fmt -check -recursive infra/
+      - run: cd infra && tofu init -backend=false && tofu validate

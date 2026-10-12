@@ -1,3 +1,37 @@
+# Пример для локального запуска. В CI этих значений нет: переменные приходят
+# через TF_VAR_* из секретов, а terraform.tfvars не существует.
+#
+# С появлением backend.tf локальный запуск перестал быть самодостаточным:
+# состояние лежит в хранилище на сервере, к нему нужен туннель и учётные
+# данные. Подробности в README.md.
+
+# --- обязательные (без них apply не стартует) ---
+
+# Полная ссылка на образ интерфейса с тегом. В CI — тег по commit sha из ghcr.
+ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:CHANGE_ME_TAG"
+
+# --- учётные данные реестра образов ---
+# В CI — github.actor и GITHUB_TOKEN. Локально нужны только для приватного пакета.
+registry_username = ""
+registry_password = ""
+
+# --- остальное имеет значения по умолчанию ---
+
 docker_host = "unix:///var/run/docker.sock"
-bind_ip     = "127.0.0.1"
-ui_port     = 8080
+
+# На каком интерфейсе слушать. Не имя хоста.
+bind_ip = "127.0.0.1"
+
+# Имя хоста для клиента, попадает в ui_url. Нельзя ставить 0.0.0.0.
+service_host = "127.0.0.1"
+
+ui_port = 8080
+
+# HTTPS с сертификатом Let's Encrypt на service_host. Локально выключено:
+# Let's Encrypt не выдаст сертификат на адрес, до которого не дотянется.
+# На стенде включает деплой; требует ui_port = 80.
+public_tls = false
+
+# Пусто — боевой Let's Encrypt. Для пробы на стенде — staging:
+# acme_directory = "https://acme-staging-v02.api.letsencrypt.org/directory"
+acme_directory = ""

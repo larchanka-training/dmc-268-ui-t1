@@ -38,3 +38,9 @@ Data read from `localStorage` at the session boundary SHALL be treated as `unkno
 ### Requirement: Protected routes
 
 Routes under the cabinet shell SHALL require authentication and SHALL redirect anonymous users to `/login` with return path preserved.
+
+#### Scenario: Anonymous user opens a cabinet route
+
+- **WHEN** an anonymous user opens `/repositories`
+- **THEN** the application SHALL redirect to `/login`
+- **AND** SHALL keep `/repositories` as the return path
