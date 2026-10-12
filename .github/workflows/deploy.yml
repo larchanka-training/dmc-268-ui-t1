@@ -244,6 +244,14 @@ jobs:
             *) echo "::error::HTTP не перенаправляет на HTTPS: '${location}'"; exit 1 ;;
           esac
 
+          # HSTS: после первого ответа по HTTPS браузер больше не ходит по
+          # HTTP. Без конвейера с grep -q — см. соседние шаги про SIGPIPE.
+          hsts="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^strict-transport-security:' || true)"
+          case "$hsts" in
+            *max-age=*) echo "HTTPS закреплён заголовком: $hsts" ;;
+            *) echo "::error::в ответе по HTTPS нет Strict-Transport-Security"; exit 1 ;;
+          esac
+
       - name: Проверить сжатие статики
         env:
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}

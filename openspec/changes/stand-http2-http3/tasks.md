@@ -5,6 +5,7 @@
 - [x] 1.3 `Dockerfile`: `EXPOSE 443/udp`
 - [x] 1.4 `infra/README.md`: HTTP/2 по TCP, HTTP/3 по UDP, открыть оба порта
 - [x] 1.5 `Dockerfile`: `gzip -9 -k` статики после сборки; `nginx/site.conf`: `gzip_static`, `gzip` для API без `text/event-stream`, `gzip_vary`
+- [x] 1.6 `nginx/https.conf.template`: `Strict-Transport-Security: max-age=86400`; `deploy.yml`: проверка заголовка
 
 ## 2. Проверка
 
