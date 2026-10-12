@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   Alert,
@@ -15,7 +15,7 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+import { formatDateTime } from '@/shared/lib'
 import {
   RulesPreview,
   RulesStatusBadge,
@@ -60,18 +60,11 @@ function BlockError({
 function SettingsForm({ repositoryId }: { repositoryId: string }) {
   const [form] = Form.useForm<RepositorySettings>()
   const [isDirty, setIsDirty] = useState(false)
-  // Пропускаем один sync после успешного сохранения: кэш в этот момент ещё отдаёт старые
-  // данные, а форма уже показывает отправленные (design.md — refetch не затирает форму).
-  const skipSync = useRef(false)
   const { data, isLoading, isError, error, refetch } = useRepositorySettings(repositoryId)
   const save = useSaveRepositorySettings(repositoryId)
 
   useEffect(() => {
     if (!data || isDirty) return
-    if (skipSync.current) {
-      skipSync.current = false
-      return
-    }
     form.setFieldsValue(data)
   }, [data, isDirty, form])
 
@@ -94,14 +87,11 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
       layout="vertical"
       initialValues={data}
       onValuesChange={() => setIsDirty(true)}
-      onFinish={(values) =>
-        save.mutate(values, {
-          onSuccess: () => {
-            skipSync.current = true
-            setIsDirty(false)
-          },
-        })
-      }
+      onFinish={(values) => save.mutate(values, { onSuccess: () => setIsDirty(false) })}
+      // Мутация ждёт invalidateQueries, поэтому isPending длится до прихода свежих данных:
+      // поля заблокированы, пока форма и кэш могут расходиться (design.md — refetch не
+      // затирает форму).
+      disabled={save.isPending}
       className="max-w-xl"
     >
       {save.isError && (
@@ -193,7 +183,7 @@ function HistoryTable({ repositoryId }: { repositoryId: string }) {
       title: 'Время',
       dataIndex: 'createdAt',
       key: 'createdAt',
-      render: (value: string) => dayjs(value).format('D MMM, HH:mm'),
+      render: (value: string) => formatDateTime(value),
     },
   ]
 

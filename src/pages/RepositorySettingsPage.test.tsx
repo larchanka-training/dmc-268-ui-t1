@@ -114,6 +114,26 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     expect(store.getRepositorySettings('repo-1').autoReviewEnabled).toBe(true)
   })
 
+  it('поля заблокированы на время сохранения, после успеха форма совпадает с store', async () => {
+    const user = userEvent.setup()
+    renderSettingsPage()
+
+    await screen.findByRole('switch', undefined, FIND)
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    // Сохранение в полёте (адаптер отвечает не мгновенно): правка невозможна, успеха ещё нет.
+    expect(screen.getByRole('switch')).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'All' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Сбросить' })).toBeDisabled()
+    expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
+
+    expect(await screen.findByText('Настройки сохранены', undefined, FIND)).toBeInTheDocument()
+    expect(screen.getByRole('switch')).not.toBeDisabled()
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(store.getRepositorySettings('repo-1').autoReviewEnabled).toBe(false)
+  })
+
   it('сброс возвращает сохранённые значения', async () => {
     const user = userEvent.setup()
     renderSettingsPage()
@@ -186,6 +206,8 @@ describe('RepositorySettingsPage: история проверок', () => {
 
     expect(await screen.findByText('rebasing', undefined, FIND)).toBeInTheDocument()
     expect(screen.getByText('Ребейз поверх develop')).toBeInTheDocument()
+    // Время — одним форматтером с экраном прогона: Intl, UTC.
+    expect(screen.getByText('10.10.2026, 10:00 UTC')).toBeInTheDocument()
   })
 })
 
