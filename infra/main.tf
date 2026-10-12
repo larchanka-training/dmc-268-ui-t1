@@ -54,4 +54,15 @@ resource "docker_container" "ui" {
       ip       = var.bind_ip
     }
   }
+
+  # HTTP/3 (QUIC) — тот же порт, но по UDP.
+  dynamic "ports" {
+    for_each = var.public_tls ? [443] : []
+    content {
+      internal = 443
+      external = 443
+      ip       = var.bind_ip
+      protocol = "udp"
+    }
+  }
 }

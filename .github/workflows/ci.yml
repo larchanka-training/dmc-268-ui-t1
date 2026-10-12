@@ -56,6 +56,28 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm run spec:validate
 
+  # Конфиг nginx иначе проверялся бы только деплоем: с ошибкой контейнер не
+  # стартует, и стенд ложится. Проверяем собранный образ, а не файлы из
+  # репозитория: важны версия nginx, подключённый модуль ACME и конфиг,
+  # который скрипт выбора режима собирает из шаблона. Сертификат и адрес API
+  # подставляются переменными, поэтому nginx -t не нужны ни файлы
+  # сертификата, ни сеть.
+  nginx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -t dmc268-ui:ci .
+      - name: nginx -t в режиме HTTP
+        run: >-
+          docker run --rm --network none --entrypoint sh dmc268-ui:ci
+          -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
+      - name: nginx -t в режиме HTTPS
+        run: >-
+          docker run --rm --network none -e PUBLIC_HOST=ci.invalid
+          --entrypoint sh dmc268-ui:ci
+          -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
+
   # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
   # registry_auth и переменные, от которых зависит деплой. Без этого job'а
   # ошибка в них обнаруживалась бы только самим деплоем.

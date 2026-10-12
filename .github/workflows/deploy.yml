@@ -228,9 +228,11 @@ jobs:
           fi
 
           # Различаем «не отвечает» и «отвечает не тем»: на адресе мог бы
-          # оказаться другой сервис или страница-заглушка nginx.
+          # оказаться другой сервис или страница-заглушка nginx. Ищем имя
+          # проекта, а не заголовок целиком: заголовок страницы меняется
+          # вместе с интерфейсом, и проверка падала бы на рабочем стенде.
           case "$body" in
-            *"DMC-268 UI"*) echo "интерфейс отдаётся по адресу" ;;
+            *"DMC-268"*) echo "интерфейс отдаётся по адресу" ;;
             *) echo "::error::адрес отвечает, но это не интерфейс"
                printf '%s\n' "$body" | head -5
                exit 1 ;;
@@ -242,6 +244,59 @@ jobs:
           case "$location" in
             "https://${HOST}/") echo "HTTP перенаправляет на HTTPS" ;;
             *) echo "::error::HTTP не перенаправляет на HTTPS: '${location}'"; exit 1 ;;
+          esac
+
+          # HSTS: после первого ответа по HTTPS браузер больше не ходит по
+          # HTTP. Без конвейера с grep -q — см. соседние шаги про SIGPIPE.
+          hsts="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^strict-transport-security:' || true)"
+          case "$hsts" in
+            *max-age=*) echo "HTTPS закреплён заголовком: $hsts" ;;
+            *) echo "::error::в ответе по HTTPS нет Strict-Transport-Security"; exit 1 ;;
+          esac
+
+      - name: Проверить сжатие статики
+        env:
+          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+        run: |
+          set -uo pipefail
+          # Бандл берём из index.html: имя с хэшем меняется от сборки к сборке.
+          asset="$(curl -sS --max-time 5 "https://${HOST}/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
+          [ -n "$asset" ] || { echo "::error::в index.html не нашёлся JS-бандл"; exit 1; }
+          encoding="$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: gzip' --max-time 5 "https://${HOST}${asset}" | tr -d '\r' | grep -i '^content-encoding:' || true)"
+          case "$encoding" in
+            *gzip*) echo "${asset} отдаётся сжатым: $encoding" ;;
+            *) echo "::error::${asset} отдаётся без gzip"; exit 1 ;;
+          esac
+
+      - name: Проверить HTTP/2 и HTTP/3
+        env:
+          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+        run: |
+          set -uo pipefail
+          # HTTP/2 снимает лимит браузера в 6 соединений на адрес — без него
+          # несколько открытых SSE-подписок занимают все соединения.
+          version="$(curl -sS -o /dev/null -w '%{http_version}' --http2 --max-time 5 "https://${HOST}/" || true)"
+          [ "$version" = "2" ] || { echo "::error::по TCP отдаётся HTTP/${version}, ожидался HTTP/2"; exit 1; }
+          echo "по TCP отдаётся HTTP/2"
+
+          # Alt-Svc нужен именно на index.html: из него браузер узнаёт о QUIC.
+          alt_svc="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^alt-svc:' || true)"
+          case "$alt_svc" in
+            *'h3=":443"'*) echo "интерфейс объявляет HTTP/3: $alt_svc" ;;
+            *) echo "::error::в ответе нет Alt-Svc с h3"; exit 1 ;;
+          esac
+
+          # curl на раннере собран без HTTP/3 — берём собранный с ним из Debian.
+          # Запрос только по QUIC заодно проверяет, что UDP 443 открыт до стенда.
+          h3_version="$(docker run --rm debian:trixie-slim sh -c "
+            apt-get -qq update >/dev/null && apt-get -qq install -y --no-install-recommends curl ca-certificates >/dev/null || { echo no-curl; exit; }
+            curl -sS -o /dev/null -w '%{http_version}' --http3-only --max-time 10 https://${HOST}/
+          " || true)"
+          # Сбой apt — не повод искать проблему в сети стенда.
+          case "$h3_version" in
+            3) echo "по QUIC отдаётся HTTP/3" ;;
+            no-curl) echo "::error::не удалось поставить curl в debian:trixie-slim — проверка HTTP/3 не выполнена"; exit 1 ;;
+            *) echo "::error::по QUIC стенд не ответил — проверьте UDP 443"; exit 1 ;;
           esac
 
       - name: Проверить, что API доступен через тот же адрес

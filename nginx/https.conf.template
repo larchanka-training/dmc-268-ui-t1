@@ -32,7 +32,24 @@ server {
 
 server {
     listen 443 ssl;
+    # HTTP/3 идёт по UDP на тот же порт. Браузер приходит сначала по TCP и
+    # переходит на QUIC, узнав о нём из Alt-Svc; где UDP закрыт, остаётся
+    # HTTP/2.
+    listen 443 quic reuseport;
+    http2 on;
+    http3 on;
     server_name ${PUBLIC_HOST};
+
+    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+    # HSTS: браузер, получивший заголовок, сам переписывает http:// на
+    # https:// и не делает открытого запроса, который можно перехватить и
+    # подменить. Только в HTTPS-сервере: по HTTP браузер его игнорирует.
+    # Срок — сутки: браузер помнит его весь max-age, и откат стенда на HTTP
+    # заперёт уже заходивших. Увеличить, когда HTTPS на стенде устоится.
+    add_header Strict-Transport-Security "max-age=86400" always;
+    # Без merge location со своим add_header (index.html, /assets/ в
+    # site.conf) теряет Alt-Svc и HSTS — а index.html браузер получает первым.
+    add_header_inherit merge;
 
     acme_certificate letsencrypt ${PUBLIC_HOST};
 
