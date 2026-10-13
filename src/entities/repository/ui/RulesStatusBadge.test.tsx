@@ -5,17 +5,12 @@ import type { RulesStatus } from '../model/settings'
 import { RulesStatusBadge } from './RulesStatusBadge'
 
 const withFile: RulesStatus = {
-  present: true,
+  status: 'loaded',
   branch: 'main',
   path: '.review/rules.md',
-  sections: [],
+  rules: [],
+  rejected: [],
   fetchedAt: '2026-10-11T09:40:00.000Z',
-}
-
-const withoutFile: RulesStatus = {
-  present: false,
-  branch: 'develop',
-  path: '.review/rules.md',
 }
 
 describe('RulesStatusBadge', () => {
@@ -28,10 +23,25 @@ describe('RulesStatusBadge', () => {
   })
 
   it('файла нет: бейдж сообщает о дефолтных правилах, ветка и путь на месте', () => {
-    const { container } = render(<RulesStatusBadge status={withoutFile} />)
+    const status: RulesStatus = { status: 'absent', branch: 'develop', path: '.review/rules.md' }
+    const { container } = render(<RulesStatusBadge status={status} />)
 
     expect(screen.getByText('Дефолтные правила')).toBeInTheDocument()
     expect(container.textContent).toContain('ветка: develop')
     expect(container.textContent).toContain('.review/rules.md')
+  })
+
+  it('файл больше лимита: бейдж сообщает о слишком большом файле', () => {
+    const status: RulesStatus = { status: 'too_large', branch: 'main', path: '.review/rules.md' }
+
+    render(<RulesStatusBadge status={status} />)
+    expect(screen.getByText('Файл правил слишком большой')).toBeInTheDocument()
+  })
+
+  it('файл недоступен: бейдж сообщает о недоступности правил', () => {
+    const status: RulesStatus = { status: 'unavailable', branch: 'main', path: '.review/rules.md' }
+
+    render(<RulesStatusBadge status={status} />)
+    expect(screen.getByText('Правила недоступны')).toBeInTheDocument()
   })
 })

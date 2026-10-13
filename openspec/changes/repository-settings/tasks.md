@@ -4,7 +4,7 @@
 
 - [x] 1.1 Создать ветку `feat/repository-settings` от `develop`, change `repository-settings` и задачу [#28](https://github.com/larchanka-training/dmc-268-ui-t1/issues/28); проверить: `openspec status --change repository-settings` показывает артефакты, карточка на доске `dmc-268-t1`
 - [x] 1.2 Завести `entities/repository/model/settings.ts`: типы и Zod-схемы `RepositorySettings`, `RulesStatus`, `HistoryRun` по design.md; тесты схем — пресеты severity, вариант правил без файла, незнакомый статус прогона, данные вне схемы; `pnpm run test` зелёный
-- [x] 1.3 Расширить `entities/repository/api/mockStore.ts`: настройки, статус правил, история и `saveRepositorySettings`; фикстуры — `repo-1` с `.review/rules.md` (секции Security, Performance, Style, директива ignore) и историей прогонов, `repo-2` без правил и с пустой историей; тест — сохранение меняет состояние store
+- [x] 1.3 Расширить `entities/repository/api/mockStore.ts`: настройки, статус правил, история и `saveRepositorySettings`; фикстуры — `repo-1` с `.review/rules.md` (правила Security, Performance, Style в форме api#49 и отклонённый раздел) и историей прогонов, `repo-2` без правил и с пустой историей; тест — сохранение меняет состояние store
 
 ## 2. API-функции и запросы
 
@@ -13,7 +13,7 @@
 
 ## 3. UI сущностей
 
-- [x] 3.1 Сделать `entities/repository/ui/RulesStatusBadge.tsx` и `RulesPreview.tsx`: бейдж «кастомные/дефолтные правила», ветка и путь файла, секции с пунктами и тегами ignore, предупреждение «Используются дефолтные правила, создайте `.review/rules.md`»; компонентные тесты — правила найдены, правил нет, в превью нет полей ввода
+- [x] 3.1 Сделать `entities/repository/ui/RulesStatusBadge.tsx` и `RulesPreview.tsx`: бейдж исхода загрузки (загружены, файла нет, слишком большой, недоступен), ветка и путь файла, правила с паттернами `pattern`/`exclude` и нумерованными проверками, отклонённые разделы с причиной, предупреждение «Используются дефолтные правила, создайте `.review/rules.md`»; компонентные тесты — все исходы загрузки, в превью нет полей ввода
 
 ## 4. Страница и маршрут
 

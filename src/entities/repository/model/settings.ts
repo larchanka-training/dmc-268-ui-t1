@@ -21,39 +21,58 @@ export const RepositorySettingsSchema = z.object({
 
 export type RepositorySettings = z.infer<typeof RepositorySettingsSchema>
 
-/** Пункт секции правил: обычное правило или директива игнорирования. */
-export const RuleEntrySchema = z.object({
-  kind: z.enum(['rule', 'ignore']),
-  text: z.string(),
+/**
+ * Правило владельца репозитория из `.review/rules.md` — форма повторяет домен бэкенда
+ * (api#49, `RepoRule`): раздел `##` с паттернами области действия и нумерованными
+ * проверками. Парсинг markdown остаётся на бэкенде, adapter отдаёт готовые правила.
+ */
+export const RepoRuleSchema = z.object({
+  name: z.string(),
+  patterns: z.array(z.string()),
+  excludes: z.array(z.string()),
+  checks: z.array(z.string()),
 })
 
-export type RuleEntry = z.infer<typeof RuleEntrySchema>
+export type RepoRule = z.infer<typeof RepoRuleSchema>
 
-export const RuleSectionSchema = z.object({
-  title: z.string(),
-  entries: z.array(RuleEntrySchema),
+/** Раздел rules.md, не ставший правилом: имя и чего не хватило (api#49, `RejectedRule`). */
+export const RejectedRuleSchema = z.object({
+  name: z.string(),
+  reason: z.string(),
 })
 
-export type RuleSection = z.infer<typeof RuleSectionSchema>
+export type RejectedRule = z.infer<typeof RejectedRuleSchema>
 
 /**
- * Статус `.review/rules.md` в ветке репозитория. Adapter отдаёт уже распарсенные секции —
- * парсинг markdown во фронтенде не повторяется. Без файла нет ни секций, ни времени выборки:
- * варианты различаются дискриминантом `present`.
+ * Чем закончилась загрузка `.review/rules.md` — четыре исхода повторяют `RulesStatus`
+ * бэкенда (api#49). Всё, кроме `loaded`, — дефолтный фоллбэк: ревью по стандартным
+ * критериям.
  */
-export const RulesStatusSchema = z.discriminatedUnion('present', [
+export const RULES_LOAD_STATUSES = ['loaded', 'absent', 'too_large', 'unavailable'] as const
+
+export type RulesLoadStatus = (typeof RULES_LOAD_STATUSES)[number]
+
+/**
+ * Статус `.review/rules.md` в ветке репозитория; варианты различаются дискриминантом
+ * `status`. В `loaded` — принятые и отклонённые правила и время выборки; у остальных
+ * исходов файла для показа нет, ветка и путь остаются для бейджа.
+ */
+const rulesFileRef = {
+  branch: z.string(),
+  path: z.string(),
+}
+
+export const RulesStatusSchema = z.discriminatedUnion('status', [
   z.object({
-    present: z.literal(true),
-    branch: z.string(),
-    path: z.string(),
-    sections: z.array(RuleSectionSchema),
+    status: z.literal('loaded'),
+    ...rulesFileRef,
+    rules: z.array(RepoRuleSchema),
+    rejected: z.array(RejectedRuleSchema),
     fetchedAt: z.string(),
   }),
-  z.object({
-    present: z.literal(false),
-    branch: z.string(),
-    path: z.string(),
-  }),
+  z.object({ status: z.literal('absent'), ...rulesFileRef }),
+  z.object({ status: z.literal('too_large'), ...rulesFileRef }),
+  z.object({ status: z.literal('unavailable'), ...rulesFileRef }),
 ])
 
 export type RulesStatus = z.infer<typeof RulesStatusSchema>

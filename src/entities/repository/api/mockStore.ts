@@ -101,40 +101,44 @@ const DEFAULT_SETTINGS: RepositorySettings = {
   severityThreshold: 'all',
 }
 
-/** Adapter отдаёт уже распарсенные секции: парсинг markdown — задача бэкенда (design.md). */
+/**
+ * Adapter отдаёт уже распарсенные правила в форме api#49 (раздел `##`, pattern/exclude,
+ * нумерованные проверки): парсинг markdown — задача бэкенда. У repo-1 есть отклонённый
+ * раздел — рендерим и его.
+ */
 const rulesStatusByRepo: Record<string, RulesStatus> = {
   'repo-1': {
-    present: true,
+    status: 'loaded',
     branch: 'main',
     path: RULES_PATH,
-    sections: [
+    rules: [
       {
-        title: 'Security',
-        entries: [
-          { kind: 'rule', text: 'Не хранить секреты и токены в коде' },
-          { kind: 'rule', text: 'Проверять новые зависимости на известные уязвимости' },
-          { kind: 'ignore', text: 'vendor/**' },
+        name: 'Security',
+        patterns: ['app/**/*.py'],
+        excludes: ['**/tests/**'],
+        checks: [
+          'Не хранить секреты и токены в коде',
+          'Проверять новые зависимости на известные уязвимости',
         ],
       },
       {
-        title: 'Performance',
-        entries: [
-          { kind: 'rule', text: 'Не допускать N+1 запросов в циклах' },
-          { kind: 'rule', text: 'Проверять индексы под новые SQL-запросы' },
-        ],
+        name: 'Performance',
+        patterns: ['app/**/*.py', 'src/**/*.ts'],
+        excludes: ['**/migrations/**'],
+        checks: ['Не допускать N+1 запросов в циклах', 'Проверять индексы под новые SQL-запросы'],
       },
       {
-        title: 'Style',
-        entries: [
-          { kind: 'rule', text: 'Следовать правилам .editorconfig и eslint' },
-          { kind: 'ignore', text: '**/*.generated.ts' },
-        ],
+        name: 'Style',
+        patterns: ['src/**/*.{ts,tsx}'],
+        excludes: ['**/*.generated.ts'],
+        checks: ['Следовать правилам `.editorconfig` и eslint'],
       },
     ],
+    rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
     fetchedAt: '2026-10-11T09:40:00.000Z',
   },
   'repo-2': {
-    present: false,
+    status: 'absent',
     branch: 'main',
     path: RULES_PATH,
   },
@@ -262,7 +266,7 @@ export function getRulesStatus(repoId: string): RulesStatus {
   const status = rulesStatusByRepo[repoId]
   if (!status) {
     // У нового подключённого репозитория файла правил ещё нет — сценарий предупреждения.
-    return { present: false, branch: repo.defaultBranch, path: RULES_PATH }
+    return { status: 'absent', branch: repo.defaultBranch, path: RULES_PATH }
   }
   return structuredClone(status)
 }

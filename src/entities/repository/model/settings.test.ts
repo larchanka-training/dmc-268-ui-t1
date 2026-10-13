@@ -2,13 +2,15 @@ import { describe, expect, it } from 'vitest'
 
 import {
   HistoryRunSchema,
+  RejectedRuleSchema,
+  RepoRuleSchema,
   RepositorySettingsSchema,
-  RuleSectionSchema,
+  RULES_LOAD_STATUSES,
   RulesStatusSchema,
   SEVERITY_THRESHOLDS,
   type HistoryRun,
   type RepositorySettings,
-  type RuleSection,
+  type RepoRule,
   type RulesStatus,
 } from './settings'
 
@@ -21,23 +23,23 @@ function makeSettings(overrides: Partial<RepositorySettings> = {}): RepositorySe
   }
 }
 
-function makeSection(overrides: Partial<RuleSection> = {}): RuleSection {
+function makeRule(overrides: Partial<RepoRule> = {}): RepoRule {
   return {
-    title: 'Security',
-    entries: [
-      { kind: 'rule', text: 'Не хранить секреты в коде' },
-      { kind: 'ignore', text: 'vendor/**' },
-    ],
+    name: 'Security',
+    patterns: ['app/**/*.py'],
+    excludes: ['**/tests/**'],
+    checks: ['Не хранить секреты в коде'],
     ...overrides,
   }
 }
 
-function makeRulesPresent(overrides: Partial<Extract<RulesStatus, { present: true }>> = {}) {
+function makeRulesLoaded(overrides: Partial<Extract<RulesStatus, { status: 'loaded' }>> = {}) {
   return {
-    present: true as const,
+    status: 'loaded' as const,
     branch: 'main',
     path: '.review/rules.md',
-    sections: [makeSection()],
+    rules: [makeRule()],
+    rejected: [],
     fetchedAt: '2026-10-11T10:00:00.000Z',
     ...overrides,
   }
@@ -81,40 +83,80 @@ describe('RepositorySettingsSchema', () => {
   })
 })
 
-describe('RuleSectionSchema', () => {
-  it('принимает секцию с правилами и директивой игнорирования', () => {
-    expect(RuleSectionSchema.safeParse(makeSection()).success).toBe(true)
+describe('RepoRuleSchema', () => {
+  it('принимает правило с именем, областью действия и проверками', () => {
+    expect(RepoRuleSchema.safeParse(makeRule()).success).toBe(true)
   })
 
-  it('отвергает пункт с неизвестным видом', () => {
-    const dto: unknown = { title: 'Style', entries: [{ kind: 'note', text: '...' }] }
-    expect(RuleSectionSchema.safeParse(dto).success).toBe(false)
+  it('отвергает правило без паттернов области действия', () => {
+    const dto: Partial<RepoRule> = makeRule()
+    delete dto.patterns
+    expect(RepoRuleSchema.safeParse(dto).success).toBe(false)
+  })
+
+  it('допускает пустые части: неполное правило приезжает как rejected, а не мимо схемы', () => {
+    const dto: unknown = { ...makeRule(), checks: [] }
+    expect(RepoRuleSchema.safeParse(dto).success).toBe(true)
+  })
+})
+
+describe('RejectedRuleSchema', () => {
+  it('принимает раздел с именем и причиной отклонения', () => {
+    expect(
+      RejectedRuleSchema.safeParse({ name: 'Docs', reason: 'нет паттерна (pattern)' }).success,
+    ).toBe(true)
+  })
+
+  it('отвергает раздел без причины', () => {
+    const dto: unknown = { name: 'Docs' }
+    expect(RejectedRuleSchema.safeParse(dto).success).toBe(false)
   })
 })
 
 describe('RulesStatusSchema', () => {
-  it('принимает статус с распарсенными секциями, когда файл есть', () => {
-    expect(RulesStatusSchema.safeParse(makeRulesPresent()).success).toBe(true)
-  })
+  it('принимает статус с принятыми и отклонёнными правилами, когда файл есть', () => {
+    const dto = makeRulesLoaded({
+      rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
+    })
 
-  it('принимает вариант без файла правил', () => {
-    const dto = { present: false, branch: 'main', path: '.review/rules.md' }
     const result = RulesStatusSchema.safeParse(dto)
-
     expect(result.success).toBe(true)
-    if (result.success) {
-      expect(result.data).toEqual(dto)
+    if (result.success && result.data.status === 'loaded') {
+      expect(result.data.rules).toHaveLength(1)
+      expect(result.data.rejected[0]).toMatchObject({ name: 'Docs' })
     }
   })
 
-  it('требует секции и время выборки, когда файл есть', () => {
-    const dto: unknown = { present: true, branch: 'main', path: '.review/rules.md' }
+  it.each(['absent', 'too_large', 'unavailable'] as const)(
+    'принимает исход без файла правил: %s',
+    (status) => {
+      const dto = { status, branch: 'main', path: '.review/rules.md' }
+
+      const result = RulesStatusSchema.safeParse(dto)
+      expect(result.success).toBe(true)
+      if (result.success) {
+        expect(result.data).toEqual(dto)
+      }
+    },
+  )
+
+  it('требует правила и время выборки, когда файл загружен', () => {
+    const dto: unknown = { status: 'loaded', branch: 'main', path: '.review/rules.md' }
     expect(RulesStatusSchema.safeParse(dto).success).toBe(false)
   })
 
-  it('отвергает объект без дискриминанта present', () => {
+  it('отвергает незнакомый исход загрузки', () => {
+    const dto: unknown = { status: 'half', branch: 'main', path: '.review/rules.md' }
+    expect(RulesStatusSchema.safeParse(dto).success).toBe(false)
+  })
+
+  it('отвергает объект без дискриминанта status', () => {
     const dto: unknown = { branch: 'main', path: '.review/rules.md' }
     expect(RulesStatusSchema.safeParse(dto).success).toBe(false)
+  })
+
+  it('набор исходов повторяет RulesStatus бэкенда (api#49)', () => {
+    expect(RULES_LOAD_STATUSES).toEqual(['loaded', 'absent', 'too_large', 'unavailable'])
   })
 })
 
