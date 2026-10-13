@@ -152,14 +152,16 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
 })
 
 describe('RepositorySettingsPage: статус правил', () => {
-  it('repo-1: бейдж кастомных правил и превью секций', async () => {
+  it('repo-1: бейдж кастомных правил, превью правил и отклонённый раздел', async () => {
     renderSettingsPage()
 
     expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Security' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Performance' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Style' })).toBeInTheDocument()
-    expect(screen.getByText('vendor/**')).toBeInTheDocument()
+    // Чип паттерна повторяется у каждого правила с этим паттерном (Security и Performance).
+    expect(screen.getAllByText('pattern: app/**/*.py')).toHaveLength(2)
+    expect(screen.getByText('Docs — нет паттерна (pattern); нет проверок')).toBeInTheDocument()
   })
 
   it('repo-2: предупреждение о дефолтных правилах', async () => {
@@ -238,7 +240,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     vi.mocked(store.getRepositorySettings).mockImplementation(
       () => ({ autoReviewEnabled: 'yes' }) as never,
     )
-    vi.mocked(store.getRulesStatus).mockImplementation(() => ({ present: 'maybe' }) as never)
+    vi.mocked(store.getRulesStatus).mockImplementation(() => ({ status: 'half-loaded' }) as never)
     vi.mocked(store.getRepositoryHistory).mockImplementation(() => [{ nope: true }] as never)
     renderSettingsPage()
 

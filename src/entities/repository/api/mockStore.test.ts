@@ -47,14 +47,15 @@ describe('фикстуры настроек', () => {
 })
 
 describe('статус правил', () => {
-  it('repo-1: файл есть, три секции с директивой ignore', () => {
+  it('repo-1: файл загружен, три правила в форме api#49 и отклонённый раздел', () => {
     const status = getRulesStatus('repo-1')
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
-    expect(status.present).toBe(true)
-    if (status.present) {
-      expect(status.sections.map((s) => s.title)).toEqual(['Security', 'Performance', 'Style'])
-      expect(status.sections.some((s) => s.entries.some((e) => e.kind === 'ignore'))).toBe(true)
+    expect(status.status).toBe('loaded')
+    if (status.status === 'loaded') {
+      expect(status.rules.map((r) => r.name)).toEqual(['Security', 'Performance', 'Style'])
+      expect(status.rules.every((r) => r.patterns.length > 0 && r.checks.length > 0)).toBe(true)
+      expect(status.rejected).toHaveLength(1)
     }
   })
 
@@ -62,7 +63,7 @@ describe('статус правил', () => {
     const status = getRulesStatus('repo-2')
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
-    expect(status.present).toBe(false)
+    expect(status.status).toBe('absent')
   })
 })
 
@@ -135,7 +136,7 @@ describe('репозиторий, подключённый после старт
       severityThreshold: 'all',
     })
     expect(getRulesStatus(connected.id)).toEqual({
-      present: false,
+      status: 'absent',
       branch: connected.defaultBranch,
       path: '.review/rules.md',
     })

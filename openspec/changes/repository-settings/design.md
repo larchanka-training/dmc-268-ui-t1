@@ -8,7 +8,8 @@
 `['repositories', 'connected' | 'available']`. Реальный HTTP есть только в auth. Контрактов
 для настроек, статуса `.review/rules.md` и списка прогонов в бэкенде нет (см. proposal →
 Why), поэтому данные — mock с той же границей, что будущий HTTP-клиент (FE-DEC-06). Парсинг
-markdown-правил — задача бэкенда (Инженер 3): adapter отдаёт уже распарсенные секции. Экран
+markdown-правил — задача бэкенда (Инженер 3): adapter отдаёт уже распарсенные правила, их
+форма повторяет домен api#49 (`RepoRule`, `RejectedRule`, `RulesStatus`). Экран
 прогона `/reviews/:reviewId` уже существует и принимает произвольный id.
 
 ## Goals / Non-Goals
@@ -48,11 +49,24 @@ type RepositorySettings = {
   branchFilter: string[] // glob-паттерны, например 'feature/**'
   severityThreshold: SeverityThreshold
 }
-type RuleEntry = { kind: 'rule' | 'ignore'; text: string }
-type RuleSection = { title: string; entries: RuleEntry[] }
+type RepoRule = {
+  name: string // раздел `##` в rules.md
+  patterns: string[] // glob области действия
+  excludes: string[] // glob исключения
+  checks: string[] // нумерованные проверки
+}
+type RejectedRule = { name: string; reason: string }
+type RulesLoadStatus = 'loaded' | 'absent' | 'too_large' | 'unavailable' // RulesStatus api#49
 type RulesStatus =
-  | { present: true; branch: string; path: string; sections: RuleSection[]; fetchedAt: string }
-  | { present: false; branch: string; path: string }
+  | {
+      status: 'loaded'
+      branch: string
+      path: string
+      rules: RepoRule[]
+      rejected: RejectedRule[]
+      fetchedAt: string
+    }
+  | { status: 'absent' | 'too_large' | 'unavailable'; branch: string; path: string }
 type HistoryRun = {
   id: string // ведёт на /reviews/:reviewId
   number: number
@@ -97,26 +111,30 @@ type HistoryRun = {
 
 ### Превью правил — текст и теги, без HTML
 
-Adapter отдаёт распарсенные секции; пункты рендерятся текстом через существующий `TextWithCode`
-(инлайн-код — моноширинно), директивы игнорирования помечаются тегом «ignore». Read-only
+Adapter отдаёт распарсенные правила; проверки рендерятся текстом через существующий
+`TextWithCode` (инлайн-код — моноширинно), паттерны `pattern`/`exclude` — моноширинными чипами,
+отклонённые разделы — отдельным блоком с причиной из `RejectedRule.reason`. Read-only
 достигается отсутствием полей ввода. Рассматривали рендер raw markdown библиотекой —
 отклонено при планировании: «превью распарсенных правил» из задачи, и парсинг остаётся на
 бэкенде.
 
 ### Фикстуры
 
-`repo-1` (`platform-api`) — с `.review/rules.md`: три секции (`Security`, `Performance`,
-`Style`), среди пунктов директива игнорирования; история из нескольких прогонов со всеми
+`repo-1` (`platform-api`) — с `.review/rules.md`: три правила (`Security`, `Performance`,
+`Style`) в форме api#49 и один отклонённый раздел; история из нескольких прогонов со всеми
 статусами. `repo-2` (`docs`) — без файла правил (сценарий предупреждения) и с пустой историей.
-Настройки у репозиториев различаются, чтобы форма не выглядела константой.
+Исходы `too_large`/`unavailable` не заводятся отдельными репозиториями — их покрывают тесты
+компонентов. Настройки у репозиториев различаются, чтобы форма не выглядела константой.
 
 ## Risks / Trade-offs
 
-- [Mock-модель разойдётся с контрактом бэкенда] → схемы собраны в одном месте
-  (`entities/repository/model`), при появлении HTTP меняется только adapter; расхождения
-  зафиксированы как open questions в #28.
+- [Mock-модель разойдётся с контрактом бэкенда] → модель правил повторяет домен api#49
+  (`RepoRule`, `RejectedRule`, четыре исхода загрузки); схемы собраны в одном месте
+  (`entities/repository/model`), при появлении HTTP меняется только adapter; оставшиеся
+  расхождения зафиксированы как open questions в #28.
 - [Маппинг пресета `warn_and_critical` на четыре уровня severity не согласован] → UI хранит
-  enum из трёх значений и человекочитаемые подписи; смена маппинга не меняет экран.
+  enum из трёх значений и человекочитаемые подписи; предложен переход на `min_severity`
+  уровнями бэкенда (комментарий в #28), смена маппинга не меняет экран.
 - [История без пагинации] → данных мало, ключ запроса позволяет добавить пагинацию позже без
   смены экрана.
 - [Refetch затирает черновик формы] → форма инициализируется из кэша один раз, обновляется
@@ -132,6 +150,7 @@ Adapter отдаёт распарсенные секции; пункты рен�
 - Форма контрактов: изменение настроек репозитория, статус и превью `.review/rules.md`, список
   прогонов по репозиторию — к #28, решают Инженеры 3 и 5.
 - Маппинг `warn_and_critical` на уровни модели (`medium+high+critical` или `high+critical`) —
+  предложен уход от пресетов к `min_severity` уровнями бэкенда (комментарий в #28),
   принимается вместе с контрактом настроек.
 - Из какой ветки берётся статус правил: сейчас ветка по умолчанию репозитория; возможен
   вариант «целевая ветка PR».

@@ -1,14 +1,20 @@
 import { TextWithCode } from '@/shared/ui'
-import type { RulesStatus } from '../model/settings'
+import type { RulesLoadStatus, RulesStatus } from '../model/settings'
+
+/** Вид бейджа для каждого исхода загрузки (api#49): зелёный — только `loaded`. */
+const STATUS_VIEW: Record<RulesLoadStatus, { label: string; className: string }> = {
+  loaded: { label: 'Кастомные правила', className: 'bg-emerald-100 text-emerald-800' },
+  absent: { label: 'Дефолтные правила', className: 'bg-amber-100 text-amber-800' },
+  too_large: { label: 'Файл правил слишком большой', className: 'bg-amber-100 text-amber-800' },
+  unavailable: { label: 'Правила недоступны', className: 'bg-slate-100 text-slate-600' },
+}
 
 /**
- * Бейдж статуса `.review/rules.md`: применяются кастомные правила репозитория или
- * дефолтные. Рядом — ветка, из которой взят статус, и путь к файлу.
+ * Бейдж статуса `.review/rules.md`: один из четырёх исходов загрузки — применяются кастомные
+ * правила или дефолтные. Рядом — ветка, из которой взят статус, и путь к файлу.
  */
 export function RulesStatusBadge({ status }: { status: RulesStatus }) {
-  const view = status.present
-    ? { label: 'Кастомные правила', className: 'bg-emerald-100 text-emerald-800' }
-    : { label: 'Дефолтные правила', className: 'bg-amber-100 text-amber-800' }
+  const view = STATUS_VIEW[status.status]
 
   return (
     <div className="flex flex-wrap items-center gap-2">

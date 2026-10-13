@@ -45,7 +45,7 @@ describe('fetch-функции настроек', () => {
     const promise = fetchRulesStatus('repo-2')
 
     await vi.advanceTimersByTimeAsync(350)
-    await expect(promise).resolves.toMatchObject({ present: false })
+    await expect(promise).resolves.toMatchObject({ status: 'absent' })
   })
 
   it('история repo-2 пуста', async () => {
@@ -101,7 +101,7 @@ describe('валидация на границе', () => {
   })
 
   it('статус правил вне схемы не доходит до UI', async () => {
-    vi.mocked(store.getRulesStatus).mockReturnValueOnce({ present: 'maybe' } as never)
+    vi.mocked(store.getRulesStatus).mockReturnValueOnce({ status: 'half-loaded' } as never)
 
     const expectation = expect(fetchRulesStatus('repo-1')).rejects.toBeInstanceOf(ContractError)
     await vi.advanceTimersByTimeAsync(350)

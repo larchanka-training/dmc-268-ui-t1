@@ -5,9 +5,10 @@ export type {
 } from '@/entities/repository/model/types'
 export type {
   HistoryRun,
+  RejectedRule,
+  RepoRule,
   RepositorySettings,
-  RuleEntry,
-  RuleSection,
+  RulesLoadStatus,
   RulesStatus,
   SeverityThreshold,
 } from '@/entities/repository/model/settings'
