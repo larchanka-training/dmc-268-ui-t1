@@ -6,7 +6,7 @@
     <title>DMC-268 — агент автоматического ревью кода</title>
     <meta
       name="description"
-      content="DMC-268: сервис автоматического ревью кода в pull- и merge-реквестах GitHub и GitLab. Проверяет дифф по безопасности, корректности, производительности и читаемости и публикует комментарии к строкам."
+      content="DMC-268: сервис автоматического ревью кода в pull-реквестах GitHub. Проверяет дифф по безопасности, корректности, производительности и читаемости и публикует комментарии к строкам."
     />
     <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#020617" media="(prefers-color-scheme: dark)" />
@@ -19,7 +19,7 @@
     <meta property="og:title" content="DMC-268 — агент автоматического ревью кода" />
     <meta
       property="og:description"
-      content="Ревью pull- и merge-реквестов GitHub и GitLab языковой моделью: безопасность, корректность, производительность, читаемость."
+      content="Ревью pull-реквестов GitHub языковой моделью: безопасность, корректность, производительность, читаемость."
     />
     <meta property="og:url" content="%PUBLIC_ORIGIN%/" />
     <meta property="og:image" content="%PUBLIC_ORIGIN%/og.png" />
@@ -55,8 +55,8 @@
           Агент автоматического ревью кода
         </h1>
         <p class="mt-5 max-w-2xl text-lg leading-relaxed">
-          Сервис подключается к репозиториям GitHub и GitLab, разбирает каждый pull- и merge-реквест
-          языковой моделью и публикует сводку и комментарии к конкретным строкам диффа.
+          Сервис подключается к репозиториям GitHub, разбирает каждый pull-реквест языковой моделью
+          и публикует сводку и комментарии к конкретным строкам диффа.
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
           <a
@@ -183,7 +183,7 @@
                 aria-hidden="true"
                 class="mt-2 size-2 shrink-0 rounded-full bg-indigo-600 dark:bg-indigo-400"
               ></span>
-              <span>Вход через GitHub или GitLab и подключение репозиториев.</span>
+              <span>Вход через GitHub и подключение репозиториев.</span>
             </li>
             <li class="flex gap-3">
               <span

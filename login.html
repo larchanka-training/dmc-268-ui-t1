@@ -14,8 +14,8 @@
       <a href="/" class="text-lg font-bold text-slate-900 dark:text-white">DMC-268</a>
       <h1 class="mt-8 text-3xl font-bold text-slate-900 dark:text-white">Вход</h1>
       <p class="mt-4 leading-relaxed">
-        Войдите через хостинг, где лежат ваши репозитории. Сервис запросит доступ к ним, чтобы
-        подключать репозитории и публиковать замечания в реквестах.
+        Войдите через GitHub. Сервис запросит доступ к репозиториям, чтобы подключать их и
+        публиковать замечания в pull-реквестах.
       </p>
       <!-- Ошибку входа бэкенд возвращает кодом в ?error=. Сообщения свёрстаны
            заранее, src/landing/login.ts показывает нужное. -->
@@ -30,7 +30,7 @@
           Вход не завершён: он устарел или начат в другой вкладке. Начните заново.
         </p>
         <p data-error="provider_unavailable" hidden>
-          GitHub или GitLab сейчас не отвечает. Попробуйте чуть позже.
+          GitHub сейчас не отвечает. Попробуйте чуть позже.
         </p>
         <p data-error="unknown" hidden>Не удалось войти. Попробуйте ещё раз.</p>
       </div>
@@ -42,12 +42,6 @@
           href="/api/v1/auth/github/login"
           class="rounded-md bg-slate-900 px-5 py-3 text-center font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
           >Войти через GitHub</a
-        >
-        <a
-          data-provider="gitlab"
-          href="/api/v1/auth/gitlab/login"
-          class="rounded-md border border-slate-400 px-5 py-3 text-center font-semibold text-slate-900 hover:bg-slate-100 dark:border-slate-500 dark:text-white dark:hover:bg-slate-900"
-          >Войти через GitLab</a
         >
       </div>
       <p class="mt-8 text-sm">

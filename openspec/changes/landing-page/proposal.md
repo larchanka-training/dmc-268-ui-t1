@@ -27,5 +27,5 @@
 ## Impact
 
 - Файлы: `index.html` (теперь лендинг), `app/index.html` (новый, HTML приложения), `vite.config.ts`, `src/landing/`, `public/`, `nginx/site.conf`, `Dockerfile`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`.
-- Адреса: приложение переезжает с `/` на `/app/`. Callback в OAuth-приложениях GitHub и GitLab прописывается с `/app` — это настройка у провайдеров, а не в коде.
+- Адреса: приложение переезжает с `/` на `/app/`. Callback OAuth — `/api/v1/auth/github/callback` у GitHub App (api#47), путь приложения на него не влияет.
 - Порядок: ветка отведена от `feat/stand-http2-http3` (#22), где появились `site.conf`, gzip и проверки после деплоя. Кабинет из #16 уже в `develop`, префикс `/app` его роутеру ставится здесь.

@@ -11,7 +11,6 @@ function render() {
       <p data-error="unknown" hidden>Не удалось войти</p>
     </div>
     <a data-provider="github" href="/api/v1/auth/github/login">GitHub</a>
-    <a data-provider="gitlab" href="/api/v1/auth/gitlab/login">GitLab</a>
     <a href="/">На главную</a>
   `
 }
@@ -31,9 +30,6 @@ describe('applyLoginParams', () => {
 
     expect(href('[data-provider="github"]')).toBe(
       '/api/v1/auth/github/login?redirect=%2Fapp%2Freviews%2F42',
-    )
-    expect(href('[data-provider="gitlab"]')).toBe(
-      '/api/v1/auth/gitlab/login?redirect=%2Fapp%2Freviews%2F42',
     )
   })
 
