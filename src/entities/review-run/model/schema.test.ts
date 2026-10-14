@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { isTerminalStatus, ReviewRunSchema } from './schema'
+import { applyStatusEvent, isTerminalStatus, ReviewRunSchema, RunStatusEventSchema } from './schema'
 import { makeReviewRun } from '../../../test/factories'
 
 describe('ReviewRunSchema', () => {
@@ -74,4 +74,52 @@ describe('isTerminalStatus', () => {
       expect(isTerminalStatus(status)).toBe(false)
     },
   )
+})
+
+describe('last_progress_at и failed_stage', () => {
+  it('ответ без этих полей разбирается, поля становятся null', () => {
+    const { last_progress_at, failed_stage, ...legacy } = makeReviewRun()
+    expect(last_progress_at).toBeNull()
+    expect(failed_stage).toBeNull()
+
+    const parsed = ReviewRunSchema.parse(legacy)
+
+    expect(parsed.last_progress_at).toBeNull()
+    expect(parsed.failed_stage).toBeNull()
+  })
+})
+
+describe('RunStatusEventSchema', () => {
+  const event = {
+    review_run_id: 'run-1',
+    status: 'analysing',
+    last_progress_at: '2026-10-11T10:00:00Z',
+    failed_stage: null,
+    failure_reason: null,
+  }
+
+  it('принимает событие по контракту и незнакомый статус', () => {
+    expect(RunStatusEventSchema.safeParse(event).success).toBe(true)
+    expect(RunStatusEventSchema.safeParse({ ...event, status: 'waiting_for_quota' }).success).toBe(
+      true,
+    )
+  })
+
+  it('отвергает событие без status', () => {
+    const { status, ...broken } = event
+    expect(status).toBe('analysing')
+    expect(RunStatusEventSchema.safeParse(broken).success).toBe(false)
+  })
+
+  it('applyStatusEvent меняет только поля статуса', () => {
+    const run = makeReviewRun({ status: 'analysing', tokens_used: 5 })
+
+    const next = applyStatusEvent(
+      run,
+      RunStatusEventSchema.parse({ ...event, status: 'failed', failed_stage: 'analysing' }),
+    )
+
+    expect(next).toMatchObject({ status: 'failed', failed_stage: 'analysing', tokens_used: 5 })
+    expect(next.id).toBe(run.id)
+  })
 })

@@ -63,6 +63,14 @@ Feature-Sliced Design: `app` → `pages` → `widgets` → `features` → `entit
 перед употреблением. Доменные модели (`ReviewRun`, `DiffFile`, `DiffHunk`, `DiffLine`,
 `ReviewFinding`, `PublishedComment`) описаны в архитектурном документе и живут в `entities`, а не в компоненте.
 
+## Даты и числа
+
+Даты, время и числа форматируются через `Intl` и общий форматтер из `shared/lib/format.ts`
+(`formatDateTime`, `formatNumber`): один формат и один часовой пояс на всё приложение.
+Библиотеки дат — `dayjs`, `moment`, `date-fns`, `luxon` — не подключаются; импорт запрещён
+правилом `no-restricted-imports` в `eslint.config.mjs`. Нужен новый формат — новая функция
+в `shared/lib/format.ts`, а не локальный `Intl.DateTimeFormat` в компоненте.
+
 ## Тесты
 
 Vitest и React Testing Library. Тест проверяет то, что видит пользователь: текст, роли,

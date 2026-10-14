@@ -13,6 +13,15 @@ export const KNOWN_STATUSES = [
 
 export type KnownRunStatus = (typeof KNOWN_STATUSES)[number]
 
+/** Этапы идущего прогона по порядку: ровно они показываются шагами прогресса. */
+export const RUN_STAGES = ['building_context', 'analysing', 'publishing'] as const
+
+export type RunStage = (typeof RUN_STAGES)[number]
+
+export function isRunStage(value: string | null | undefined): value is RunStage {
+  return (RUN_STAGES as readonly (string | null | undefined)[]).includes(value)
+}
+
 const TERMINAL_STATUSES: ReadonlySet<string> = new Set<KnownRunStatus>([
   'completed',
   'failed',
@@ -51,6 +60,11 @@ export const ReviewRunSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
   failure_reason: z.string().nullable(),
+  // Ответ GET /api/v1/reviews/{id} этих двух полей пока не отдаёт: они приходят событиями
+  // статуса, поэтому отсутствие поля — то же, что `null`.
+  last_progress_at: z.string().nullable().default(null),
+  /** Этап, на котором упал прогон; `null` — не сообщён. */
+  failed_stage: z.string().nullable().default(null),
   model: z.string().nullable(),
   tokens_used: z.number().int().nullable(),
   duration_seconds: z.number().nullable(),
@@ -77,4 +91,29 @@ export function isTerminalStatus(status: string): boolean {
 
 export function isKnownStatus(status: string): status is KnownRunStatus {
   return (KNOWN_STATUSES as readonly string[]).includes(status)
+}
+
+/**
+ * Событие `status` из `GET /api/v1/reviews/{id}/events` (контракт — в design.md change
+ * `review-run-live-status`). `status` — любая строка, как в `ReviewRunSchema`.
+ */
+export const RunStatusEventSchema = z.object({
+  review_run_id: z.string(),
+  status: z.string(),
+  last_progress_at: z.string().nullable().default(null),
+  failed_stage: z.string().nullable().default(null),
+  failure_reason: z.string().nullable().default(null),
+})
+
+export type RunStatusEvent = z.infer<typeof RunStatusEventSchema>
+
+/** Накладывает событие на прогон: обновляются только поля статуса, остальное не трогаем. */
+export function applyStatusEvent(run: ReviewRun, event: RunStatusEvent): ReviewRun {
+  return {
+    ...run,
+    status: event.status,
+    last_progress_at: event.last_progress_at,
+    failed_stage: event.failed_stage,
+    failure_reason: event.failure_reason,
+  }
 }

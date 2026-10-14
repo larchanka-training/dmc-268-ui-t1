@@ -32,5 +32,7 @@ describe('RepositoriesPage', () => {
     expect(screen.getByText('larchanka-training/docs')).toBeInTheDocument()
     expect(screen.getByText('Синхронизация')).toBeInTheDocument()
     expect(screen.getByText('Подключён')).toBeInTheDocument()
+    // Время — общим форматтером `shared/lib`, как на экране прогона.
+    expect(screen.getByText('28.09.2026, 08:30 UTC')).toBeInTheDocument()
   })
 })
