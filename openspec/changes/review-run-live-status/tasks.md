@@ -1,6 +1,6 @@
 ## 1. Контракт событий
 
-- [ ] 1.1 Согласовать с Инженером 5 контракт `GET /api/v1/reviews/{id}/events` из `design.md`, включая `failed_stage` и порог зависания
+- [x] 1.1 Согласовать с Инженером 5 контракт `GET /api/v1/reviews/{id}/events` из `design.md`, включая `failed_stage` и порог зависания
 - [x] 1.2 `shared/api`: интерфейс `EventStream` и `StreamState`, реализация на `EventSource` с `withCredentials`
 - [x] 1.3 `entities/review-run`: `RunStatusEventSchema`, `failed_stage` и `last_progress_at` в схеме прогона как необязательные
 - [x] 1.4 `app/mocks`: mock-источник событий со сценарием `queued` → `building_context` → `analysing` → `publishing` → `completed` и вариантом со сбоем
