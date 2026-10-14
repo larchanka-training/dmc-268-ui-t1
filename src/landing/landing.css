@@ -1,0 +1,24 @@
+@import 'tailwindcss';
+
+/* Тёмная тема переключается по prefers-color-scheme: так dark: работает в
+   Tailwind 4 по умолчанию. Здесь только то, что утилитами не выразить. */
+:root {
+  color-scheme: light dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+/* Видимый фокус для всех интерактивных элементов, в обеих темах. */
+a:focus-visible {
+  outline: 3px solid #6366f1;
+  outline-offset: 3px;
+  border-radius: 0.25rem;
+}

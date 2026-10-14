@@ -103,6 +103,9 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.image }}
+          # Абсолютный адрес стенда попадает в canonical, Open Graph,
+          # sitemap.xml и robots.txt лендинга при сборке.
+          build-args: PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -206,7 +209,7 @@ jobs:
           tofu apply -input=false -no-color -auto-approve
           echo "ui_url=$(tofu output -raw ui_url)" >> "$GITHUB_OUTPUT"
 
-      - name: Проверить, что по адресу отдаётся именно интерфейс
+      - name: Проверить, что по адресу отдаётся именно наш сайт
         env:
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}
         run: |
@@ -228,12 +231,11 @@ jobs:
           fi
 
           # Различаем «не отвечает» и «отвечает не тем»: на адресе мог бы
-          # оказаться другой сервис или страница-заглушка nginx. Ищем имя
-          # проекта, а не заголовок целиком: заголовок страницы меняется
-          # вместе с интерфейсом, и проверка падала бы на рабочем стенде.
+          # оказаться другой сервис или страница-заглушка nginx. В корне теперь
+          # лендинг, а не приложение; «DMC-268» есть в его <title>.
           case "$body" in
-            *"DMC-268"*) echo "интерфейс отдаётся по адресу" ;;
-            *) echo "::error::адрес отвечает, но это не интерфейс"
+            *"DMC-268"*) echo "лендинг отдаётся по адресу" ;;
+            *) echo "::error::адрес отвечает, но это не наш сайт"
                printf '%s\n' "$body" | head -5
                exit 1 ;;
           esac
@@ -254,14 +256,21 @@ jobs:
             *) echo "::error::в ответе по HTTPS нет Strict-Transport-Security"; exit 1 ;;
           esac
 
+      - name: Проверить маршруты
+        env:
+          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+        run: scripts/check-routes.sh "https://${HOST}"
+
       - name: Проверить сжатие статики
         env:
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}
         run: |
           set -uo pipefail
-          # Бандл берём из index.html: имя с хэшем меняется от сборки к сборке.
-          asset="$(curl -sS --max-time 5 "https://${HOST}/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
-          [ -n "$asset" ] || { echo "::error::в index.html не нашёлся JS-бандл"; exit 1; }
+          # Бандл берём из HTML приложения (/app/): у лендинга JS нет. Имя с
+          # хэшем меняется от сборки к сборке. Гостя /app/ уводит на вход,
+          # поэтому запрос — с cookie сессии: nginx смотрит только на её наличие.
+          asset="$(curl -sS --max-time 5 -b session=check "https://${HOST}/app/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
+          [ -n "$asset" ] || { echo "::error::в /app/ не нашёлся JS-бандл"; exit 1; }
           encoding="$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: gzip' --max-time 5 "https://${HOST}${asset}" | tr -d '\r' | grep -i '^content-encoding:' || true)"
           case "$encoding" in
             *gzip*) echo "${asset} отдаётся сжатым: $encoding" ;;
