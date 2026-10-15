@@ -1,9 +1,21 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { ConnectRepositoryPage } from '@/pages/ConnectRepositoryPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
+
+// Задержки моков API (350–500 мс) в сумме подходят к таймауту findBy в 1 с, и на раннере CI
+// тест падал на ожидании заголовка. Тест проверяет переход и обновление списка, а не ожидание,
+// поэтому API отвечает сразу из того же хранилища моков.
+vi.mock('@/entities/repository/api/repositoryApi', async () => {
+  const store = await import('@/entities/repository/api/mockStore')
+  return {
+    fetchConnectedRepositories: async () => store.getConnectedRepositories(),
+    fetchAvailableRepositories: async () => store.getAvailableRepositories(),
+    connectRepositoryById: async (repoId: string) => store.connectRepository(repoId),
+  }
+})
 
 function renderConnectPage() {
   const queryClient = new QueryClient({
