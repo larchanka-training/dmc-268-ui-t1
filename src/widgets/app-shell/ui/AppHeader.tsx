@@ -14,7 +14,7 @@ export function AppHeader() {
     {
       key: 'logout',
       label: 'Выйти',
-      onClick: logout,
+      onClick: () => void logout(),
     },
   ]
 
@@ -31,7 +31,9 @@ export function AppHeader() {
         {user && (
           <Dropdown menu={{ items: menuItems }} trigger={['click']}>
             <Space className="cursor-pointer">
-              <Avatar size="small" src={user.avatarUrl} />
+              <Avatar size="small" src={user.avatarUrl ?? undefined}>
+                {user.login.slice(0, 1).toUpperCase()}
+              </Avatar>
               <span className="font-medium">{user.login}</span>
               <Tag color={user.provider === 'github' ? 'default' : 'orange'}>{user.provider}</Tag>
             </Space>
