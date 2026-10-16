@@ -10,7 +10,7 @@ export function OverviewPage() {
   return (
     <div>
       <Typography.Title level={1} className="page-title">
-        С возвращением, {user?.name}
+        С возвращением, {user?.name ?? user?.login}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
         Управляйте подключёнными репозиториями и статусом синхронизации в рабочем пространстве.

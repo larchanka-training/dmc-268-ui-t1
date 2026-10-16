@@ -4,6 +4,7 @@ import { defineConfig, type Connect, type Plugin } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { rewriteAppUrl, rewriteStaticPage } from './src/build/appRoutes.ts'
+import { mockAuthReply } from './src/build/mockAuth.ts'
 import { applyOrigin, buildRobotsTxt, buildSitemapXml, normalizeOrigin } from './src/build/seo.ts'
 
 const publicOrigin = normalizeOrigin(process.env.PUBLIC_ORIGIN)
@@ -24,6 +25,24 @@ function appRoutes(): Plugin {
     name: 'dmc268:app-routes',
     configureServer: (server) => void server.middlewares.use(appRewrite),
     configurePreviewServer: (server) => void server.middlewares.use(appRewrite),
+  }
+}
+
+// Мок /api/v1/auth/* — только для dev-сервера: в сборку не попадает. Против
+// настоящего бэкенда выключается VITE_USE_MOCK_API=false.
+function mockAuth(): Plugin {
+  return {
+    name: 'dmc268:mock-auth',
+    apply: 'serve',
+    configureServer(server) {
+      if (process.env.VITE_USE_MOCK_API === 'false') return
+      server.middlewares.use((req, res, next) => {
+        const reply = mockAuthReply(req.method ?? 'GET', req.url ?? '', req.headers.cookie)
+        if (!reply) return next()
+        res.writeHead(reply.status, reply.headers)
+        res.end(reply.body)
+      })
+    },
   }
 }
 
@@ -49,7 +68,7 @@ function publicOriginPlugin(): Plugin {
 
 export default defineConfig({
   appType: 'mpa',
-  plugins: [tailwindcss(), react(), appRoutes(), publicOriginPlugin()],
+  plugins: [tailwindcss(), react(), mockAuth(), appRoutes(), publicOriginPlugin()],
   resolve: {
     // Алиас `@` берётся из `paths` в tsconfig.json — одно место вместо двух.
     tsconfigPaths: true,
