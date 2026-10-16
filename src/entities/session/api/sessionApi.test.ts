@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { fetchCurrentUser } from '@/entities/session'
+import { MOCK_USER } from '../../../build/mockAuth'
+
+import { currentUserSchema, fetchCurrentUser } from '@/entities/session'
 import { ContractError } from '@/shared/api'
 import { ME, stubFetch } from '@/test/api'
 
@@ -31,5 +32,16 @@ describe('fetchCurrentUser', () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, login: undefined } } })
 
     await expect(fetchCurrentUser()).rejects.toBeInstanceOf(ContractError)
+  })
+})
+
+// TEST_PLAN: фикстуры проходят ту же схему, что и ответ API, — иначе мок
+// dev-сервера или тестов молча разойдётся с контрактом бэкенда.
+describe('фикстуры /auth/me', () => {
+  it.each([
+    ['мок dev-сервера', MOCK_USER],
+    ['фикстура тестов', ME],
+  ])('%s соответствует схеме ответа', (_, fixture) => {
+    expect(currentUserSchema.safeParse(fixture).success).toBe(true)
   })
 })

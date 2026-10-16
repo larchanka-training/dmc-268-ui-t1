@@ -6,7 +6,7 @@ import { apiFetch, parseResponse } from '@/shared/api'
 const ME_PATH = '/auth/me'
 
 // Поля в snake_case — как отвечает бэкенд (openapi.yaml, CurrentUser).
-const currentUserSchema = z.object({
+export const currentUserSchema = z.object({
   provider: z.enum(['github', 'gitlab']),
   login: z.string().min(1),
   name: z.string().nullable(),
