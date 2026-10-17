@@ -1,13 +1,11 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type Connect, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { rewriteAppUrl, rewriteStaticPage } from './src/build/appRoutes.ts'
 import { mockAuthReply } from './src/build/mockAuth.ts'
 import { applyOrigin, buildRobotsTxt, buildSitemapXml, normalizeOrigin } from './src/build/seo.ts'
-
-const publicOrigin = normalizeOrigin(process.env.PUBLIC_ORIGIN)
 
 const page = (path: string) => fileURLToPath(new URL(path, import.meta.url))
 
@@ -30,12 +28,12 @@ function appRoutes(): Plugin {
 
 // Мок /api/v1/auth/* — только для dev-сервера: в сборку не попадает. Против
 // настоящего бэкенда выключается VITE_USE_MOCK_API=false.
-function mockAuth(): Plugin {
+function mockAuth(useMock: boolean): Plugin {
   return {
     name: 'dmc268:mock-auth',
     apply: 'serve',
     configureServer(server) {
-      if (process.env.VITE_USE_MOCK_API === 'false') return
+      if (!useMock) return
       server.middlewares.use((req, res, next) => {
         const reply = mockAuthReply(req.method ?? 'GET', req.url ?? '', req.headers.cookie)
         if (!reply) return next()
@@ -48,7 +46,7 @@ function mockAuth(): Plugin {
 
 // Абсолютный адрес стенда нужен canonical, og:url, og:image и файлам для
 // роботов. Он известен при сборке образа, поэтому подставляется здесь.
-function publicOriginPlugin(): Plugin {
+function publicOriginPlugin(publicOrigin: string): Plugin {
   return {
     name: 'dmc268:public-origin',
     transformIndexHtml: {
@@ -66,53 +64,65 @@ function publicOriginPlugin(): Plugin {
   }
 }
 
-export default defineConfig({
-  appType: 'mpa',
-  plugins: [tailwindcss(), react(), mockAuth(), appRoutes(), publicOriginPlugin()],
-  resolve: {
-    // Алиас `@` берётся из `paths` в tsconfig.json — одно место вместо двух.
-    tsconfigPaths: true,
-  },
-  build: {
-    // Полифил modulepreload Vite вставляет отдельным скриптом в каждую
-    // страницу с модулем, в том числе в статичную /login. Браузер без
-    // поддержки modulepreload (Safari до 17, Firefox до 115) просто не
-    // загружает чанки заранее и получает их по import — медленнее, но работает.
-    modulePreload: { polyfill: false },
-    rolldownOptions: {
-      input: {
-        main: page('./index.html'),
-        app: page('./app/index.html'),
-        login: page('./login.html'),
-        notFound: page('./404.html'),
+// Переменные читаются из .env, .env.local и окружения оболочки: `process.env`
+// файлов .env не видит.
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const publicOrigin = normalizeOrigin(env.PUBLIC_ORIGIN)
+  return {
+    appType: 'mpa',
+    plugins: [
+      tailwindcss(),
+      react(),
+      mockAuth(env.VITE_USE_MOCK_API !== 'false'),
+      appRoutes(),
+      publicOriginPlugin(publicOrigin),
+    ],
+    resolve: {
+      // Алиас `@` берётся из `paths` в tsconfig.json — одно место вместо двух.
+      tsconfigPaths: true,
+    },
+    build: {
+      // Полифил modulepreload Vite вставляет отдельным скриптом в каждую
+      // страницу с модулем, в том числе в статичную /login. Браузер без
+      // поддержки modulepreload (Safari до 17, Firefox до 115) просто не
+      // загружает чанки заранее и получает их по import — медленнее, но работает.
+      modulePreload: { polyfill: false },
+      rolldownOptions: {
+        input: {
+          main: page('./index.html'),
+          app: page('./app/index.html'),
+          login: page('./login.html'),
+          notFound: page('./404.html'),
+        },
       },
     },
-  },
-  server: {
-    port: 3000,
-    open: true,
-  },
-  test: {
-    environment: 'jsdom',
-    // Интеграционные тесты экрана рендерят настоящий diff viewer на сотнях строк:
-    // локально самый тяжёлый идёт ~1.7 с, на раннере CI втрое дольше, и дефолтные 5 с
-    // срабатывают как ложный провал, а не как сигнал.
-    testTimeout: 15000,
-    globals: true,
-    setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', '.idea'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'dist/',
-        'src/test/setup.ts',
-        'src/main.tsx',
-        '**/*.config.{ts,js}',
-        'coverage/',
-      ],
+    server: {
+      port: 3000,
+      open: true,
     },
-  },
+    test: {
+      environment: 'jsdom',
+      // Интеграционные тесты экрана рендерят настоящий diff viewer на сотнях строк:
+      // локально самый тяжёлый идёт ~1.7 с, на раннере CI втрое дольше, и дефолтные 5 с
+      // срабатывают как ложный провал, а не как сигнал.
+      testTimeout: 15000,
+      globals: true,
+      setupFiles: ['./src/test/setup.ts'],
+      include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      exclude: ['node_modules', 'dist', '.idea'],
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json', 'html'],
+        exclude: [
+          'node_modules/',
+          'dist/',
+          'src/test/setup.ts',
+          'src/main.tsx',
+          '**/*.config.{ts,js}',
+          'coverage/',
+        ],
+      },
+    },
+  }
 })
