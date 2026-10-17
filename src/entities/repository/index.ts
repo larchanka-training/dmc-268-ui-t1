@@ -10,7 +10,7 @@ export type {
   RepositorySettings,
   RulesLoadStatus,
   RulesStatus,
-  SeverityThreshold,
+  SeverityLevel,
 } from '@/entities/repository/model/settings'
 export {
   connectRepositoryById,
@@ -24,7 +24,7 @@ export {
 export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'
 export { RulesPreview } from '@/entities/repository/ui/RulesPreview'
 export {
-  SEVERITY_THRESHOLD_LABEL,
-  SEVERITY_THRESHOLD_OPTIONS,
-} from '@/entities/repository/lib/severityThresholdLabels'
+  SEVERITY_LEVEL_LABEL,
+  SEVERITY_LEVEL_OPTIONS,
+} from '@/entities/repository/lib/severityLevelLabels'
 export { repositoryStatusLabel } from '@/entities/repository/lib/statusLabels'

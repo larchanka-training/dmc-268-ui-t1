@@ -7,7 +7,7 @@ import {
   RepositorySettingsSchema,
   RULES_LOAD_STATUSES,
   RulesStatusSchema,
-  SEVERITY_THRESHOLDS,
+  SEVERITY_LEVELS,
   isRulesApplied,
   type HistoryRun,
   type RepositorySettings,
@@ -19,7 +19,7 @@ function makeSettings(overrides: Partial<RepositorySettings> = {}): RepositorySe
   return {
     autoReviewEnabled: true,
     branchFilter: ['feature/**', 'fix/**'],
-    severityThreshold: 'all',
+    minSeverity: 'low',
     ...overrides,
   }
 }
@@ -59,15 +59,15 @@ function makeHistoryRun(overrides: Partial<HistoryRun> = {}): HistoryRun {
 }
 
 describe('RepositorySettingsSchema', () => {
-  it.each(SEVERITY_THRESHOLDS)('принимает пресет severity %s', (threshold) => {
-    expect(
-      RepositorySettingsSchema.safeParse(makeSettings({ severityThreshold: threshold })).success,
-    ).toBe(true)
+  it.each(SEVERITY_LEVELS)('принимает уровень severity %s', (level) => {
+    expect(RepositorySettingsSchema.safeParse(makeSettings({ minSeverity: level })).success).toBe(
+      true,
+    )
   })
 
-  it('отвергает значение вне пресетов severity', () => {
+  it('отвергает значение вне уровней severity', () => {
     const dto: unknown = makeSettings({
-      severityThreshold: 'warn' as RepositorySettings['severityThreshold'],
+      minSeverity: 'warn' as RepositorySettings['minSeverity'],
     })
     expect(RepositorySettingsSchema.safeParse(dto).success).toBe(false)
   })

@@ -16,8 +16,9 @@
 - Страница `/repositories/:repositoryId/settings` за `RequireAuth` + `AppLayout`; вход со
   страницы репозиториев действием «Настройки».
 - Форма настроек ревью: включение авто-ревью, фильтр веток (список glob-паттернов), порог
-  severity — пресеты `all | warn_and_critical | critical_only` (All / Warn & Crit / Only
-  Critical). Сохранение — mutation с инвалидацией кэша.
+  severity `min_severity` — уровни бэкенда `low | medium | high | critical` (Low / Medium /
+  High / Critical), дефолт `critical`; согласовано в #28. Сохранение — mutation с
+  инвалидацией кэша.
 - Панель статуса правил: бейдж исхода загрузки `.review/rules.md` — загружены, файла нет,
   слишком большой, недоступен — и превью распарсенных правил read-only: имя, паттерны
   `pattern`/`exclude`, нумерованные проверки, отклонённые разделы с причиной; предупреждение
@@ -54,6 +55,6 @@
 - Зависимости: новых нет — хватает antd, TanStack Query и Zod.
 - Бэкенду (`dmc-268-api-t1`): открытые вопросы — изменение настроек репозитория, эндпоинт
   статуса и превью `.review/rules.md`, список прогонов по репозиторию (сейчас есть только
-  `GET /api/v1/reviews/{id}`), маппинг пресетов severity на четыре уровня модели
-  (`low | medium | high | critical`).
+  `GET /api/v1/reviews/{id}`); порог `min_severity` согласован в #28 и ждёт контракта
+  настроек.
 - Задача: [#28](https://github.com/larchanka-training/dmc-268-ui-t1/issues/28); в PR — `Closes #28`.

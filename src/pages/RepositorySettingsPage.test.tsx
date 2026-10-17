@@ -61,7 +61,7 @@ describe('RepositorySettingsPage: загрузка', () => {
     renderSettingsPage()
 
     expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Warn & Crit' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     expect(screen.getByText('feature/**')).toBeInTheDocument()
     expect(screen.getByText('fix/**')).toBeInTheDocument()
   })
@@ -124,7 +124,7 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
 
     // Сохранение в полёте (адаптер отвечает не мгновенно): правка невозможна, успеха ещё нет.
     expect(screen.getByRole('switch')).toBeDisabled()
-    expect(screen.getByRole('radio', { name: 'All' })).toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Low' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Сбросить' })).toBeDisabled()
     expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
 
@@ -141,13 +141,13 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
     await user.click(screen.getByRole('switch'))
     // Radio-кнопка antd прячет input от указателя — клик идёт по подписи.
-    await user.click(screen.getByText('Only Critical'))
+    await user.click(screen.getByText('Critical'))
     expect(screen.getByRole('switch')).not.toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))
 
     expect(screen.getByRole('switch')).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Warn & Crit' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
   })
 })
 

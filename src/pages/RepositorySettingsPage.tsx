@@ -19,7 +19,7 @@ import { formatDateTime } from '@/shared/lib'
 import {
   RulesPreview,
   RulesStatusBadge,
-  SEVERITY_THRESHOLD_OPTIONS,
+  SEVERITY_LEVEL_OPTIONS,
   type HistoryRun,
   type RepositorySettings,
 } from '@/entities/repository'
@@ -118,8 +118,8 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
           placeholder="feature/**, fix/**"
         />
       </Form.Item>
-      <Form.Item name="severityThreshold" label="Порог severity">
-        <Radio.Group optionType="button" buttonStyle="solid" options={SEVERITY_THRESHOLD_OPTIONS} />
+      <Form.Item name="minSeverity" label="Порог severity">
+        <Radio.Group optionType="button" buttonStyle="solid" options={SEVERITY_LEVEL_OPTIONS} />
       </Form.Item>
       <Space>
         <Button type="primary" htmlType="submit" loading={save.isPending}>
