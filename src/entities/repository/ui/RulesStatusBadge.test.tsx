@@ -8,16 +8,42 @@ const withFile: RulesStatus = {
   status: 'loaded',
   branch: 'main',
   path: '.review/rules.md',
-  rules: [],
+  rules: [
+    {
+      name: 'Security',
+      patterns: ['app/**/*.py'],
+      excludes: [],
+      checks: ['Не хранить секреты в коде'],
+    },
+  ],
   rejected: [],
   fetchedAt: '2026-10-11T09:40:00.000Z',
 }
 
+/** api#49 отдаёт `loaded` и при пустом `rules`: файл пуст или все разделы отклонены. */
+const emptyRules: RulesStatus = {
+  status: 'loaded',
+  branch: 'main',
+  path: '.review/rules.md',
+  rules: [],
+  rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
+  fetchedAt: '2026-10-11T09:40:00.000Z',
+}
+
 describe('RulesStatusBadge', () => {
-  it('файл есть: бейдж сообщает о кастомных правилах, видны ветка и путь', () => {
+  it('правила применимы: бейдж сообщает о кастомных правилах, видны ветка и путь', () => {
     const { container } = render(<RulesStatusBadge status={withFile} />)
 
     expect(screen.getByText('Кастомные правила')).toBeInTheDocument()
+    expect(container.textContent).toContain('ветка: main')
+    expect(container.textContent).toContain('.review/rules.md')
+  })
+
+  it('файл без применимых правил: бейдж сообщает, что правила не применяются', () => {
+    const { container } = render(<RulesStatusBadge status={emptyRules} />)
+
+    expect(screen.getByText('Правила не применяются')).toBeInTheDocument()
+    expect(screen.queryByText('Кастомные правила')).not.toBeInTheDocument()
     expect(container.textContent).toContain('ветка: main')
     expect(container.textContent).toContain('.review/rules.md')
   })

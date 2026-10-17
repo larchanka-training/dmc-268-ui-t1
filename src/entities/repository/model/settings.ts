@@ -78,6 +78,15 @@ export const RulesStatusSchema = z.discriminatedUnion('status', [
 export type RulesStatus = z.infer<typeof RulesStatusSchema>
 
 /**
+ * Применимы ли кастомные правила: `loaded` и хотя бы одно правило. Бэкенд (api#49) отдаёт
+ * `loaded` и при пустом `rules` — файл пуст или все разделы отклонены, тогда ревью идёт по
+ * стандартным критериям, как и у остальных исходов.
+ */
+export function isRulesApplied(status: RulesStatus): boolean {
+  return status.status === 'loaded' && status.rules.length > 0
+}
+
+/**
  * Прогон в истории проверок репозитория; `id` ведёт на существующий экран `/reviews/:reviewId`.
  * Статус — открытая строка, как у `ReviewRun.status`: чужой enum будет расти, незнакомое
  * значение показывается как есть и не роняет блок истории.

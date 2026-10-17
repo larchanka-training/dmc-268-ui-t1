@@ -171,6 +171,16 @@ describe('RepositorySettingsPage: статус правил', () => {
     expect(screen.getByText(/Используются дефолтные правила/)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Security' })).not.toBeInTheDocument()
   })
+
+  it('repo-3: файл без применимых правил — не кастомные, отклонённые разделы видны', async () => {
+    renderSettingsPage('repo-3')
+
+    expect(await screen.findByText('Правила не применяются')).toBeInTheDocument()
+    expect(screen.queryByText('Кастомные правила')).not.toBeInTheDocument()
+    expect(screen.getByRole('note')).toHaveTextContent(/ревью идёт по стандартным критериям/)
+    expect(screen.getByText('Docs — нет паттерна (pattern); нет проверок')).toBeInTheDocument()
+    expect(screen.getByText('A11y — нет паттерна (pattern)')).toBeInTheDocument()
+  })
 })
 
 describe('RepositorySettingsPage: история проверок', () => {

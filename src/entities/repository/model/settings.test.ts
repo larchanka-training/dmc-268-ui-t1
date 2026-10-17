@@ -8,6 +8,7 @@ import {
   RULES_LOAD_STATUSES,
   RulesStatusSchema,
   SEVERITY_THRESHOLDS,
+  isRulesApplied,
   type HistoryRun,
   type RepositorySettings,
   type RepoRule,
@@ -157,6 +158,20 @@ describe('RulesStatusSchema', () => {
 
   it('набор исходов повторяет RulesStatus бэкенда (api#49)', () => {
     expect(RULES_LOAD_STATUSES).toEqual(['loaded', 'absent', 'too_large', 'unavailable'])
+  })
+})
+
+describe('isRulesApplied', () => {
+  it('применимы: loaded с хотя бы одним правилом', () => {
+    expect(isRulesApplied(makeRulesLoaded())).toBe(true)
+  })
+
+  it('не применимы: loaded без правил — файл пуст или все разделы отклонены', () => {
+    expect(isRulesApplied(makeRulesLoaded({ rules: [] }))).toBe(false)
+  })
+
+  it.each(['absent', 'too_large', 'unavailable'] as const)('не применимы: исход %s', (status) => {
+    expect(isRulesApplied({ status, branch: 'main', path: '.review/rules.md' })).toBe(false)
   })
 })
 

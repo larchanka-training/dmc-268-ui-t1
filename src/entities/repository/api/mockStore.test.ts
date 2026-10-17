@@ -65,6 +65,16 @@ describe('статус правил', () => {
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     expect(status.status).toBe('absent')
   })
+
+  it('repo-3: файл загружен, но применимых правил нет — оба раздела отклонены', () => {
+    const status = getRulesStatus('repo-3')
+
+    expect(RulesStatusSchema.safeParse(status).success).toBe(true)
+    if (status.status === 'loaded') {
+      expect(status.rules).toEqual([])
+      expect(status.rejected.map((rule) => rule.name)).toEqual(['Docs', 'A11y'])
+    }
+  })
 })
 
 describe('история проверок', () => {
