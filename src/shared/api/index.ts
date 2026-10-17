@@ -1,4 +1,6 @@
-export { ApiError, TransportContext, useTransport } from './transport'
+export { TransportContext, useTransport } from './transport'
+export { ApiError } from './errors'
 export type { ApiTransport } from './transport'
 export { ContractError, parseResponse } from './parse'
-export { apiFetch } from './http'
+export { apiFetch, createHttpTransport } from './http'
+export type { ApiFetchOptions } from './http'

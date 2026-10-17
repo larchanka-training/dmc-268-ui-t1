@@ -1,21 +1,58 @@
 import { API_V1_BASE_URL } from '@/shared/config/env'
 import { redirectToLogin } from '@/shared/lib'
 
-import { ApiError } from './transport'
+import { ApiError } from './errors'
+import type { ApiTransport } from './transport'
+
+export interface ApiFetchOptions {
+  /** `false` — на `401` не уводить на `/login`, только бросить `ApiError(401)` (выход). */
+  redirectOn401?: boolean
+}
 
 /**
  * Запрос к API с cookie сессии. Токенов в JS нет, поэтому и `Authorization`
  * нет. `401` от любой ручки — сессии нет или она истекла: браузер уходит на
  * `/login` и вернётся на этот же экран после входа.
  */
-export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+export async function apiFetch(
+  path: string,
+  init: RequestInit = {},
+  { redirectOn401 = true }: ApiFetchOptions = {},
+): Promise<Response> {
   const response = await fetch(`${API_V1_BASE_URL}${path}`, { ...init, credentials: 'include' })
   if (response.status === 401) {
-    redirectToLogin()
-    throw new ApiError(401, 'Требуется вход')
+    if (redirectOn401) redirectToLogin()
+    throw new ApiError(401, 'Требуется вход', await readErrorCode(response))
   }
   if (!response.ok) {
-    throw new ApiError(response.status, `Запрос ${path} завершился ошибкой ${response.status}`)
+    throw new ApiError(
+      response.status,
+      `Запрос ${path} завершился ошибкой ${response.status}`,
+      await readErrorCode(response),
+    )
   }
   return response
+}
+
+/** `code` из тела ошибки `{code, message}`; тело не по форме или не JSON — `undefined`. */
+async function readErrorCode(response: Response): Promise<string | undefined> {
+  try {
+    const body: unknown = await response.json()
+    if (typeof body === 'object' && body !== null && 'code' in body) {
+      return typeof body.code === 'string' ? body.code : undefined
+    }
+  } catch {
+    // Пустое или не JSON-тело — кода нет.
+  }
+  return undefined
+}
+
+/**
+ * HTTP-реализация `ApiTransport`. Строится на `apiFetch`, поэтому cookie сессии и
+ * уход на `/login` по `401` работают и для данных кабинета: в обход `fetch` не ходим.
+ */
+export function createHttpTransport(): ApiTransport {
+  return {
+    get: async (path) => (await apiFetch(path)).json() as Promise<unknown>,
+  }
 }

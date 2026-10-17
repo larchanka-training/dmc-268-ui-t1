@@ -23,5 +23,6 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
 
 /** Удаляет сессию на бэкенде; cookie удаляет ответ. */
 export async function logoutSession(): Promise<void> {
-  await apiFetch('/auth/logout', { method: 'POST' })
+  // `401` — сессия уже закончилась в другом месте: на `/login` не уводим, выход всё равно на `/`.
+  await apiFetch('/auth/logout', { method: 'POST' }, { redirectOn401: false })
 }

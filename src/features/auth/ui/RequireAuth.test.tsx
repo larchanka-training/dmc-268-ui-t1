@@ -41,4 +41,17 @@ describe('RequireAuth', () => {
     expect(await screen.findByText('Не удалось загрузить профиль')).toBeInTheDocument()
     expect(screen.queryByText('кабинет')).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['сбой сети', new TypeError('Failed to fetch')],
+    ['ответ 5xx', { status: 503 }],
+  ])('%s — ошибка загрузки без кабинета и без ухода на /login', async (_, reply) => {
+    stubFetch({ 'GET /api/v1/auth/me': reply })
+
+    renderWithQuery(<RequireAuth>кабинет</RequireAuth>)
+
+    expect(await screen.findByText('Не удалось загрузить профиль')).toBeInTheDocument()
+    expect(screen.queryByText('кабинет')).not.toBeInTheDocument()
+    expect(navigation.assign).not.toHaveBeenCalled()
+  })
 })

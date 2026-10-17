@@ -11,8 +11,15 @@ export function AppRouter() {
     // Приложение живёт под `/app` (#25); вход — статичная `/login` вне SPA.
     <BrowserRouter basename="/app">
       <Routes>
-        {/* Экран прогона из #19: публичный, как до интеграции с кабинетом. */}
-        <Route path="/reviews/:reviewId" element={<ReviewRunView />} />
+        {/* Экран прогона — маршрут кабинета: сессия нужна, но шапки и меню у него нет. */}
+        <Route
+          path="/reviews/:reviewId"
+          element={
+            <RequireAuth>
+              <ReviewRunView />
+            </RequireAuth>
+          }
+        />
         <Route
           element={
             <RequireAuth>
