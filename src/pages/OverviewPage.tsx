@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom'
 import { Button, Card, Col, Row, Statistic, Typography } from 'antd'
-import { useAuth } from '@/features/auth'
+import { useCurrentUser } from '@/features/auth'
 import { useConnectedRepositories } from '@/features/repository'
 
 export function OverviewPage() {
-  const { user } = useAuth()
+  const user = useCurrentUser()
   const { data: repos = [] } = useConnectedRepositories()
 
   return (
     <div>
       <Typography.Title level={1} className="page-title">
-        С возвращением, {user?.name}
+        С возвращением, {user.name || user.login}
       </Typography.Title>
       <Typography.Paragraph type="secondary">
         Управляйте подключёнными репозиториями и статусом синхронизации в рабочем пространстве.

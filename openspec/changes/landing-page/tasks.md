@@ -21,7 +21,8 @@
 
 ## 4. Приложение
 
-- [ ] 4.1 `basename="/app"` у роутера кабинета, экран входа и `/oauth/callback` убрать из SPA
+Перевод кабинета под `basename="/app"` и удаление экрана входа и `/oauth/callback` из SPA — в change `session-cookie` (#26).
+
 - [x] 4.3 Статичная `login.html` со ссылками на `/api/v1/auth/{provider}/login`; `location = /login` с редиректом на `/app/` при cookie сессии; `STATIC_PAGES` для dev-сервера
 - [x] 4.2 Ссылки внутри приложения и редиректы после входа ведут под `/app/`
 

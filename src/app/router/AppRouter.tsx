@@ -2,20 +2,24 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/features/auth'
 import { AppLayout } from '@/widgets/app-shell'
 import { ConnectRepositoryPage } from '@/pages/ConnectRepositoryPage'
-import { LoginPage } from '@/pages/LoginPage'
-import { OAuthCallbackPage } from '@/pages/OAuthCallbackPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { ReviewRunView } from '@/pages/review-run'
 
 export function AppRouter() {
   return (
-    <BrowserRouter>
+    // Приложение живёт под `/app` (#25); вход — статичная `/login` вне SPA.
+    <BrowserRouter basename="/app">
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
-        {/* Экран прогона из #19: публичный, как до интеграции с кабинетом. */}
-        <Route path="/reviews/:reviewId" element={<ReviewRunView />} />
+        {/* Экран прогона — маршрут кабинета: сессия нужна, но шапки и меню у него нет. */}
+        <Route
+          path="/reviews/:reviewId"
+          element={
+            <RequireAuth>
+              <ReviewRunView />
+            </RequireAuth>
+          }
+        />
         <Route
           element={
             <RequireAuth>

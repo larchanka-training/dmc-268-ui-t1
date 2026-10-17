@@ -44,6 +44,23 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm run test
 
+  # Сборка проходит, и в бандл не попал мок входа: он нужен только dev-серверу
+  # (плагин с apply: 'serve' в vite.config.ts). Ловит импорт src/build/mockAuth.ts
+  # из кода приложения — по строке фикстуры, которая переживает минификацию.
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+      - run: pnpm run build
+      - name: Мока входа нет в сборке
+        run: |
+          if grep -rl 'Локальный пользователь' dist; then
+            echo 'Мок входа попал в production-сборку' >&2
+            exit 1
+          fi
+
   # Ошибка в спеке иначе всплывает только при архиве change: требование без
   # сценария, MODIFIED, теряющий сценарии. --strict ловит и стилистику —
   # слишком длинные требования. Версия openspec закреплена в package.json:
