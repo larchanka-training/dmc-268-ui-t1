@@ -1,6 +1,10 @@
 export {
+  repositoryKeys,
   useAvailableRepositories,
   useConnectRepository,
   useConnectedRepositories,
-  repositoryKeys,
+  useRepositoryHistory,
+  useRepositorySettings,
+  useRulesStatus,
+  useSaveRepositorySettings,
 } from '@/features/repository/model/repositoryQueries'
