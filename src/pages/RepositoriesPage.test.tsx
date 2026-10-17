@@ -35,8 +35,10 @@ describe('RepositoriesPage', () => {
 
     expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
     expect(screen.getByText('larchanka-training/docs')).toBeInTheDocument()
+    expect(screen.getByText('larchanka-training/design-system')).toBeInTheDocument()
     expect(screen.getByText('Синхронизация')).toBeInTheDocument()
-    expect(screen.getByText('Подключён')).toBeInTheDocument()
+    // repo-1 и repo-3 подключены, repo-2 синхронизируется.
+    expect(screen.getAllByText('Подключён')).toHaveLength(2)
   })
 
   it('из списка открывает экран настроек репозитория', async () => {

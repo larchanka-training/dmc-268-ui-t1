@@ -1,12 +1,23 @@
 import { TextWithCode } from '@/shared/ui'
-import type { RulesLoadStatus, RulesStatus } from '../model/settings'
+import { isRulesApplied, type RulesLoadStatus, type RulesStatus } from '../model/settings'
 
-/** Вид бейджа для каждого исхода загрузки (api#49): зелёный — только `loaded`. */
-const STATUS_VIEW: Record<RulesLoadStatus, { label: string; className: string }> = {
-  loaded: { label: 'Кастомные правила', className: 'bg-emerald-100 text-emerald-800' },
-  absent: { label: 'Дефолтные правила', className: 'bg-amber-100 text-amber-800' },
-  too_large: { label: 'Файл правил слишком большой', className: 'bg-amber-100 text-amber-800' },
-  unavailable: { label: 'Правила недоступны', className: 'bg-slate-100 text-slate-600' },
+/**
+ * Вид бейджа для каждого исхода загрузки (api#49): зелёный — только `loaded` с применимыми
+ * правилами. `loaded` без правил — отдельный исход: файл есть, но ревью идёт по дефолтным.
+ */
+const STATUS_VIEW: Record<RulesLoadStatus | 'loaded_empty', { label: string; className: string }> =
+  {
+    loaded: { label: 'Кастомные правила', className: 'bg-emerald-100 text-emerald-800' },
+    loaded_empty: { label: 'Правила не применяются', className: 'bg-amber-100 text-amber-800' },
+    absent: { label: 'Дефолтные правила', className: 'bg-amber-100 text-amber-800' },
+    too_large: { label: 'Файл правил слишком большой', className: 'bg-amber-100 text-amber-800' },
+    unavailable: { label: 'Правила недоступны', className: 'bg-slate-100 text-slate-600' },
+  }
+
+/** Исход для бейджа: `loaded` без применимых правил показываем отдельным видом. */
+function badgeOutcome(status: RulesStatus): RulesLoadStatus | 'loaded_empty' {
+  if (status.status === 'loaded' && !isRulesApplied(status)) return 'loaded_empty'
+  return status.status
 }
 
 /**
@@ -14,7 +25,7 @@ const STATUS_VIEW: Record<RulesLoadStatus, { label: string; className: string }>
  * правила или дефолтные. Рядом — ветка, из которой взят статус, и путь к файлу.
  */
 export function RulesStatusBadge({ status }: { status: RulesStatus }) {
-  const view = STATUS_VIEW[status.status]
+  const view = STATUS_VIEW[badgeOutcome(status)]
 
   return (
     <div className="flex flex-wrap items-center gap-2">

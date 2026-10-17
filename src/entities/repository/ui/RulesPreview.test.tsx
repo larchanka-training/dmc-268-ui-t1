@@ -32,6 +32,16 @@ const withoutFile: RulesStatus = {
   path: '.review/rules.md',
 }
 
+/** api#49 отдаёт `loaded` и при пустом `rules`: файл пуст или все разделы отклонены. */
+const emptyRules: RulesStatus = {
+  status: 'loaded',
+  branch: 'main',
+  path: '.review/rules.md',
+  rules: [],
+  rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
+  fetchedAt: '2026-10-11T09:40:00.000Z',
+}
+
 describe('RulesPreview', () => {
   it('правила найдены: имя, паттерны области действия и нумерованные проверки', () => {
     render(<RulesPreview status={withFile} />)
@@ -54,6 +64,15 @@ describe('RulesPreview', () => {
     expect(screen.getByText('Docs — нет паттерна (pattern); нет проверок')).toBeInTheDocument()
   })
 
+  it('ни одно правило не применилось: стандартные критерии и отклонённые разделы с причинами', () => {
+    const { container } = render(<RulesPreview status={emptyRules} />)
+
+    expect(screen.getByRole('note')).toBeInTheDocument()
+    expect(container.textContent).toContain('ревью идёт по стандартным критериям')
+    expect(screen.getByText('Docs — нет паттерна (pattern); нет проверок')).toBeInTheDocument()
+    expect(screen.queryByRole('heading')).not.toBeInTheDocument()
+  })
+
   it('правил нет: предупреждение предложить создать .review/rules.md', () => {
     const { container } = render(<RulesPreview status={withoutFile} />)
 
@@ -73,6 +92,7 @@ describe('RulesPreview', () => {
 
   it.each([
     ['правила найдены', withFile],
+    ['правила не применяются', emptyRules],
     ['правил нет', withoutFile],
     ['файл больше лимита', { status: 'too_large', branch: 'main', path: '.review/rules.md' }],
     ['файл недоступен', { status: 'unavailable', branch: 'main', path: '.review/rules.md' }],

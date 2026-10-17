@@ -28,6 +28,17 @@ let connectedRepos: ConnectedRepository[] = [
     status: 'syncing',
     lastSyncAt: '2026-09-28T07:00:00.000Z',
   },
+  {
+    id: 'repo-3',
+    name: 'design-system',
+    fullName: 'larchanka-training/design-system',
+    provider: 'github',
+    defaultBranch: 'main',
+    private: false,
+    connectedAt: '2026-09-25T09:00:00.000Z',
+    status: 'connected',
+    lastSyncAt: '2026-09-28T06:45:00.000Z',
+  },
 ]
 
 const availablePool: AvailableRepository[] = [
@@ -104,7 +115,8 @@ const DEFAULT_SETTINGS: RepositorySettings = {
 /**
  * Adapter отдаёт уже распарсенные правила в форме api#49 (раздел `##`, pattern/exclude,
  * нумерованные проверки): парсинг markdown — задача бэкенда. У repo-1 есть отклонённый
- * раздел — рендерим и его.
+ * раздел — рендерим и его; у repo-3 файл есть, но применимых правил нет — оба раздела
+ * отклонены, сценарий «правила не применяются».
  */
 const rulesStatusByRepo: Record<string, RulesStatus> = {
   'repo-1': {
@@ -141,6 +153,17 @@ const rulesStatusByRepo: Record<string, RulesStatus> = {
     status: 'absent',
     branch: 'main',
     path: RULES_PATH,
+  },
+  'repo-3': {
+    status: 'loaded',
+    branch: 'main',
+    path: RULES_PATH,
+    rules: [],
+    rejected: [
+      { name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' },
+      { name: 'A11y', reason: 'нет паттерна (pattern)' },
+    ],
+    fetchedAt: '2026-10-11T09:35:00.000Z',
   },
 }
 
