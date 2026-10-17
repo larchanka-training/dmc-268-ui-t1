@@ -3,7 +3,7 @@
 ## 1. Подготовка и модели
 
 - [x] 1.1 Создать ветку `feat/repository-settings` от `develop`, change `repository-settings` и задачу [#28](https://github.com/larchanka-training/dmc-268-ui-t1/issues/28); проверить: `openspec status --change repository-settings` показывает артефакты, карточка на доске `dmc-268-t1`
-- [x] 1.2 Завести `entities/repository/model/settings.ts`: типы и Zod-схемы `RepositorySettings`, `RulesStatus`, `HistoryRun` по design.md; тесты схем — пресеты severity, вариант правил без файла, незнакомый статус прогона, данные вне схемы; `pnpm run test` зелёный
+- [x] 1.2 Завести `entities/repository/model/settings.ts`: типы и Zod-схемы `RepositorySettings`, `RulesStatus`, `HistoryRun` по design.md; тесты схем — уровни severity, вариант правил без файла, незнакомый статус прогона, данные вне схемы; `pnpm run test` зелёный
 - [x] 1.3 Расширить `entities/repository/api/mockStore.ts`: настройки, статус правил, история и `saveRepositorySettings`; фикстуры — `repo-1` с `.review/rules.md` (правила Security, Performance, Style в форме api#49 и отклонённый раздел) и историей прогонов, `repo-2` без правил и с пустой историей; тест — сохранение меняет состояние store
 
 ## 2. API-функции и запросы
@@ -17,7 +17,7 @@
 
 ## 4. Страница и маршрут
 
-- [x] 4.1 Собрать `src/pages/RepositorySettingsPage.tsx`: форма настроек (авто-ревью, фильтр веток, порог severity с подписями All / Warn & Crit / Only Critical), панель статуса правил, таблица истории со ссылкой на `/reviews/:reviewId`; блоки отдельно переживают загрузку и ошибку, экран показывает «репозиторий не найден», сброс возвращает сохранённые значения
+- [x] 4.1 Собрать `src/pages/RepositorySettingsPage.tsx`: форма настроек (авто-ревью, фильтр веток, порог severity `min_severity` с подписями Low / Medium / High / Critical), панель статуса правил, таблица истории со ссылкой на `/reviews/:reviewId`; блоки отдельно переживают загрузку и ошибку, экран показывает «репозиторий не найден», сброс возвращает сохранённые значения
 - [x] 4.2 Прописать маршрут `/repositories/:repositoryId/settings` в `AppRouter` и действие «Настройки» в `RepositoriesPage`; тест — из списка репозиториев открывается экран настроек
 - [x] 4.3 Интеграционные тесты `RepositorySettingsPage`: загрузка текущих значений, сохранение (успех, ошибка с сохранением черновика, сброс), правила есть/нет, переход на прогон, пустая история, незнакомый статус прогона, ошибка одного блока не ломает остальные, данные вне схемы
 

@@ -61,7 +61,7 @@ describe('saveRepositorySettings', () => {
     const draft: RepositorySettings = {
       autoReviewEnabled: false,
       branchFilter: ['release/**'],
-      severityThreshold: 'critical_only',
+      minSeverity: 'critical',
     }
 
     const saving = saveRepositorySettings('repo-2', draft)

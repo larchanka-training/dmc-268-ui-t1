@@ -96,12 +96,12 @@ const settingsByRepo: Record<string, RepositorySettings> = {
   'repo-1': {
     autoReviewEnabled: true,
     branchFilter: ['feature/**', 'fix/**'],
-    severityThreshold: 'warn_and_critical',
+    minSeverity: 'high',
   },
   'repo-2': {
     autoReviewEnabled: false,
     branchFilter: ['docs/**'],
-    severityThreshold: 'critical_only',
+    minSeverity: 'critical',
   },
 }
 
@@ -109,7 +109,7 @@ const settingsByRepo: Record<string, RepositorySettings> = {
 const DEFAULT_SETTINGS: RepositorySettings = {
   autoReviewEnabled: true,
   branchFilter: [],
-  severityThreshold: 'all',
+  minSeverity: 'critical',
 }
 
 /**

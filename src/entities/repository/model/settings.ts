@@ -1,22 +1,25 @@
 import { z } from 'zod'
 
 /**
- * Пресеты порога severity из задачи. Маппинг на четыре уровня модели бэкенда не согласован
- * (open question в #28), поэтому UI хранит ровно то, что выбирает пользователь.
+ * Уровни severity порога — ровно `FindingSeverity` модели бэкенда, согласовано в #28:
+ * без пресетов и маппинга, merge gate и вердикт «запрос изменений» читают один порог.
+ * Уровни повторяют `SEVERITIES` из `entities/review-finding`, но объявлены здесь: слайсы
+ * одного слоя не зависят друг от друга.
  */
-export const SEVERITY_THRESHOLDS = ['all', 'warn_and_critical', 'critical_only'] as const
+export const SEVERITY_LEVELS = ['low', 'medium', 'high', 'critical'] as const
 
-export type SeverityThreshold = (typeof SEVERITY_THRESHOLDS)[number]
+export type SeverityLevel = (typeof SEVERITY_LEVELS)[number]
 
 /**
  * Настройки ревью репозитория. По смыслу совпадают с полями бэкенда (`auto_review_enabled`
- * уже приходит в `GET /api/v1/repositories`): будущий HTTP-adapter смаппит snake_case в
+ * уже приходит в `GET /api/v1/repositories`; `min_severity` — порог из решения #28,
+ * дефолт `critical`, пока настроек нет): будущий HTTP-adapter смаппит snake_case в
  * camelCase при парсинге. Содержимое glob-паттернов проверяет бэкенд, UI хранит строки.
  */
 export const RepositorySettingsSchema = z.object({
   autoReviewEnabled: z.boolean(),
   branchFilter: z.array(z.string()),
-  severityThreshold: z.enum(SEVERITY_THRESHOLDS),
+  minSeverity: z.enum(SEVERITY_LEVELS),
 })
 
 export type RepositorySettings = z.infer<typeof RepositorySettingsSchema>

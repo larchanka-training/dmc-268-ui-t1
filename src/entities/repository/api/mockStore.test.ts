@@ -99,7 +99,7 @@ describe('saveRepositorySettings', () => {
     const draft: RepositorySettings = {
       autoReviewEnabled: false,
       branchFilter: ['release/**'],
-      severityThreshold: 'critical_only',
+      minSeverity: 'critical',
     }
 
     const saved = saveRepositorySettings('repo-1', draft)
@@ -114,7 +114,7 @@ describe('saveRepositorySettings', () => {
     saveRepositorySettings('repo-1', {
       autoReviewEnabled: false,
       branchFilter: [],
-      severityThreshold: 'all',
+      minSeverity: 'low',
     })
 
     expect(getRepositorySettings('repo-2')).toEqual(before)
@@ -143,7 +143,7 @@ describe('репозиторий, подключённый после старт
     expect(getRepositorySettings(connected.id)).toEqual({
       autoReviewEnabled: true,
       branchFilter: [],
-      severityThreshold: 'all',
+      minSeverity: 'critical',
     })
     expect(getRulesStatus(connected.id)).toEqual({
       status: 'absent',

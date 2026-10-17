@@ -33,7 +33,8 @@
 ### Requirement: Форма настроек ревью
 
 Экран SHALL показывать актуальные настройки ревью репозитория: включено ли авто-ревью, список
-паттернов веток фильтра и порог severity с подписями All, Warn & Crit, Only Critical.
+паттернов веток фильтра и минимальный уровень severity `min_severity` из уровней low, medium,
+high, critical с подписями Low, Medium, High, Critical.
 
 #### Scenario: Загрузка текущих значений
 
