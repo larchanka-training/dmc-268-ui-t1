@@ -5,6 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { applyStatusEvent, type ReviewRun, type RunStatusEvent } from '../../../entities/review-run'
 import { EventStreamContext } from '../../../shared/api'
+import { navigation } from '../../../shared/lib'
+import { ME, stubFetch } from '../../../test/api'
 import { createFakeEventStream, type FakeEventStream } from '../../../test/fakeEventStream'
 import { makeReviewRun } from '../../../test/factories'
 import { ConnectionNotice } from '../ui/ConnectionNotice'
@@ -72,10 +74,14 @@ describe('useRunLiveStatus', () => {
   beforeEach(() => {
     stream = createFakeEventStream()
     fetches = 0
+    vi.spyOn(navigation, 'assign').mockImplementation(() => {})
+    // Отказ потока проверяет сессию через `/auth/me`; по умолчанию она жива.
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
   })
   afterEach(() => {
     vi.useRealTimers()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     setVisibility('visible')
   })
 
@@ -243,6 +249,41 @@ describe('useRunLiveStatus', () => {
     expect(fetches).toBe(1)
     expect(stream.active()).toBe(1)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('отказ потока при истёкшей сессии: `/auth/me` отвечает 401 и уводит на вход', async () => {
+    window.history.pushState({}, '', '/app/reviews/run-1')
+    const calls = stubFetch({ 'GET /api/v1/auth/me': { status: 401 } })
+    renderHarness()
+
+    act(() => stream.setState('failed'))
+
+    await waitFor(() =>
+      expect(navigation.assign).toHaveBeenCalledWith('/login?redirect=%2Fapp%2Freviews%2Frun-1'),
+    )
+    expect(calls.map((call) => call.url)).toEqual(['/api/v1/auth/me'])
+  })
+
+  it('отказ потока при живой сессии: на вход не уводит, остаётся «Обновить»', async () => {
+    const calls = stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+    renderHarness()
+
+    act(() => stream.setState('failed'))
+
+    await waitFor(() => expect(calls).toHaveLength(1))
+    expect(calls[0].url).toBe('/api/v1/auth/me')
+    expect(navigation.assign).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Обновить' })).toBeInTheDocument()
+  })
+
+  it('без отказа потока сессию не проверяет', () => {
+    const calls = stubFetch({})
+    renderHarness()
+
+    act(() => stream.setState('open'))
+    act(() => stream.setState('reconnecting'))
+
+    expect(calls).toHaveLength(0)
   })
 
   it('«Обновить» не открывает подписку, если прогон за это время завершился', async () => {

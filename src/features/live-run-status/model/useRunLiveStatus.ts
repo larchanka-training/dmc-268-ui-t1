@@ -8,6 +8,7 @@ import {
   type RunStage,
   type RunStatusEvent,
 } from '../../../entities/review-run'
+import { fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
 import { API_V1_BASE_URL } from '../../../shared/config/env'
 
@@ -99,6 +100,16 @@ export function useRunLiveStatus<TData>({
       },
     })
   }, [stream, queryClient, queryKey, patchCache, runId, terminal, visible, attempt])
+
+  useEffect(() => {
+    // `EventSource` не отдаёт статус ответа, и `401` на потоке неотличим от прочих отказов.
+    // Сессию проверяет `apiFetch`: при `401` он сам уводит на `/login`, при живой сессии
+    // остаётся «Обновить».
+    if (streamState !== 'failed') return
+    fetchCurrentUser().catch(() => {
+      // `401` уже обработан уводом на вход, прочие ошибки не отменяют «Обновить».
+    })
+  }, [streamState])
 
   const refresh = useCallback(async () => {
     setStreamState('connecting')
