@@ -16,6 +16,8 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
     created_at: '2026-09-20T14:05:00Z',
     updated_at: '2026-09-20T14:07:14Z',
     failure_reason: null,
+    last_progress_at: null,
+    failed_stage: null,
     model: 'claude-sonnet-5',
     tokens_used: 18432,
     duration_seconds: 134,

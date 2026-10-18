@@ -3,12 +3,18 @@ import { StyleProvider } from '@ant-design/cssinjs'
 import { ConfigProvider } from 'antd'
 import ruRU from 'antd/locale/ru_RU'
 import { useState, type ReactNode } from 'react'
-import { TransportContext, type ApiTransport } from '@/shared/api'
+import {
+  EventStreamContext,
+  TransportContext,
+  type ApiTransport,
+  type EventStream,
+} from '@/shared/api'
 import { createQueryClient } from '@/app/providers/queryClient'
 import { ThemeProvider, useAppTheme } from '@/features/theme'
 
 type Props = {
   transport: ApiTransport
+  eventStream: EventStream
   queryClient?: QueryClient
   children: ReactNode
 }
@@ -22,7 +28,7 @@ function ThemedApplication({ children }: { children: ReactNode }) {
   )
 }
 
-export function AppProviders({ transport, queryClient, children }: Props) {
+export function AppProviders({ transport, eventStream, queryClient, children }: Props) {
   const [client] = useState(() => queryClient ?? createQueryClient())
   return (
     <QueryClientProvider client={client}>
@@ -30,7 +36,9 @@ export function AppProviders({ transport, queryClient, children }: Props) {
       <StyleProvider layer>
         <ThemeProvider>
           <ThemedApplication>
-            <TransportContext value={transport}>{children}</TransportContext>
+            <TransportContext value={transport}>
+              <EventStreamContext value={eventStream}>{children}</EventStreamContext>
+            </TransportContext>
           </ThemedApplication>
         </ThemeProvider>
       </StyleProvider>
