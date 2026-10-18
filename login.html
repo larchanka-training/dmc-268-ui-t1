@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#4338ca" />
+    <title>Вход — DMC-268</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="stylesheet" href="/src/landing/landing.css" />
+  </head>
+  <body class="bg-slate-50 text-slate-700 antialiased dark:bg-slate-950 dark:text-slate-300">
+    <main class="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4 py-12 sm:px-6">
+      <a href="/" class="text-lg font-bold text-slate-900 dark:text-white">DMC-268</a>
+      <h1 class="mt-8 text-3xl font-bold text-slate-900 dark:text-white">Вход</h1>
+      <p class="mt-4 leading-relaxed">
+        Войдите через GitHub: сервис узнает только ваш профиль, доступа к репозиториям вход не даёт.
+        Репозитории подключаются отдельно — установкой GitHub App.
+      </p>
+      <!-- Ошибку входа бэкенд возвращает кодом в ?error=. Сообщения свёрстаны
+           заранее, src/landing/login.ts показывает нужное. -->
+      <div
+        data-errors
+        hidden
+        role="alert"
+        class="mt-6 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-200"
+      >
+        <p data-error="denied" hidden>Вход отменён: доступ не был выдан. Попробуйте ещё раз.</p>
+        <p data-error="state_mismatch" hidden>
+          Вход не завершён: он устарел или начат в другой вкладке. Начните заново.
+        </p>
+        <p data-error="provider_unavailable" hidden>
+          GitHub сейчас не отвечает. Попробуйте чуть позже.
+        </p>
+        <p data-error="unknown" hidden>Не удалось войти. Попробуйте ещё раз.</p>
+      </div>
+      <!-- OAuth целиком на бэкенде: он уводит к провайдеру, принимает callback,
+           ставит cookie сессии и перенаправляет в /app/ или на redirect. -->
+      <div class="mt-8 flex flex-col gap-3">
+        <a
+          data-provider="github"
+          href="/api/v1/auth/github/login"
+          class="rounded-md bg-slate-900 px-5 py-3 text-center font-semibold text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950 dark:hover:bg-slate-200"
+          >Войти через GitHub</a
+        >
+      </div>
+      <p class="mt-8 text-sm">
+        <a href="/" class="font-semibold text-indigo-700 underline dark:text-indigo-300"
+          >На главную</a
+        >
+      </p>
+    </main>
+    <script type="module" src="/src/landing/login.ts"></script>
+  </body>
+</html>

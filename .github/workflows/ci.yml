@@ -77,6 +77,17 @@ jobs:
           docker run --rm --network none -e PUBLIC_HOST=ci.invalid
           --entrypoint sh dmc268-ui:ci
           -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
+      # nginx -t не ловит ошибки маршрутизации: поднимаем образ в режиме HTTP
+      # и проверяем лендинг, приложение под /app/, редирект и 404.
+      - name: Маршруты в режиме HTTP
+        run: |
+          docker run -d --name ui-routes -p 8080:80 dmc268-ui:ci
+          trap 'docker logs ui-routes; docker rm -f ui-routes' EXIT
+          for _ in $(seq 1 20); do
+            curl -fsS -o /dev/null http://localhost:8080/ && break
+            sleep 1
+          done
+          scripts/check-routes.sh http://localhost:8080
 
   # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
   # registry_auth и переменные, от которых зависит деплой. Без этого job'а

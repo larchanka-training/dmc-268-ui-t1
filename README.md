@@ -46,6 +46,20 @@ pnpm dev
 ```
 
 Dev-сервер запускается на `http://localhost:3000` и автоматически открывает вкладку в браузере.
+По этому адресу открывается лендинг; приложение — под `http://localhost:3000/app/`. Так же устроен стенд:
+`/app/*` отдаёт приложение, остальное — статика, несуществующий путь вне `/app/` получает страницу 404.
+На стенде гостя без cookie `session` nginx уводит с `/app/*` на `/login?redirect=<путь>`; dev-сервер этого
+не делает — там приложение работает на моках. Открыть приложение в контейнере без бэкенда:
+`curl -b session=dev …` или cookie `session` с любым значением в DevTools.
+
+Абсолютный адрес для canonical, Open Graph, `sitemap.xml` и `robots.txt` берётся из переменной сборки
+`PUBLIC_ORIGIN` (по умолчанию `http://localhost:3000`), в образе — из аргумента сборки:
+
+```bash
+PUBLIC_ORIGIN=https://example.test pnpm build
+docker build --build-arg PUBLIC_ORIGIN=https://example.test -t dmc268-ui .
+scripts/check-routes.sh http://localhost:8080   # маршруты поднятого контейнера
+```
 
 Откройте `http://localhost:3000/login` для входа через GitHub или GitLab (пока используется имитация OAuth).
 
