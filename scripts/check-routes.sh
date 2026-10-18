@@ -103,11 +103,20 @@ fetch '/app/x%0D%0ASet-Cookie:%20injected=1'
 if header_has Set-Cookie injected; then fail "перевод строки из адреса попал в заголовки ответа"; fi
 location_is '/login?redirect=/app/' || fail "адрес с переводом строки не заменён на /app/ в redirect"
 
+# % в пути nginx экранирует при подстановке в return: login.ts раскодирует
+# redirect один раз и получает исходный путь.
+fetch '/app/a%20b'
+location_is '/login?redirect=/app/a%2520b' || fail "/app/a%20b без cookie сессии не уводит на /login?redirect=/app/a%2520b"
+
 fetch /login
 [ "$status" = 200 ] || fail "/login вернул ${status}, ожидался 200"
 if has "$body" 'id="root"'; then fail "/login отдаёт приложение вместо статичной страницы"; fi
 has "$body" '/api/v1/auth/github/login' || fail "на /login нет входа через GitHub"
 has "$body" 'data-error="denied"' || fail "на /login нет сообщений об ошибке входа"
+
+fetch /login.html
+[ "$status" = 301 ] || fail "/login.html вернул ${status}, ожидался 301"
+location_is /login || fail "/login.html не перенаправляет на /login"
 
 fetch /login "$session"
 [ "$status" = 302 ] || fail "/login с cookie сессии вернул ${status}, ожидался 302"
@@ -129,11 +138,12 @@ has "$body" 'href="/app/"' || fail "в ответе /nope нет статичн�
 fetch /robots.txt
 [ "$status" = 200 ] || fail "/robots.txt вернул ${status}, ожидался 200"
 has "$body" 'Disallow: /app/' || fail "в /robots.txt нет Disallow: /app/"
+header_has Cache-Control 'max-age=86400' || fail "у /robots.txt нет Cache-Control: max-age=86400"
 
 fetch /sitemap.xml
 [ "$status" = 200 ] || fail "/sitemap.xml вернул ${status}, ожидался 200"
 
 if [ "$failed" = 0 ]; then
-  echo "маршруты в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /nope, /robots.txt, /sitemap.xml"
+  echo "маршруты в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /nope, /robots.txt, /sitemap.xml"
 fi
 exit "$failed"
