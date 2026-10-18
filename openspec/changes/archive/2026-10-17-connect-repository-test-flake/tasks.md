@@ -2,4 +2,4 @@
 
 ## 1. Тест
 
-- [x] 1.1 Подменить `repositoryApi` в `ConnectRepositoryPage.test.tsx` на ответы из `mockStore` без задержек
+- [x] 1.1 Подменить функции API на публичном входе `@/entities/repository` в `ConnectRepositoryPage.test.tsx`: ответ сразу, данные в тесте
