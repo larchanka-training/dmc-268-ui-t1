@@ -5,7 +5,6 @@ import ruRU from 'antd/locale/ru_RU'
 import { useState, type ReactNode } from 'react'
 import { TransportContext, type ApiTransport } from '@/shared/api'
 import { createQueryClient } from '@/app/providers/queryClient'
-import { AuthProvider } from '@/features/auth'
 import { ThemeProvider, useAppTheme } from '@/features/theme'
 
 type Props = {
@@ -18,7 +17,7 @@ function ThemedApplication({ children }: { children: ReactNode }) {
   const { antdTheme } = useAppTheme()
   return (
     <ConfigProvider theme={antdTheme} locale={ruRU} wave={{ disabled: true }}>
-      <AuthProvider>{children}</AuthProvider>
+      {children}
     </ConfigProvider>
   )
 }

@@ -8,16 +8,6 @@ export type ApiTransport = {
   get: (path: string) => Promise<unknown>
 }
 
-export class ApiError extends Error {
-  readonly status: number
-
-  constructor(status: number, message: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
-}
-
 export const TransportContext = createContext<ApiTransport | null>(null)
 
 export function useTransport(): ApiTransport {

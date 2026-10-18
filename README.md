@@ -61,11 +61,16 @@ docker build --build-arg PUBLIC_ORIGIN=https://example.test -t dmc268-ui .
 scripts/check-routes.sh http://localhost:8080   # маршруты поднятого контейнера
 ```
 
-Откройте `http://localhost:3000/login` для входа через GitHub или GitLab (пока используется имитация OAuth).
+Вход выполняет бэкенд (api#47): `/login` ведёт на `/api/v1/auth/github/login`, после входа бэкенд ставит
+httpOnly cookie `session`. Кабинет берёт профиль из `GET /api/v1/auth/me`, на `401` от любой ручки уводит на
+`/login?redirect=<путь>`, выход — `POST /api/v1/auth/logout`. Токенов в JS нет.
+
+Локально (по умолчанию, с моком) dev-сервер сам отвечает на `/api/v1/auth/me` и `/logout`: с cookie `session` с любым значением —
+профиль-заглушка, без неё — `401`. Чтобы войти, поставьте в DevTools на `localhost:3000` cookie `session=dev`.
 
 ## Кабинет (mock API)
 
-- OAuth: редирект, callback; профиль в `localStorage`, access-токен в памяти вкладки, refresh по контракту API
+- Сессия в httpOnly cookie, профиль из `/api/v1/auth/me`, выход через `/api/v1/auth/logout`
 - App shell: sidebar, header, навигация, статус авторизации, светлая/тёмная тема
 - Список подключённых репозиториев и экран подключения нового репозитория
 
@@ -73,14 +78,19 @@ scripts/check-routes.sh http://localhost:8080   # маршруты поднят�
 
 Кабинет собран на **antd** (формы, таблицы, layout). **Tailwind v4** подключён только как утилиты (`theme` + `utilities` в `src/index.css`, без preflight), чтобы не перебивать стили antd. Палитра и токены antd синхронизируются из `src/shared/theme/palette.ts` (CSS-переменные `--app-*`).
 
-Дополнительные переменные (опционально):
+Дополнительные переменные (опционально). `VITE_USE_MOCK_API`, `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
+читаются из `.env`, `.env.local` и окружения оболочки:
 
-| Переменная                | По умолчанию              | Описание                           |
-| ------------------------- | ------------------------- | ---------------------------------- |
-| `VITE_USE_MOCK_API`       | `true`                    | `false` — когда бэкенд OAuth готов |
-| `VITE_OAUTH_REDIRECT_URI` | `{origin}/oauth/callback` | Redirect URI OAuth                 |
-| `VITE_OAUTH_CLIENT_ID`    | —                         | Client id провайдера               |
-| `VITE_API_BASE_URL`       | `/api/v1`                 | Базовый URL API (OpenAPI v1)       |
+| Переменная              | По умолчанию            | Описание                                                                    |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------- |
+| `VITE_USE_MOCK_API`     | `true`                  | `false` — мока нет, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` |
+| `VITE_API_PROXY_TARGET` | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`               |
+| `VITE_API_BASE_URL`     | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                |
+
+Против настоящего бэкенда: `VITE_USE_MOCK_API=false pnpm dev`. Прокси не переписывает путь и пропускает
+cookie, а `Origin` браузера остаётся `http://localhost:3000` — поэтому у API должен стоять
+`PUBLIC_ORIGIN=http://localhost:3000`, иначе изменяющие запросы получат `403 ORIGIN_FORBIDDEN`, а в GitHub App —
+callback `http://localhost:3000/api/v1/auth/github/callback`.
 
 ## Скрипты
 
