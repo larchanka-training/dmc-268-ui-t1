@@ -20,8 +20,8 @@ export const ReviewFindingSchema = z.object({
 
 export type ReviewFinding = z.infer<typeof ReviewFindingSchema>
 
-// Находка прогона из ответа `GET /reviews/{id}` — ровно `ReviewRunFinding` контракта.
-const contractCheck: MatchesContract<ReviewFinding, ApiSchemas['ReviewRunFinding']> = true
+// Находка прогона из ответа `GET /reviews/{review_run_id}` — ровно `FindingResponse` контракта.
+const contractCheck: MatchesContract<ReviewFinding, ApiSchemas['FindingResponse']> = true
 void contractCheck
 export type Severity = ReviewFinding['severity']
 export type FindingCategory = ReviewFinding['category']

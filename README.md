@@ -115,10 +115,11 @@ callback `http://localhost:3000/api/v1/auth/github/callback`.
 
 ## Контракт API
 
-Типы API генерируются из контракта бэкенда — `docs/openapi/openapi.yaml` в
-[`dmc-268-api-t1`](https://github.com/larchanka-training/dmc-268-api-t1). Контракт берётся по
-зафиксированному коммиту, sha лежит в `src/shared/api/contract/VERSION`; рядом — сам
-`openapi.yaml` (байт в байт как у бэкенда) и сгенерированный `schema.d.ts`.
+Типы API генерируются из контракта бэкенда — `docs/openapi/openapi.json` в
+[`dmc-268-api-t1`](https://github.com/larchanka-training/dmc-268-api-t1); бэкенд экспортирует
+его из кода FastAPI. Контракт берётся по зафиксированному коммиту, sha лежит в
+`src/shared/api/contract/VERSION`; рядом — сам `openapi.json` (байт в байт как у бэкенда) и
+сгенерированный `schema.d.ts`.
 
 Фиксируется только коммит из `develop` бэкенда. Обновить контракт после мёржа правки в бэкенде:
 
@@ -134,7 +135,7 @@ pnpm typecheck        # поправить код, который разошёл
 
 `pnpm api:check` ничего не меняет и проверяет по порядку:
 
-1. контракт, скачанный по sha из `VERSION`, совпадает с закоммиченным `openapi.yaml`, а типы,
+1. контракт, скачанный по sha из `VERSION`, совпадает с закоммиченным `openapi.json`, а типы,
    сгенерированные из него во временный каталог, — с `schema.d.ts`;
 2. этот sha входит в `develop` бэкенда (GitHub API `compare/<sha>...develop`); если нет —
    падает с сообщением «контракт взят не из develop бэкенда»;
@@ -146,7 +147,8 @@ pnpm typecheck        # поправить код, который разошёл
 60 запросов в час с одного адреса.
 
 Сгенерированные файлы руками не правятся. Нужного поля или ручки нет в контракте — сначала PR в
-`openapi.yaml` бэкенда, потом `pnpm api:sync`.
+бэкенд с полем или роутом (запланированная ручка — заглушка с `501 NOT_IMPLEMENTED`), потом
+`pnpm api:sync`.
 
 ## Git-хуки
 

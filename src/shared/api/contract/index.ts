@@ -11,7 +11,7 @@ type Equals<A, B> =
  * поле в поле, включая nullable и enum. Zod остаётся проверкой во время работы, а это —
  * проверка при сборке: контракт поменялся — `typecheck` падает.
  *
- *   export type _Check = MatchesContract<z.infer<typeof schema>, ApiSchemas['CurrentUser']>
+ *   export type _Check = MatchesContract<z.infer<typeof schema>, ApiSchemas['UserResponse']>
  */
 export type MatchesContract<Actual, Contract> =
   Equals<Actual, Contract> extends true ? true : { расходится_с_контрактом: [Actual, Contract] }

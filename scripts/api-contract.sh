@@ -1,5 +1,5 @@
 #!/bin/sh
-# Контракт API и типы из него. Источник правды — docs/openapi/openapi.yaml
+# Контракт API и типы из него. Источник правды — docs/openapi/openapi.json
 # бэкенд-репозитория dmc-268-api-t1 на коммите из src/shared/api/contract/VERSION.
 #
 #   sync [<sha>] — без аргумента берёт текущую голову develop бэкенда, с
@@ -22,10 +22,10 @@ set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 DIR="$ROOT/src/shared/api/contract"
 VERSION_FILE="$DIR/VERSION"
-SPEC="$DIR/openapi.yaml"
+SPEC="$DIR/openapi.json"
 TYPES="$DIR/schema.d.ts"
 REPO=larchanka-training/dmc-268-api-t1
-SPEC_PATH=docs/openapi/openapi.yaml
+SPEC_PATH=docs/openapi/openapi.json
 BRANCH=develop
 
 fail() {
@@ -106,11 +106,11 @@ check_in_develop() {
 
 # Мягкая проверка: контракт в голове develop отличается от зафиксированного.
 warn_if_develop_newer() {
-  if ! fetch_spec "$BRANCH" "$TMP/develop.yaml" 2>/dev/null; then
+  if ! fetch_spec "$BRANCH" "$TMP/develop.json" 2>/dev/null; then
     warn "не удалось скачать контракт из $BRANCH бэкенда, сравнение с ним пропущено"
     return 0
   fi
-  cmp -s "$TMP/develop.yaml" "$SPEC" ||
+  cmp -s "$TMP/develop.json" "$SPEC" ||
     warn "контракт в $BRANCH бэкенда новее зафиксированного: запустите pnpm api:sync"
 }
 
@@ -127,18 +127,18 @@ case "$cmd" in
       [ -n "$sha" ] || fail "не удалось узнать голову $BRANCH в https://github.com/$REPO"
     fi
     validate_sha "$sha"
-    download "$sha" "$TMP/openapi.yaml"
-    generate "$TMP/openapi.yaml" "$TMP/schema.d.ts"
+    download "$sha" "$TMP/openapi.json"
+    generate "$TMP/openapi.json" "$TMP/schema.d.ts"
     mkdir -p "$DIR"
     printf '%s\n' "$sha" >"$VERSION_FILE"
-    cp "$TMP/openapi.yaml" "$SPEC"
+    cp "$TMP/openapi.json" "$SPEC"
     cp "$TMP/schema.d.ts" "$TYPES"
     echo "Контракт и типы обновлены до $REPO@$sha"
     ;;
   check)
     sha=$(read_sha)
-    download "$sha" "$TMP/openapi.yaml"
-    if [ ! -f "$SPEC" ] || ! cmp -s "$TMP/openapi.yaml" "$SPEC"; then
+    download "$sha" "$TMP/openapi.json"
+    if [ ! -f "$SPEC" ] || ! cmp -s "$TMP/openapi.json" "$SPEC"; then
       fail "контракт устарел или изменён руками: ${SPEC#"$ROOT"/} не совпадает с $REPO@$sha. Запустите pnpm api:sync"
     fi
     generate "$SPEC" "$TMP/schema.d.ts"

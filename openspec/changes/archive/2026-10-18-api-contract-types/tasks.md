@@ -5,7 +5,7 @@
 - [x] 1.1 Добавить `openapi-typescript` в devDependencies с точной версией
 - [x] 1.2 Написать `scripts/api-contract.sh` с режимами `sync [<sha>]` и `check`: sha валидируется как 40 hex, скачивание через `curl -f` падает на ответе не 200
 - [x] 1.3 Завести скрипты `pnpm api:sync` и `pnpm api:check`
-- [x] 1.4 Выполнить `pnpm api:sync efee055cc84e21ef2b6d169b83fff057b4f7dae6`: `VERSION`, `openapi.yaml`, `schema.d.ts` в `src/shared/api/contract/`
+- [x] 1.4 Выполнить `pnpm api:sync cace2d23d58183bca05b260683cfc8b52d8b95fc`: `VERSION`, `openapi.json`, `schema.d.ts` в `src/shared/api/contract/`
 - [x] 1.5 Исключить сгенерированные файлы из Prettier и ESLint
 
 ## 2. CI и правила
@@ -21,8 +21,14 @@
 - [x] 3.3 `pnpm api:check` предупреждает, но не падает, если контракт в голове `develop` отличается от зафиксированного (`::warning::` в GitHub Actions)
 - [x] 3.4 README, `.agents/rules/frontend.md` и правило в `AGENTS.md` описывают фиксацию только из `develop`
 
-## 4. Приёмка
+## 4. Сверка с контрактом и ошибки
 
-- [x] 4.1 `pnpm api:check` проходит; правка одного символа в `openapi.yaml` или в `schema.d.ts` роняет его с подсказкой `pnpm api:sync`
-- [x] 4.2 Проходят `typecheck`, `lint`, `stylelint`, `format:check`, `test`, `build`, `openspec validate --all --strict`
-- [x] 4.3 Коммит из PR бэкенда роняет `pnpm api:check` с сообщением «контракт взят не из develop бэкенда»; после `pnpm api:sync` с головы `develop` проверка проходит
+- [x] 4.1 `MatchesContract` в `@/shared/api/contract`: профиль сверяется с `UserResponse`, находки — с `FindingResponse`
+- [x] 4.2 Мок `401` dev-сервера отвечает `application/problem+json` с телом `UnauthenticatedProblem`
+- [x] 4.3 `ApiError` берёт `code` и `detail` из problem-тела по RFC 9457; тесты `http.test.ts` и `mockAuth.test.ts` на новые тела
+
+## 5. Приёмка
+
+- [x] 5.1 `pnpm api:check` проходит; правка одного символа в `openapi.json` или в `schema.d.ts` роняет его с подсказкой `pnpm api:sync`
+- [x] 5.2 Проходят `typecheck`, `lint`, `stylelint`, `format:check`, `test`, `build`, `openspec validate --all --strict`
+- [x] 5.3 Коммит из PR бэкенда роняет `pnpm api:check` с сообщением «контракт взят не из develop бэкенда»; после `pnpm api:sync` с головы `develop` проверка проходит

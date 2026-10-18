@@ -6,7 +6,7 @@ import type { ApiSchemas, MatchesContract } from '@/shared/api/contract'
 
 const ME_PATH = '/auth/me'
 
-// Поля в snake_case — как отвечает бэкенд (контракт, `CurrentUser`).
+// Поля в snake_case — как отвечает бэкенд (контракт, `UserResponse`).
 export const currentUserSchema = z.object({
   provider: z.enum(['github', 'gitlab']),
   login: z.string().min(1),
@@ -14,10 +14,10 @@ export const currentUserSchema = z.object({
   avatar_url: z.string().nullable(),
 })
 
-// Ответ разбирается ровно в тип `CurrentUser` из контракта; разойдутся — упадёт typecheck.
+// Ответ разбирается ровно в тип `UserResponse` из контракта; разойдутся — упадёт typecheck.
 const contractCheck: MatchesContract<
   z.infer<typeof currentUserSchema>,
-  ApiSchemas['CurrentUser']
+  ApiSchemas['UserResponse']
 > = true
 void contractCheck
 
