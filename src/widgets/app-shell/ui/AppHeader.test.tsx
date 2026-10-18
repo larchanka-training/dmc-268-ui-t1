@@ -73,6 +73,7 @@ describe('Профиль и выход', () => {
 
     await signOut()
 
+    expect(document.querySelector('.ant-avatar img')).toHaveAttribute('src', ME.avatar_url)
     await waitFor(() => expect(navigation.assign).toHaveBeenCalledWith('/'))
     expect(calls.map((c) => `${c.init.method ?? 'GET'} ${c.url}`)).toContain(
       'POST /api/v1/auth/logout',

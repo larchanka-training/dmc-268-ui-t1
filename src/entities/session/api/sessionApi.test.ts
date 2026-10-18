@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { MOCK_USER } from '../../../build/mockAuth'
 
-import { currentUserSchema, fetchCurrentUser } from '@/entities/session'
+import { currentUserSchema, fetchCurrentUser } from '@/entities/session/api/sessionApi'
 import { ContractError } from '@/shared/api'
 import { ME, stubFetch } from '@/test/api'
 

@@ -91,9 +91,14 @@
 
 ### Requirement: Мок сессии в dev-сервере
 
-В режиме разработки dev-сервер Vite SHALL отвечать на `GET /api/v1/auth/me` профилем-заглушкой при наличии cookie `session` и `401` без неё, а на `POST /api/v1/auth/logout` — `204` с удалением cookie. Код экранов SHALL NOT знать, работает ли он с моком.
+В режиме разработки dev-сервер Vite SHALL отвечать на `GET /api/v1/auth/me` профилем-заглушкой при наличии cookie `session` и `401` без неё, а на `POST /api/v1/auth/logout` — `204` с удалением cookie. Код экранов SHALL NOT знать, работает ли он с моком. С `VITE_USE_MOCK_API=false` мок SHALL NOT отвечать, а dev-сервер SHALL проксировать `/api` на `VITE_API_PROXY_TARGET` (по умолчанию `http://localhost:8000`) без переписывания пути, пропуская cookie.
 
 #### Scenario: Локальный запуск без cookie
 
 - **WHEN** разработчик открыл `/app/` в dev-сервере без cookie `session`
 - **THEN** `GET /api/v1/auth/me` отвечает `401`, и приложение уводит на `/login`
+
+#### Scenario: Локальный запуск против настоящего бэкенда
+
+- **WHEN** dev-сервер запущен с `VITE_USE_MOCK_API=false`, и приложение запросило `GET /api/v1/auth/me`
+- **THEN** запрос уходит на `VITE_API_PROXY_TARGET` по тому же пути `/api/v1/auth/me` вместе с cookie `session`

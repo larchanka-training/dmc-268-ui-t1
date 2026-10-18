@@ -5,9 +5,9 @@
 
 ## 2. Сессия
 
-- [x] 2.1 `entities/session`: тип `CurrentUser`, разбор ответа `/auth/me` из `unknown`, `fetchCurrentUser`, `logout`; токены, `tokenStorage`, `restoreSession`, `mockAuthApi` удалены
+- [x] 2.1 `entities/session`: тип `CurrentUser`, разбор ответа `/auth/me` из `unknown`, `fetchCurrentUser`, `logoutSession`; токены, `tokenStorage`, `restoreSession`, `mockAuthApi` удалены
 - [x] 2.2 Общий `fetch` к API: `credentials: 'include'`, без `Authorization`; `401` → `/login?redirect=<путь>`
-- [x] 2.3 `features/auth`: `AuthProvider` на TanStack Query, `RequireAuth` без собственного `/login`, `logout`; `oauth.ts` удалён
+- [x] 2.3 `features/auth`: `useAuth`/`useCurrentUser`/`useLogout` на TanStack Query (`AuthProvider` удалён), `RequireAuth` без собственного `/login`, `logout`; `oauth.ts` удалён
 
 ## 3. Приложение
 
@@ -33,3 +33,4 @@
 - [x] 5.8 CI: job `build`: сборка проходит, и в `dist` нет фикстуры мока входа (защита от импорта `src/build/mockAuth.ts` в код приложения)
 - [x] 5.9 Единый сетевой вход в `shared/api`: `ApiError` в `errors.ts` с полем `code` из тела `{code, message}`; `createHttpTransport()` построен на `apiFetch`, чтобы реальный транспорт не обошёл обработку `401`; `403 ORIGIN_FORBIDDEN` на `/login` не уводит. Кабинет по-прежнему работает на mock adapter
 - [x] 5.10 Профиль запрашивает один `RequireAuth` в корне маршрутов; шапка и обзор берут его из кэша через `useCurrentUser()` без `null`, выход — `useLogout()`
+- [x] 5.11 Dev-сервер при `VITE_USE_MOCK_API=false` проксирует `/api` на `VITE_API_PROXY_TARGET` (по умолчанию `http://localhost:8000`) без переписывания пути; README: переменная и `PUBLIC_ORIGIN=http://localhost:3000` у API

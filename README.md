@@ -65,7 +65,7 @@ scripts/check-routes.sh http://localhost:8080   # маршруты поднят�
 httpOnly cookie `session`. Кабинет берёт профиль из `GET /api/v1/auth/me`, на `401` от любой ручки уводит на
 `/login?redirect=<путь>`, выход — `POST /api/v1/auth/logout`. Токенов в JS нет.
 
-Локально dev-сервер сам отвечает на `/api/v1/auth/me` и `/logout`: с cookie `session` с любым значением —
+Локально (по умолчанию, с моком) dev-сервер сам отвечает на `/api/v1/auth/me` и `/logout`: с cookie `session` с любым значением —
 профиль-заглушка, без неё — `401`. Чтобы войти, поставьте в DevTools на `localhost:3000` cookie `session=dev`.
 
 ## Кабинет (mock API)
@@ -78,13 +78,19 @@ httpOnly cookie `session`. Кабинет берёт профиль из `GET /a
 
 Кабинет собран на **antd** (формы, таблицы, layout). **Tailwind v4** подключён только как утилиты (`theme` + `utilities` в `src/index.css`, без preflight), чтобы не перебивать стили antd. Палитра и токены antd синхронизируются из `src/shared/theme/palette.ts` (CSS-переменные `--app-*`).
 
-Дополнительные переменные (опционально). `VITE_USE_MOCK_API` и `PUBLIC_ORIGIN` читаются из `.env`,
-`.env.local` и окружения оболочки:
+Дополнительные переменные (опционально). `VITE_USE_MOCK_API`, `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
+читаются из `.env`, `.env.local` и окружения оболочки:
 
-| Переменная          | По умолчанию | Описание                                             |
-| ------------------- | ------------ | ---------------------------------------------------- |
-| `VITE_USE_MOCK_API` | `true`       | `false` — dev-сервер не отвечает на `/api/v1/auth/*` |
-| `VITE_API_BASE_URL` | `/api/v1`    | Базовый URL API (OpenAPI v1)                         |
+| Переменная              | По умолчанию            | Описание                                                                    |
+| ----------------------- | ----------------------- | --------------------------------------------------------------------------- |
+| `VITE_USE_MOCK_API`     | `true`                  | `false` — мока нет, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` |
+| `VITE_API_PROXY_TARGET` | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`               |
+| `VITE_API_BASE_URL`     | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                |
+
+Против настоящего бэкенда: `VITE_USE_MOCK_API=false pnpm dev`. Прокси не переписывает путь и пропускает
+cookie, а `Origin` браузера остаётся `http://localhost:3000` — поэтому у API должен стоять
+`PUBLIC_ORIGIN=http://localhost:3000`, иначе изменяющие запросы получат `403 ORIGIN_FORBIDDEN`, а в GitHub App —
+callback `http://localhost:3000/api/v1/auth/github/callback`.
 
 ## Скрипты
 

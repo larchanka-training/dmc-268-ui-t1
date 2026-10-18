@@ -27,7 +27,8 @@ function appRoutes(): Plugin {
 }
 
 // Мок /api/v1/auth/* — только для dev-сервера: в сборку не попадает. Против
-// настоящего бэкенда выключается VITE_USE_MOCK_API=false.
+// настоящего бэкенда выключается VITE_USE_MOCK_API=false: тогда dev-сервер
+// проксирует /api на VITE_API_PROXY_TARGET (см. apiProxy).
 function mockAuth(useMock: boolean): Plugin {
   return {
     name: 'dmc268:mock-auth',
@@ -42,6 +43,16 @@ function mockAuth(useMock: boolean): Plugin {
       })
     },
   }
+}
+
+// Без мока /api уходит на бэкенд через dev-сервер: браузер остаётся на одном
+// origin с API, поэтому cookie `session` ставится и отправляется как на стенде.
+// Путь не переписывается, заголовки (Cookie, Set-Cookie, Origin) проходят как
+// есть. Origin браузера — http://localhost:3000, поэтому у API нужен
+// PUBLIC_ORIGIN=http://localhost:3000, иначе он ответит 403 ORIGIN_FORBIDDEN.
+function apiProxy(useMock: boolean, target: string | undefined) {
+  if (useMock) return undefined
+  return { '/api': { target: target || 'http://localhost:8000' } }
 }
 
 // Абсолютный адрес стенда нужен canonical, og:url, og:image и файлам для
@@ -69,12 +80,13 @@ function publicOriginPlugin(publicOrigin: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const publicOrigin = normalizeOrigin(env.PUBLIC_ORIGIN)
+  const useMockApi = env.VITE_USE_MOCK_API !== 'false'
   return {
     appType: 'mpa',
     plugins: [
       tailwindcss(),
       react(),
-      mockAuth(env.VITE_USE_MOCK_API !== 'false'),
+      mockAuth(useMockApi),
       appRoutes(),
       publicOriginPlugin(publicOrigin),
     ],
@@ -100,6 +112,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       open: true,
+      proxy: apiProxy(useMockApi, env.VITE_API_PROXY_TARGET),
     },
     test: {
       environment: 'jsdom',

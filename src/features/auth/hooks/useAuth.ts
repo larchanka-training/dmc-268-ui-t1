@@ -11,7 +11,6 @@ const PROFILE_STALE_TIME_MS = 30_000
 
 export interface Auth {
   user: CurrentUser | null
-  isLoading: boolean
   /** Ответ `/auth/me` не прочитан: сбой сети, 5xx или ответ вне схемы. */
   error: Error | null
 }
@@ -23,7 +22,7 @@ export interface Auth {
  * `401` здесь не обрабатывается: его увёл на `/login` общий `apiFetch`.
  */
 export function useAuth(): Auth {
-  const { data, isPending, error } = useQuery({
+  const { data, error } = useQuery({
     queryKey: CURRENT_USER_KEY,
     queryFn: fetchCurrentUser,
     staleTime: PROFILE_STALE_TIME_MS,
@@ -35,7 +34,7 @@ export function useAuth(): Auth {
     refetchOnMount: false,
   })
 
-  return { user: data ?? null, isLoading: isPending, error }
+  return { user: data ?? null, error }
 }
 
 /**
