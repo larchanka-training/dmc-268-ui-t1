@@ -9,6 +9,7 @@ import {
   type RunStatusEvent,
 } from '../../../entities/review-run'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
+import { API_V1_BASE_URL } from '../../../shared/config/env'
 
 type Options<TData> = {
   runId: string
@@ -28,8 +29,9 @@ export type RunLiveStatus = {
   refresh: () => Promise<void>
 }
 
+/** Путь потока событий прогона; база API — из `API_V1_BASE_URL`, как у остальных запросов. */
 export function eventsPath(runId: string): string {
-  return `/api/v1/reviews/${runId}/events`
+  return `${API_V1_BASE_URL}/reviews/${runId}/events`
 }
 
 /**
