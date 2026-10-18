@@ -8,7 +8,9 @@ import globals from 'globals'
 /** @type {import('eslint').Linter.Config[]} */
 export default tseslint.config(
   {
-    ignores: ['dist', 'node_modules', 'coverage'],
+    // schema.d.ts генерирует pnpm api:sync из контракта бэкенда; правится
+    // только перегенерацией, поэтому линтер его не проверяет.
+    ignores: ['dist', 'node_modules', 'coverage', 'src/shared/api/contract/schema.d.ts'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

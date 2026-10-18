@@ -15,12 +15,20 @@
   Ни `npm`, ни `yarn` — lock-файл в репозитории один.
 - Node 24, версия зафиксирована в `.nvmrc`.
 - Проверки перед коммитом: `pnpm run typecheck`, `pnpm run lint`, `pnpm run stylelint`,
-  `pnpm run format:check`, `pnpm run test`.
+  `pnpm run format:check`, `pnpm run test`, `pnpm api:check`.
 - **Импорт только вниз по слоям** Feature-Sliced Design: `app` → `pages` → `widgets` →
   `features` → `entities` → `shared`. Внутрь чужого слайса в обход его `index.ts` не ходим.
 - **Серверные данные живут в TanStack Query**, состояние интерфейса — в Zustand, состояние
   одного компонента — в `useState`. Серверные данные не дублируются в store.
 - `any` не используем; данные с границы приходят как `unknown` и валидируются.
+- **Типы API — из контракта бэкенда**: `src/shared/api/contract/schema.d.ts` генерируется
+  `pnpm api:sync` из `docs/openapi/openapi.yaml` репозитория `dmc-268-api-t1` на коммите из
+  `src/shared/api/contract/VERSION`. Тип ответа ручки, описанной в контракте, руками не
+  пишется, сгенерированные файлы руками не правятся. Нужно поле или ручка, которой в контракте
+  нет, — сначала PR в `openapi.yaml` бэкенда (запланированная ручка — с `x-not-implemented: true`),
+  потом `pnpm api:sync`. Фиксируется только коммит из `develop` бэкенда: коммит из PR бэкенда
+  (`pnpm api:sync <sha>`) — временно, пока фронт в работе, CI не пропустит его в мёрж. Моки
+  отвечают по типам контракта. Расхождение ловит `pnpm api:check`.
 - Поведение меняется **только через OpenSpec-change**. Каталог `openspec/specs/` руками в обход
   change не правится.
 - Работаем по git flow: ветка от `develop`, пул-реквест в `develop`, в `main` только то, что
