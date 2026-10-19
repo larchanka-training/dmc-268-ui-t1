@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 
-import { DiffFileSchema, DiffFileSummarySchema } from '../../../entities/diff'
+import { ReviewDiffSchema } from '../../../entities/diff'
 import { PublishedCommentSchema } from '../../../entities/published-comment'
 import { ReviewFindingSchema } from '../../../entities/review-finding'
-import { ReviewRunSchema, VERDICTS } from '../../../entities/review-run'
-import { ReviewRunActionSchema } from '../../../entities/review-run-action'
+import { ReviewRunSchema } from '../../../entities/review-run'
+import { ReviewRunStepListSchema } from '../../../entities/review-run-step'
 import { ApiError, parseResponse, useTransport } from '../../../shared/api'
 import type { ApiSchemas, MatchesContract } from '../../../shared/api/contract'
 
@@ -24,34 +24,21 @@ const contractCheck: MatchesContract<
 > = true
 void contractCheck
 
-/**
- * Данные экрана, которых в контракте нет: вердикт и оценка, дифф, действия воркера — решения
- * 1, 2 и 4 в dmc-268-ui-t1#37. Отдаёт их только mock adapter; у бэкенда этого пути нет, и экран
- * показывает прогон без них.
- */
-export const ReviewExtrasSchema = z.object({
-  verdict: z.enum(VERDICTS).nullable(),
-  /** Общая оценка изменений, 0–100. */
-  score: z.number().min(0).max(100).nullable(),
-  files: z.array(DiffFileSummarySchema),
-  diffs_by_path: z.record(z.string(), DiffFileSchema),
-  actions: z.array(ReviewRunActionSchema),
-})
-
-export type ReviewExtras = z.infer<typeof ReviewExtrasSchema>
-
 export function reviewPath(reviewId: string) {
   return `/reviews/${encodeURIComponent(reviewId)}`
 }
 
-/** Путь mock-ресурса с данными вне контракта. */
-export function reviewExtrasPath(reviewId: string) {
-  return `/mock/reviews/${encodeURIComponent(reviewId)}/extras`
+export function reviewDiffPath(reviewId: string) {
+  return `${reviewPath(reviewId)}/diff`
+}
+
+export function reviewStepsPath(reviewId: string) {
+  return `${reviewPath(reviewId)}/steps`
 }
 
 /**
- * Ключ кэша прогона. Ключ дополнений начинается с него: инвалидация по завершении прогона
- * обновляет оба запроса. Новый массив на каждый вызов — в компоненте его держат в `useMemo`.
+ * Ключ кэша прогона. Ключи диффа и шагов начинаются с него: инвалидация по завершении прогона
+ * обновляет все запросы экрана. Новый массив на каждый вызов — в компоненте его держат в `useMemo`.
  */
 export function reviewKey(reviewId: string) {
   return ['review', reviewId] as const
@@ -66,19 +53,36 @@ export function useReviewRun(reviewId: string) {
   })
 }
 
-/** Дополнения экрана; `null` — источника нет (бэкенд), экран обходится без них. */
-export function useReviewExtras(reviewId: string) {
+/**
+ * Часть прогона, которую бэкенд ещё не реализовал: `501 NOT_IMPLEMENTED` (и `404` от источника
+ * без этого пути) — `null`, экран показывает прогон без неё.
+ */
+function usePlannedPart<T extends z.ZodType>(
+  reviewId: string,
+  part: string,
+  path: string,
+  schema: T,
+) {
   const transport = useTransport()
-  const path = reviewExtrasPath(reviewId)
   return useQuery({
-    queryKey: [...reviewKey(reviewId), 'extras'] as const,
-    queryFn: async (): Promise<ReviewExtras | null> => {
+    queryKey: [...reviewKey(reviewId), part] as const,
+    queryFn: async (): Promise<z.infer<T> | null> => {
       try {
-        return parseResponse(ReviewExtrasSchema, path, await transport.get(path))
+        return parseResponse(schema, path, await transport.get(path))
       } catch (error) {
-        if (error instanceof ApiError && error.status === 404) return null
+        if (error instanceof ApiError && (error.status === 501 || error.status === 404)) return null
         throw error
       }
     },
   })
+}
+
+/** Дифф прогона; `null` — бэкенд его пока не отдаёт. */
+export function useReviewDiff(reviewId: string) {
+  return usePlannedPart(reviewId, 'diff', reviewDiffPath(reviewId), ReviewDiffSchema)
+}
+
+/** Шаги прогона; `null` — бэкенд их пока не отдаёт. */
+export function useReviewSteps(reviewId: string) {
+  return usePlannedPart(reviewId, 'steps', reviewStepsPath(reviewId), ReviewRunStepListSchema)
 }

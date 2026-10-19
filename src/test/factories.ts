@@ -2,7 +2,7 @@ import { buildHunk, withLineIds, type DiffFile, type DiffFileSummary } from '../
 import type { PublishedComment } from '../entities/published-comment'
 import type { ReviewFinding } from '../entities/review-finding'
 import type { ReviewRun } from '../entities/review-run'
-import type { ReviewRunAction } from '../entities/review-run-action'
+import type { ReviewRunStep } from '../entities/review-run-step'
 
 export { buildHunk as hunk }
 
@@ -91,18 +91,14 @@ export function makePublishedComment(overrides: Partial<PublishedComment> = {}):
   }
 }
 
-export function makeAction(overrides: Partial<ReviewRunAction> = {}): ReviewRunAction {
+export function makeStep(overrides: Partial<ReviewRunStep> = {}): ReviewRunStep {
   return {
-    id: 'action-1',
-    review_run_id: 'run-1',
-    position: 1,
-    tool: 'get_diff',
+    stage: 'analysing',
     status: 'completed',
-    request_preview: null,
-    response_preview: null,
-    error: null,
     started_at: '2026-09-20T14:05:10Z',
     duration_seconds: 2,
+    tokens_used: null,
+    error_code: null,
     ...overrides,
   }
 }

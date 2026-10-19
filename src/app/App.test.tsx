@@ -144,7 +144,18 @@ describe('App на mock adapter и mock-потоке', () => {
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 3))
-    expect(await screen.findByText('Публикация', { selector: 'span' })).toBeInTheDocument()
+    // Статус — в шапке прогона: «Публикация» есть и в списке шагов.
+    const header = screen.getByRole('heading', { name: 'Прогон ревью' }).closest('header')
+    expect(
+      await within(header as HTMLElement).findByText('Публикация', { selector: 'span' }),
+    ).toBeInTheDocument()
+    // Текущий шаг виден в ходе прогона: список шагов перезапрашивается на смене этапа.
+    const steps = await screen.findByRole('list', { name: 'Шаги прогона' })
+    await waitFor(() =>
+      expect(within(steps).getAllByRole('listitem').slice(-1)[0]).toHaveTextContent(
+        /Публикация.*выполняется/,
+      ),
+    )
     expect(calls.get).toBe(1)
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS))

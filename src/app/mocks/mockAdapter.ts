@@ -1,7 +1,12 @@
 import { ApiError, type ApiTransport } from '../../shared/api'
 import type { ConnectRepositoryRequest } from '../../entities/repository'
-import { reviewExtrasPath, reviewPath, type ReviewRunResponse } from '../../pages/review-run'
-import { mockExtras, mockReview } from './fixtures'
+import {
+  reviewDiffPath,
+  reviewPath,
+  reviewStepsPath,
+  type ReviewRunResponse,
+} from '../../pages/review-run'
+import { mockDiff, mockReview, mockSteps } from './fixtures'
 import type { MockServer } from './mockServer'
 import { createRepositoryStore } from './repositories'
 
@@ -10,8 +15,8 @@ import { createRepositoryStore } from './repositories'
  * бэкенда, ответ отдаётся как `unknown` и проверяется схемой сущности.
  *
  * С `server` прогон «идёт»: статус берётся из текущего шага сценария, того же, что видит
- * mock-поток событий. Пока прогон не завершён, замечаний, публикаций и вердикта нет; к
- * завершению они приходят из фикстуры. Без `server` отдаётся готовый завершённый прогон.
+ * mock-поток событий. Пока прогон не завершён, замечаний, публикаций и шагов нет; к
+ * завершению они приходят из фикстуры. Дифф есть сразу: его получают до анализа. Без `server` отдаётся готовый завершённый прогон.
  *
  * Прогон в фикстуре один, `/reviews/run-42`; любой другой путь — 404, как у бэкенда.
  */
@@ -39,16 +44,31 @@ export function createMockAdapter({
     }
   }
 
+  /** Пройденные шаги и текущий — `running`; после завершения — все шаги из фикстуры. */
+  const stepsNow = () => {
+    const all = structuredClone(mockSteps)
+    if (!server) return all
+    const status = server.scenario[server.currentIndex()].status
+    if (status === 'completed') return all
+    const current = all.items.findIndex((step) => step.stage === status)
+    if (current < 0) return { items: [] }
+    const items = all.items.slice(0, current + 1)
+    items[current] = {
+      ...items[current],
+      status: 'running',
+      duration_seconds: null,
+      error_code: null,
+    }
+    return { items }
+  }
+
   const get = (path: string): unknown => {
     const route = path.split('?')[0]
     if (route === '/repositories') return repositories.list()
     if (route === '/repositories/available') return repositories.available()
     if (route === reviewPath(mockReview.id)) return runNow()
-    if (route === reviewExtrasPath(mockReview.id)) {
-      const extras = structuredClone(mockExtras)
-      const finished = !server || server.scenario[server.currentIndex()].status === 'completed'
-      return finished ? extras : { ...extras, verdict: null, score: null }
-    }
+    if (route === reviewDiffPath(mockReview.id)) return structuredClone(mockDiff)
+    if (route === reviewStepsPath(mockReview.id)) return stepsNow()
     throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
   }
 

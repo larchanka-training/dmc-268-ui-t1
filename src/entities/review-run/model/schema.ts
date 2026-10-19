@@ -48,7 +48,7 @@ export const MergeRequestSummarySchema = z.object({
   }),
 })
 
-/** Итог ревью. В контракте его нет (решение 1 в dmc-268-ui-t1#37): приходит только из мока. */
+/** Итог ревью. В контракте его нет: фронт выводит его из замечаний (решение 1 в dmc-268-ui-t1#37). */
 export const VERDICTS = ['approve', 'comment', 'request_changes'] as const
 
 /** Прогон из `GET /api/v1/reviews/{id}` без вложенных списков (`ReviewRunResponse` контракта). */

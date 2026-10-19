@@ -31,16 +31,7 @@ function Meta({ term, wide, children }: { term: string; wide?: boolean; children
   )
 }
 
-/** Вердикт и оценка; в контракте их нет, `null` — данных нет, бейдж не показывается. */
-export type RunVerdict = { verdict: Verdict | null; score: number | null }
-
-export function RunHeader({
-  run,
-  verdict = null,
-}: {
-  run: ReviewRun
-  verdict?: RunVerdict | null
-}) {
+export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict | null }) {
   const mr = run.merge_request
   const sourceUrl = mr.url ? safeExternalUrl(mr.url) : null
   return (
@@ -66,13 +57,7 @@ export function RunHeader({
           </p>
           <p className="text-sm text-slate-500">{mr.repository.full_name}</p>
         </div>
-        {verdict && (
-          <VerdictBadge
-            verdict={verdict.verdict}
-            score={verdict.score}
-            finished={isTerminalStatus(run.status)}
-          />
-        )}
+        <VerdictBadge verdict={verdict} finished={isTerminalStatus(run.status)} />
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">

@@ -208,6 +208,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reviews/{review_run_id}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Дифф прогона
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #82). Когда ручка заработает: полный дифф запроса на изменение у провайдера между base_sha и head_sha прогона; 404 REVIEW_NOT_FOUND, если прогона нет. Требует сессию.
+         */
+        get: operations["getReviewDiff"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/reviews/{review_run_id}/steps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Шаги прогона
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #82). Когда ручка заработает: шаги прогона по порядку — этап, статус, время, токены, код ошибки; без запросов и ответов модели. 404 REVIEW_NOT_FOUND, если прогона нет. Требует сессию.
+         */
+        get: operations["getReviewSteps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reviews/{review_run_id}/events": {
         parameters: {
             query?: never;
@@ -336,6 +376,117 @@ export interface components {
              * @example manual
              */
             trigger: components["schemas"]["TriggerSource"];
+        };
+        /**
+         * DiffFileResponse
+         * @description Изменённый файл запроса на изменение.
+         */
+        DiffFileResponse: {
+            /**
+             * Path
+             * @description Путь файла от корня репозитория.
+             * @example app/main.py
+             */
+            path: string;
+            /**
+             * Previous Path
+             * @description Путь до переименования; null, если файл не переименован.
+             */
+            previous_path: string | null;
+            /**
+             * Status
+             * @description Что произошло с файлом.
+             * @enum {string}
+             */
+            status: "added" | "modified" | "deleted" | "renamed";
+            /**
+             * Is Binary
+             * @description Бинарный файл: ханков нет.
+             */
+            is_binary: boolean;
+            /**
+             * Language
+             * @description Язык для подсветки синтаксиса; null, если не определён.
+             */
+            language: string | null;
+            /**
+             * Additions
+             * @description Добавленных строк.
+             */
+            additions: number;
+            /**
+             * Deletions
+             * @description Удалённых строк.
+             */
+            deletions: number;
+            /**
+             * Hunks
+             * @description Ханки файла по порядку.
+             */
+            hunks: components["schemas"]["DiffHunkResponse"][];
+        };
+        /**
+         * DiffHunkResponse
+         * @description Ханк unified diff.
+         */
+        DiffHunkResponse: {
+            /**
+             * Header
+             * @description Заголовок ханка после @@: обычно сигнатура окружающего кода.
+             */
+            header: string;
+            /**
+             * Old Start
+             * @description Первая строка ханка в старой версии файла.
+             */
+            old_start: number;
+            /**
+             * Old Count
+             * @description Строк ханка в старой версии файла.
+             */
+            old_count: number;
+            /**
+             * New Start
+             * @description Первая строка ханка в новой версии файла.
+             */
+            new_start: number;
+            /**
+             * New Count
+             * @description Строк ханка в новой версии файла.
+             */
+            new_count: number;
+            /**
+             * Lines
+             * @description Строки ханка по порядку.
+             */
+            lines: components["schemas"]["DiffLineResponse"][];
+        };
+        /**
+         * DiffLineResponse
+         * @description Строка ханка.
+         */
+        DiffLineResponse: {
+            /**
+             * Kind
+             * @description Добавлена, удалена или контекст.
+             * @enum {string}
+             */
+            kind: "added" | "removed" | "context";
+            /**
+             * Old Line
+             * @description Номер в старой версии файла, с 1; null у добавленной строки.
+             */
+            old_line: number | null;
+            /**
+             * New Line
+             * @description Номер в новой версии файла, с 1; null у удалённой строки.
+             */
+            new_line: number | null;
+            /**
+             * Content
+             * @description Текст строки без префикса +, - или пробела.
+             */
+            content: string;
         };
         /**
          * DiffSide
@@ -1127,6 +1278,17 @@ export interface components {
             trace_id: string;
         };
         /**
+         * ReviewDiffResponse
+         * @description Дифф запроса на изменение, который ревьюил прогон.
+         */
+        ReviewDiffResponse: {
+            /**
+             * Files
+             * @description Изменённые файлы, включая файлы без замечаний.
+             */
+            files: components["schemas"]["DiffFileResponse"][];
+        };
+        /**
          * ReviewError
          * @description Структурированная ошибка прогона (§8 PIPELINE_SPEC.md) — не ошибка HTTP-запроса.
          *
@@ -1427,6 +1589,59 @@ export interface components {
          * @enum {string}
          */
         ReviewRunStatus: "queued" | "building_context" | "analysing" | "publishing" | "completed" | "failed" | "cancelled";
+        /**
+         * ReviewRunStepListResponse
+         * @description Шаги прогона.
+         */
+        ReviewRunStepListResponse: {
+            /**
+             * Items
+             * @description Шаги по порядку начала.
+             */
+            items: components["schemas"]["ReviewRunStepResponse"][];
+        };
+        /**
+         * ReviewRunStepResponse
+         * @description Шаг воркера в прогоне.
+         */
+        ReviewRunStepResponse: {
+            /**
+             * Stage
+             * @description Этап прогона.
+             * @example analysing
+             * @enum {string}
+             */
+            stage: "fetching_diff" | "building_context" | "analysing" | "verifying" | "publishing";
+            /**
+             * Status
+             * @description Состояние шага.
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            /**
+             * Started At
+             * Format: date-time
+             * @description Когда шаг начался.
+             * @example 2026-10-11T10:00:00Z
+             */
+            started_at: string;
+            /**
+             * Duration Seconds
+             * @description Длительность шага; null, пока шаг идёт.
+             */
+            duration_seconds: number | null;
+            /**
+             * Tokens Used
+             * @description Токенов LLM потрачено на шаге; null, если шаг модель не вызывал.
+             */
+            tokens_used: number | null;
+            /**
+             * Error Code
+             * @description Код ошибки шага; null, если шаг не падал.
+             * @example LLM_TIMEOUT
+             */
+            error_code: string | null;
+        };
         /**
          * RouteNotFoundProblem
          * @description `404 ROUTE_NOT_FOUND`: такого пути нет, в том числе вне `/api/v1`.
@@ -2476,6 +2691,154 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    getReviewDiff: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Идентификатор прогона ревью. */
+                review_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Изменённые файлы с ханками. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewDiffResponse"];
+                };
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description Прогона ревью с таким id нет. */
+            404: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ReviewNotFoundProblem"];
+                };
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    getReviewSteps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Идентификатор прогона ревью. */
+                review_run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Шаги воркера по порядку. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewRunStepListResponse"];
+                };
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description Прогона ревью с таким id нет. */
+            404: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ReviewNotFoundProblem"];
+                };
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */

@@ -1,19 +1,19 @@
 import {
   buildHunk as hunk,
-  withLineIds,
+  toApiDiffFile,
   type DiffFile,
-  type DiffFileSummary,
+  type ReviewDiff,
 } from '../../entities/diff'
 import type { PublishedComment } from '../../entities/published-comment'
 import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
-import type { ReviewRunAction } from '../../entities/review-run-action'
-import type { ReviewExtras, ReviewRunResponse } from '../../pages/review-run'
+import type { ReviewRunStep } from '../../entities/review-run-step'
+import type { ReviewRunResponse } from '../../pages/review-run'
 
 /**
- * Mock-данные одного прогона. Ответ прогона — в форме контракта бэкенда (`ReviewRunResponse`);
- * вердикт, diff-модели и действия — предположение фронтенда, в контракте их нет (решения 1, 2 и 4
- * в dmc-268-ui-t1#37).
+ * Mock-данные одного прогона в форме контракта бэкенда: прогон (`ReviewRunResponse`), дифф
+ * (`ReviewDiffResponse`) и шаги (`ReviewRunStepListResponse`). Ханки диффа удобно писать строками
+ * через `buildHunk`; в ответ они уходят без UI-полей — их строит фронт.
  */
 
 const RUN_ID = 'run-42'
@@ -336,69 +336,31 @@ const publishedComments: PublishedComment[] = [
   published('f-broad-except', 5),
 ]
 
-const action = (
-  position: number,
-  tool: string,
-  fields: Partial<ReviewRunAction> = {},
-): ReviewRunAction => ({
-  id: `a-${position}`,
-  review_run_id: RUN_ID,
-  position,
-  tool,
+const step = (
+  stage: ReviewRunStep['stage'],
+  offsetSeconds: number,
+  fields: Partial<ReviewRunStep> = {},
+): ReviewRunStep => ({
+  stage,
   status: 'completed',
-  request_preview: null,
-  response_preview: null,
-  error: null,
-  started_at: new Date(Date.parse('2026-09-26T09:12:06Z') + position * 9000).toISOString(),
+  started_at: new Date(Date.parse('2026-09-26T09:12:06Z') + offsetSeconds * 1000).toISOString(),
   duration_seconds: 2,
+  tokens_used: null,
+  error_code: null,
   ...fields,
 })
 
-const actions: ReviewRunAction[] = [
-  action(1, 'get_diff', {
-    request_preview: { head_sha: '9f3c2a1', base_sha: '2b7e41d' },
-    response_preview: { files: 6, additions: 43, deletions: 24 },
-  }),
-  action(2, 'get_tree', { response_preview: { entries: 128, truncated: false } }),
-  action(3, 'read_file', {
-    request_preview: { path: 'app/api/review_runs.py', window: '±30' },
-    response_preview: 'окно 1–53, 1 842 байта после редакции секретов',
-  }),
-  action(4, 'read_file', {
-    request_preview: { path: 'app/services/retry.py', window: 'whole_file' },
-    response_preview: 'файл целиком, 412 байт',
-  }),
-  action(5, 'build_context', {
-    response_preview: { tiers: ['diff', 'surrounding', 'whole_file'], tokens: 11840 },
-  }),
-  action(6, 'call_llm', {
-    status: 'failed',
-    duration_seconds: 30,
-    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
-    error: { code: 'LLM_TIMEOUT', message: 'Модель не ответила за 30 с, повтор' },
-  }),
-  action(7, 'call_llm', {
-    duration_seconds: 41,
-    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
-    response_preview: { findings: 11, rejected_by_validate_anchor: 2 },
-  }),
-  action(8, 'post_review', { response_preview: { inline: 4, summary: 1 } }),
+const steps: ReviewRunStep[] = [
+  step('fetching_diff', 0),
+  step('building_context', 3, { duration_seconds: 4 }),
+  step('analysing', 8, { duration_seconds: 30, status: 'failed', error_code: 'LLM_TIMEOUT' }),
+  step('analysing', 39, { duration_seconds: 41, tokens_used: 41320 }),
+  step('verifying', 81, { duration_seconds: 9, tokens_used: 6893 }),
+  step('publishing', 91, { duration_seconds: 3 }),
 ]
 
-const diffFiles = rawDiffFiles.map(withLineIds)
-
-const countLines = (file: DiffFile, kind: 'added' | 'removed') =>
-  file.hunks.reduce((sum, item) => sum + item.lines.filter((line) => line.kind === kind).length, 0)
-
-const summaries: DiffFileSummary[] = diffFiles.map((file) => ({
-  path: file.path,
-  previous_path: file.previous_path,
-  status: file.status,
-  is_binary: file.is_binary,
-  additions: countLines(file, 'added'),
-  deletions: countLines(file, 'removed'),
-  findings_count: findings.filter((item) => item.file_path === file.path).length,
-}))
+/** Дифф в форме контракта: без идентификаторов строк и признака свёрнутого контекста. */
+const diff: ReviewDiff = { files: rawDiffFiles.map(toApiDiffFile) }
 
 /** Ответ `GET /reviews/run-42` в форме контракта. */
 export const mockReview: ReviewRunResponse = {
@@ -407,11 +369,8 @@ export const mockReview: ReviewRunResponse = {
   published_comments: publishedComments,
 }
 
-/** Данные экрана вне контракта: вердикт, дифф, действия воркера. */
-export const mockExtras: ReviewExtras = {
-  verdict: 'request_changes',
-  score: 38,
-  files: summaries,
-  diffs_by_path: Object.fromEntries(diffFiles.map((file) => [file.path, file])),
-  actions,
-}
+/** Ответ `GET /reviews/run-42/diff`. */
+export const mockDiff = diff
+
+/** Ответ `GET /reviews/run-42/steps`. */
+export const mockSteps = { items: steps }

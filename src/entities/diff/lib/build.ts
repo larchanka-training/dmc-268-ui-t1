@@ -1,4 +1,4 @@
-import type { DiffFile, DiffHunk, DiffLine } from '../model/schema'
+import type { ApiDiffFile, DiffFile, DiffHunk, DiffLine } from '../model/schema'
 
 /**
  * Собирает hunk из строк с префиксом `' '`, `'+'`, `'-'` или `'~'` (свёрнутый контекст) и сам
@@ -58,5 +58,36 @@ export function withLineIds(file: DiffFile): DiffFile {
         lines: item.lines.map((line, l) => ({ ...line, id: `${hunkId}:${l}` })),
       }
     }),
+  }
+}
+
+/**
+ * Файл в форме ответа контракта: без идентификаторов и признака свёрнутого контекста, с числом
+ * добавленных и удалённых строк. Нужен фикстурам: ханки удобно писать через `buildHunk`.
+ */
+export function toApiDiffFile(file: DiffFile): ApiDiffFile {
+  const count = (kind: DiffLine['kind']) =>
+    file.hunks.reduce((sum, h) => sum + h.lines.filter((line) => line.kind === kind).length, 0)
+  return {
+    path: file.path,
+    previous_path: file.previous_path,
+    status: file.status,
+    is_binary: file.is_binary,
+    language: file.language,
+    additions: count('added'),
+    deletions: count('removed'),
+    hunks: file.hunks.map(({ header, old_start, old_count, new_start, new_count, lines }) => ({
+      header,
+      old_start,
+      old_count,
+      new_start,
+      new_count,
+      lines: lines.map(({ kind, old_line, new_line, content }) => ({
+        kind,
+        old_line,
+        new_line,
+        content,
+      })),
+    })),
   }
 }

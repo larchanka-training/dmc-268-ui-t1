@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 
 import {
@@ -13,7 +13,15 @@ import { ReviewSummary, RunHeader, RunProgress } from '../../../widgets/review-r
 import { ReviewWorkspace } from '../../../widgets/review-workspace'
 import { RunInspector } from '../../../widgets/run-inspector'
 import { FindingsList } from './FindingsList'
-import { reviewKey, useReviewExtras, useReviewRun, type ReviewRunResponse } from '../model/review'
+import {
+  reviewKey,
+  useReviewDiff,
+  useReviewRun,
+  useReviewSteps,
+  type ReviewRunResponse,
+} from '../model/review'
+import { runVerdict } from '../model/verdict'
+import { toWorkspace } from '../model/workspace'
 
 /** Событие статуса патчит прогон в кэше; замечания и публикации остаются как есть. */
 function patchRun(data: ReviewRunResponse, event: RunStatusEvent): ReviewRunResponse {
@@ -28,10 +36,23 @@ export function ReviewRunView() {
   // Маршрут `/reviews/:reviewId`; id — UUID прогона на бэкенде.
   const { reviewId = '' } = useParams()
   const review = useReviewRun(reviewId)
-  const extras = useReviewExtras(reviewId)
+  const diff = useReviewDiff(reviewId)
+  const steps = useReviewSteps(reviewId)
   // Ключ — в зависимостях эффекта подписки: новый массив на каждый рендер переоткрывал бы поток.
   const queryKey = useMemo(() => reviewKey(reviewId), [reviewId])
   const loadedRun = review.data
+  const findingsOfRun = loadedRun?.findings
+  // Шаги в контракте пока не приходят событиями: перезапрашиваем их на каждой смене этапа,
+  // чтобы текущий шаг был виден со статусом «выполняется».
+  const runStatus = loadedRun?.status
+  const refetchSteps = steps.refetch
+  useEffect(() => {
+    if (runStatus !== undefined && !isTerminalStatus(runStatus)) void refetchSteps()
+  }, [runStatus, refetchSteps])
+  const workspace = useMemo(
+    () => (diff.data && findingsOfRun ? toWorkspace(diff.data, findingsOfRun) : null),
+    [diff.data, findingsOfRun],
+  )
   // Пока прогон не загружен, подписываться не на что: хук получает пустой идентификатор
   // и терминальный статус, а потому не открывает поток.
   const live = useRunLiveStatus({
@@ -62,28 +83,27 @@ export function ReviewRunView() {
   }
 
   const { findings, published_comments, ...run } = review.data
-  // Дополнения вне контракта: пока грузятся или их нет у источника — экран без них.
-  const extra = extras.data ?? null
   return (
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
-      <RunHeader run={run} verdict={extra} />
+      <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
       {!isTerminalStatus(run.status) && (
         <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
       )}
       <RunProgress run={run} seenStage={live.seenStage} />
       <ReviewSummary run={run} findings={findings} publishedComments={published_comments} />
-      {extra ? (
+      {/* Диффа нет, пока бэкенд его не отдаёт (501) или пока он грузится: замечания списком. */}
+      {workspace ? (
         <ReviewWorkspace
           run={run}
-          files={extra.files}
-          diffsByPath={extra.diffs_by_path}
+          files={workspace.files}
+          diffsByPath={workspace.diffsByPath}
           findings={findings}
           publishedComments={published_comments}
         />
       ) : (
         <FindingsList findings={findings} publishedComments={published_comments} />
       )}
-      {extra && <RunInspector actions={extra.actions} />}
+      {steps.data && <RunInspector steps={steps.data.items} />}
     </main>
   )
 }

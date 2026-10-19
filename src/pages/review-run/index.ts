@@ -1,12 +1,12 @@
 export { ReviewRunView } from './ui/ReviewRunView'
 export {
-  ReviewExtrasSchema,
-  reviewExtrasPath,
+  reviewDiffPath,
   reviewKey,
   reviewPath,
   ReviewRunResponseSchema,
-  useReviewExtras,
+  reviewStepsPath,
+  useReviewDiff,
   useReviewRun,
-  type ReviewExtras,
+  useReviewSteps,
   type ReviewRunResponse,
 } from './model/review'
