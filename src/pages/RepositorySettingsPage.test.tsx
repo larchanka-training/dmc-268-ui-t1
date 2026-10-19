@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 import * as store from '@/entities/repository/api/mockStore'
+import { repositoryKeys } from '@/features/repository'
 
 // Заглушки поверх реальных функций store: по умолчанию — сквозной вызов,
 // в отдельных сценариях — ошибка или данные вне схемы на уровне adapter'а.
@@ -35,7 +36,7 @@ function renderSettingsPage(repositoryId = 'repo-1') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
   })
-  return render(
+  const utils = render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[`/repositories/${repositoryId}/settings`]}>
         <Routes>
@@ -46,6 +47,7 @@ function renderSettingsPage(repositoryId = 'repo-1') {
       </MemoryRouter>
     </QueryClientProvider>,
   )
+  return { ...utils, queryClient }
 }
 
 afterEach(() => {
@@ -148,6 +150,43 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
 
     expect(screen.getByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+  })
+
+  it('сброс после правок убирает баннер «Настройки сохранены»', async () => {
+    const user = userEvent.setup()
+    renderSettingsPage()
+
+    await screen.findByRole('switch', undefined, FIND)
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(await screen.findByText('Настройки сохранены', undefined, FIND)).toBeInTheDocument()
+
+    // Правка скрывает баннер, сброс не должен возвращать его над откатанной формой.
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сбросить' }))
+
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
+  })
+
+  it('сброс после ошибки сохранения убирает её баннер', async () => {
+    vi.mocked(store.saveRepositorySettings).mockImplementationOnce(() => {
+      throw new Error('Сеть недоступна')
+    })
+    const user = userEvent.setup()
+    renderSettingsPage()
+
+    await screen.findByRole('switch', undefined, FIND)
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+    expect(
+      await screen.findByText('Не удалось сохранить настройки', undefined, FIND),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Сбросить' }))
+
+    expect(screen.getByRole('switch')).toBeChecked()
+    expect(screen.queryByText('Не удалось сохранить настройки')).not.toBeInTheDocument()
   })
 })
 
@@ -264,5 +303,63 @@ describe('RepositorySettingsPage: состояния данных', () => {
       await screen.findByText('Не удалось загрузить историю проверок', undefined, FIND),
     ).toBeInTheDocument()
     expect(screen.getAllByText(/не соответствует контракту/)).toHaveLength(3)
+  })
+
+  it('фоновая ошибка настроек: форма остаётся на данных из кэша, сверху Alert с повтором', async () => {
+    const user = userEvent.setup()
+    const { queryClient } = renderSettingsPage()
+
+    expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+
+    vi.mocked(store.getRepositorySettings).mockImplementation(() => {
+      throw new Error('settings boom')
+    })
+    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
+
+    expect(
+      await screen.findByText(
+        'Не удалось обновить настройки — показаны сохранённые значения',
+        undefined,
+        FIND,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings boom')).toBeInTheDocument()
+    // Форма не заменена ошибкой: значения из кэша на месте.
+    expect(screen.getByRole('switch')).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+
+    // Повтор с починенным adapter убирает Alert.
+    vi.mocked(store.getRepositorySettings).mockImplementation(actual.getRepositorySettings)
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+    await waitFor(
+      () => expect(screen.queryByText(/Не удалось обновить настройки/)).not.toBeInTheDocument(),
+      FIND,
+    )
+    expect(screen.getByRole('switch')).toBeChecked()
+  })
+
+  it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert', async () => {
+    const { queryClient } = renderSettingsPage()
+
+    expect(
+      await screen.findByText('Чтение токена из окружения', undefined, FIND),
+    ).toBeInTheDocument()
+
+    vi.mocked(store.getRepositoryHistory).mockImplementation(() => {
+      throw new Error('history boom')
+    })
+    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.history('repo-1') }))
+
+    expect(
+      await screen.findByText(
+        'Не удалось обновить историю проверок — показана последняя загруженная',
+        undefined,
+        FIND,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByText('history boom')).toBeInTheDocument()
+    // Таблица с данными из кэша не заменена полной ошибкой.
+    expect(screen.getByText('Чтение токена из окружения')).toBeInTheDocument()
   })
 })

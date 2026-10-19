@@ -37,13 +37,16 @@ function BlockError({
   text,
   onRetry,
   error,
+  className,
 }: {
   text: string
   onRetry: () => void
   error?: Error | null
+  className?: string
 }) {
   return (
     <Alert
+      className={className}
       type="error"
       showIcon
       message={text}
@@ -71,7 +74,9 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 4 }} />
   }
-  if (isError || !data) {
+  // Полная ошибка — только без данных: упавший фоновый рефетч оставляет форму на месте,
+  // сверху — Alert с повтором (в v5 isError=true и при живом data из кэша).
+  if (!data) {
     return (
       <BlockError
         text="Не удалось загрузить настройки"
@@ -82,59 +87,71 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
   }
 
   return (
-    <Form
-      form={form}
-      layout="vertical"
-      initialValues={data}
-      onValuesChange={() => setIsDirty(true)}
-      onFinish={(values) => save.mutate(values, { onSuccess: () => setIsDirty(false) })}
-      // Мутация ждёт invalidateQueries, поэтому isPending длится до прихода свежих данных:
-      // поля заблокированы, пока форма и кэш могут расходиться (design.md — refetch не
-      // затирает форму).
-      disabled={save.isPending}
-      className="max-w-xl"
-    >
-      {save.isError && (
-        <Alert
+    <div>
+      {isError && (
+        <BlockError
           className="page-error"
-          type="error"
-          showIcon
-          message="Не удалось сохранить настройки"
-          description={save.error instanceof Error ? save.error.message : 'Попробуйте позже'}
+          text="Не удалось обновить настройки — показаны сохранённые значения"
+          error={error}
+          onRetry={() => void refetch()}
         />
       )}
-      {save.isSuccess && !isDirty && (
-        <Alert className="page-error" type="success" showIcon message="Настройки сохранены" />
-      )}
-      <Form.Item name="autoReviewEnabled" label="Авто-ревью" valuePropName="checked">
-        <Switch />
-      </Form.Item>
-      <Form.Item name="branchFilter" label="Фильтр веток">
-        <Select
-          mode="tags"
-          open={false}
-          suffixIcon={null}
-          tokenSeparators={[',']}
-          placeholder="feature/**, fix/**"
-        />
-      </Form.Item>
-      <Form.Item name="minSeverity" label="Порог severity">
-        <Radio.Group optionType="button" buttonStyle="solid" options={SEVERITY_LEVEL_OPTIONS} />
-      </Form.Item>
-      <Space>
-        <Button type="primary" htmlType="submit" loading={save.isPending}>
-          Сохранить
-        </Button>
-        <Button
-          onClick={() => {
-            form.setFieldsValue(data)
-            setIsDirty(false)
-          }}
-        >
-          Сбросить
-        </Button>
-      </Space>
-    </Form>
+      <Form
+        form={form}
+        layout="vertical"
+        onValuesChange={() => setIsDirty(true)}
+        onFinish={(values) => save.mutate(values, { onSuccess: () => setIsDirty(false) })}
+        // Мутация ждёт invalidateQueries, поэтому isPending длится до прихода свежих данных:
+        // поля заблокированы, пока форма и кэш могут расходиться (design.md — refetch не
+        // затирает форму).
+        disabled={save.isPending}
+        className="max-w-xl"
+      >
+        {save.isError && (
+          <Alert
+            className="page-error"
+            type="error"
+            showIcon
+            message="Не удалось сохранить настройки"
+            description={save.error instanceof Error ? save.error.message : 'Попробуйте позже'}
+          />
+        )}
+        {save.isSuccess && !isDirty && (
+          <Alert className="page-error" type="success" showIcon message="Настройки сохранены" />
+        )}
+        <Form.Item name="autoReviewEnabled" label="Авто-ревью" valuePropName="checked">
+          <Switch />
+        </Form.Item>
+        <Form.Item name="branchFilter" label="Фильтр веток">
+          <Select
+            mode="tags"
+            open={false}
+            suffixIcon={null}
+            tokenSeparators={[',']}
+            placeholder="feature/**, fix/**"
+          />
+        </Form.Item>
+        <Form.Item name="minSeverity" label="Порог severity">
+          <Radio.Group optionType="button" buttonStyle="solid" options={SEVERITY_LEVEL_OPTIONS} />
+        </Form.Item>
+        <Space>
+          <Button type="primary" htmlType="submit" loading={save.isPending}>
+            Сохранить
+          </Button>
+          <Button
+            onClick={() => {
+              form.setFieldsValue(data)
+              setIsDirty(false)
+              // Сброс убирает и баннеры мутации: «сохранено»/ошибка не висят над откатанной
+              // формой (reset очищает isSuccess/isError мутации).
+              save.reset()
+            }}
+          >
+            Сбросить
+          </Button>
+        </Space>
+      </Form>
+    </div>
   )
 }
 
@@ -144,7 +161,7 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 6 }} />
   }
-  if (isError || !data) {
+  if (!data) {
     return (
       <BlockError
         text="Не удалось загрузить статус правил"
@@ -156,6 +173,13 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
+      {isError && (
+        <BlockError
+          text="Не удалось обновить статус правил — показан последний загруженный"
+          error={error}
+          onRetry={() => void refetch()}
+        />
+      )}
       <RulesStatusBadge status={data} />
       <RulesPreview status={data} />
     </div>
@@ -187,7 +211,7 @@ function HistoryTable({ repositoryId }: { repositoryId: string }) {
     },
   ]
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <BlockError
         text="Не удалось загрузить историю проверок"
@@ -198,14 +222,23 @@ function HistoryTable({ repositoryId }: { repositoryId: string }) {
   }
 
   return (
-    <Table
-      rowKey="id"
-      loading={isLoading}
-      columns={columns}
-      dataSource={data ?? []}
-      pagination={false}
-      locale={{ emptyText: 'Проверок ещё не было' }}
-    />
+    <div className="flex flex-col gap-3">
+      {isError && data && (
+        <BlockError
+          text="Не удалось обновить историю проверок — показана последняя загруженная"
+          error={error}
+          onRetry={() => void refetch()}
+        />
+      )}
+      <Table
+        rowKey="id"
+        loading={isLoading}
+        columns={columns}
+        dataSource={data ?? []}
+        pagination={false}
+        locale={{ emptyText: 'Проверок ещё не было' }}
+      />
+    </div>
   )
 }
 
@@ -217,7 +250,7 @@ export function RepositorySettingsPage() {
   if (reposQuery.isLoading) {
     return <Skeleton active paragraph={{ rows: 8 }} />
   }
-  if (reposQuery.isError) {
+  if (reposQuery.isError && !reposQuery.data) {
     return (
       <BlockError
         text="Не удалось загрузить репозитории"
@@ -254,6 +287,14 @@ export function RepositorySettingsPage() {
           <Button>К списку репозиториев</Button>
         </Link>
       </div>
+      {reposQuery.isError && reposQuery.data && (
+        <BlockError
+          className="page-error"
+          text="Не удалось обновить список репозиториев — показан последний загруженный"
+          error={reposQuery.error}
+          onRetry={() => void reposQuery.refetch()}
+        />
+      )}
       <div className="flex flex-col gap-4">
         <Card title="Настройки ревью">
           <SettingsForm repositoryId={repositoryId} />
