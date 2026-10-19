@@ -1,29 +1,23 @@
 import { Link } from 'react-router-dom'
 import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { repositoryStatusLabel, type ConnectedRepository } from '@/entities/repository'
+import type { Repository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
 import { formatDateTime } from '@/shared/lib'
-
-const statusColor: Record<ConnectedRepository['status'], string> = {
-  connected: 'success',
-  syncing: 'processing',
-  error: 'error',
-}
 
 export function RepositoriesPage() {
   const { data: repos = [], isLoading, isError } = useConnectedRepositories()
 
-  const columns: ColumnsType<ConnectedRepository> = [
+  const columns: ColumnsType<Repository> = [
     {
       title: 'Репозиторий',
-      dataIndex: 'fullName',
-      key: 'fullName',
+      dataIndex: 'full_name',
+      key: 'full_name',
       render: (value, record) => (
         <Space direction="vertical" size={0}>
           <Typography.Text strong>{value}</Typography.Text>
           <Typography.Text type="secondary" className="text-meta">
-            ветка по умолчанию: {record.defaultBranch}
+            ветка по умолчанию: {record.default_branch}
           </Typography.Text>
         </Space>
       ),
@@ -35,24 +29,17 @@ export function RepositoriesPage() {
       render: (provider) => <Tag>{provider}</Tag>,
     },
     {
-      title: 'Видимость',
-      dataIndex: 'private',
-      key: 'private',
-      render: (isPrivate: boolean) => (isPrivate ? 'Приватный' : 'Публичный'),
+      title: 'Автоматическое ревью',
+      dataIndex: 'auto_review_enabled',
+      key: 'auto_review_enabled',
+      render: (enabled: boolean) =>
+        enabled ? <Tag color="success">Включено</Tag> : <Tag>Выключено</Tag>,
     },
     {
-      title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: ConnectedRepository['status']) => (
-        <Tag color={statusColor[status]}>{repositoryStatusLabel[status]}</Tag>
-      ),
-    },
-    {
-      title: 'Последняя синхронизация',
-      dataIndex: 'lastSyncAt',
-      key: 'lastSyncAt',
-      render: (value?: string) => (value ? formatDateTime(value) : '—'),
+      title: 'Подключён',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (value: string) => formatDateTime(value),
     },
   ]
 

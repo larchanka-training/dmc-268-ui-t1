@@ -34,7 +34,7 @@ export function createFakeEventStream(): FakeEventStream {
       handlers.forEach((subscriber) =>
         subscriber.onEvent('status', {
           review_run_id: 'run-1',
-          last_progress_at: null,
+          last_progress_at: '2026-09-20T14:05:00Z',
           failed_stage: null,
           failure_reason: null,
           ...event,

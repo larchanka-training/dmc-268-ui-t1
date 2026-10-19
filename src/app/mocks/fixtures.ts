@@ -8,43 +8,43 @@ import type { PublishedComment } from '../../entities/published-comment'
 import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
 import type { ReviewRunAction } from '../../entities/review-run-action'
-import type { MockReviewState } from '../../pages/review-run'
+import type { ReviewExtras, ReviewRunResponse } from '../../pages/review-run'
 
 /**
- * Mock-данные одного прогона (FRONTEND_ARCHITECTURE.md §8.1). `ReviewRun`, `ReviewFinding` и
- * `PublishedComment` повторяют доменные значения бэкенда; diff-модели и действия —
- * предположение фронтенда до browser-контракта (docs/testing/TEST_PLAN.md §3.5).
+ * Mock-данные одного прогона. Ответ прогона — в форме контракта бэкенда (`ReviewRunResponse`);
+ * вердикт, diff-модели и действия — предположение фронтенда, в контракте их нет (решения 1, 2 и 4
+ * в dmc-268-ui-t1#37).
  */
 
 const RUN_ID = 'run-42'
 
 export const run: ReviewRun = {
   id: RUN_ID,
-  head_sha: '9f3c2a17e4b8d6c0a5f1',
-  base_sha: '2b7e41d09c3a8f6e1d24',
-  status: 'completed',
-  trigger: 'webhook',
-  created_at: '2026-09-26T09:12:04Z',
-  updated_at: '2026-09-26T09:14:18Z',
-  failure_reason: null,
-  last_progress_at: null,
-  failed_stage: null,
-  model: 'claude-sonnet-5',
-  tokens_used: 48213,
-  duration_seconds: 134,
-  rejected_findings: 2,
-  change_request: {
-    provider: 'git',
-    url: 'https://git.example.com/acme/review-service/merge-requests/42',
-  },
+  merge_request_id: 'mr-42',
   merge_request: {
+    id: 'mr-42',
+    number: 42,
     title: 'Эндпоинт замечаний прогона и повтор запросов к БД',
     author: 'a.petrova',
     source_branch: 'feat/findings-endpoint',
     target_branch: 'develop',
+    state: 'open',
+    url: 'https://github.com/acme/review-service/pull/42',
+    repository: { id: 'repo-1', provider: 'github', full_name: 'acme/review-service' },
   },
-  verdict: 'request_changes',
-  score: 38,
+  head_sha: '9f3c2a17e4b8d6c0a5f1',
+  base_sha: '2b7e41d09c3a8f6e1d24',
+  status: 'completed',
+  trigger: 'webhook',
+  model: 'claude-sonnet-5',
+  tokens_used: 48213,
+  rejected_findings: 2,
+  duration_seconds: 134,
+  failure_reason: null,
+  failed_stage: null,
+  last_progress_at: '2026-09-26T09:14:18Z',
+  created_at: '2026-09-26T09:12:04Z',
+  updated_at: '2026-09-26T09:14:18Z',
 }
 
 const rawDiffFiles: DiffFile[] = [
@@ -321,6 +321,7 @@ const findings: ReviewFinding[] = [
 ]
 
 const published = (findingId: string | null, n: number): PublishedComment => ({
+  id: `pc-${n}`,
   finding_id: findingId,
   provider_comment_id: String(2400000 + n),
   kind: findingId === null ? 'summary' : 'inline',
@@ -399,11 +400,18 @@ const summaries: DiffFileSummary[] = diffFiles.map((file) => ({
   findings_count: findings.filter((item) => item.file_path === file.path).length,
 }))
 
-export const mockReviewState: MockReviewState = {
-  run,
-  files: summaries,
-  diffs_by_path: Object.fromEntries(diffFiles.map((file) => [file.path, file])),
+/** Ответ `GET /reviews/run-42` в форме контракта. */
+export const mockReview: ReviewRunResponse = {
+  ...run,
   findings,
   published_comments: publishedComments,
+}
+
+/** Данные экрана вне контракта: вердикт, дифф, действия воркера. */
+export const mockExtras: ReviewExtras = {
+  verdict: 'request_changes',
+  score: 38,
+  files: summaries,
+  diffs_by_path: Object.fromEntries(diffFiles.map((file) => [file.path, file])),
   actions,
 }

@@ -1,11 +1,12 @@
 export type {
   AvailableRepository,
-  ConnectedRepository,
-  RepositoryConnectionStatus,
-} from '@/entities/repository/model/types'
+  ConnectRepositoryRequest,
+  Repository,
+} from '@/entities/repository/model/schema'
 export {
-  connectRepositoryById,
+  AVAILABLE_REPOSITORIES_PATH,
+  connectRepository,
   fetchAvailableRepositories,
   fetchConnectedRepositories,
+  REPOSITORIES_PATH,
 } from '@/entities/repository/api/repositoryApi'
-export { repositoryStatusLabel } from '@/entities/repository/lib/statusLabels'

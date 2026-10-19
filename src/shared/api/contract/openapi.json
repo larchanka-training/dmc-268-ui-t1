@@ -457,7 +457,199 @@
         "security": []
       }
     },
+    "/api/v1/repositories/available": {
+      "get": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Репозитории, доступные для подключения",
+        "description": "Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #41). Когда ручка заработает: репозитории установки GitHub App, доступные вошедшему пользователю, с отметкой, подключён ли репозиторий к сервису. Требует сессию.",
+        "operationId": "listAvailableRepositories",
+        "responses": {
+          "200": {
+            "description": "Репозитории установки GitHub App.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AvailableRepositoryListResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "default": {
+            "description": "Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnyProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthenticatedProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "501": {
+            "description": "Ручка ещё не реализована.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotImplementedProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "session": []
+          }
+        ]
+      }
+    },
     "/api/v1/repositories": {
+      "post": {
+        "tags": [
+          "repositories"
+        ],
+        "summary": "Подключить репозиторий",
+        "description": "Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #41). Когда ручка заработает: 201 с зарегистрированным репозиторием; подключать может только пользователь с правами admin на репозиторий у провайдера. Требует сессию и Origin сервиса; Origin проверяется раньше сессии и разбора тела.",
+        "operationId": "connectRepository",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectRepositoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Репозиторий зарегистрирован.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RepositoryResponse"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "default": {
+            "description": "Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnyProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "401": {
+            "description": "Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UnauthenticatedProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "403": {
+            "description": "`Origin` изменяющего запроса отсутствует или не совпадает с адресом сервиса.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OriginForbiddenProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "422": {
+            "description": "Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          },
+          "501": {
+            "description": "Ручка ещё не реализована.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotImplementedProblem"
+                }
+              }
+            },
+            "headers": {
+              "X-Trace-ID": {
+                "$ref": "#/components/headers/X-Trace-ID"
+              }
+            }
+          }
+        }
+      },
       "get": {
         "tags": [
           "repositories"
@@ -834,7 +1026,7 @@
           "reviews"
         ],
         "summary": "Прогон ревью вместе с находками",
-        "description": "Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings.",
+        "description": "Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings. Опубликованные комментарии — по времени публикации, затем по id; пока прогон ничего не опубликовал — пустой published_comments.",
         "operationId": "getReview",
         "security": [
           {
@@ -857,7 +1049,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Прогон и его находки.",
+            "description": "Прогон, его запрос на изменение, находки и опубликованные комментарии.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1123,6 +1315,113 @@
             "WEBHOOK_SIGNATURE_INVALID": "#/components/schemas/WebhookSignatureInvalidProblem"
           }
         }
+      },
+      "AvailableRepositoryListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableRepositoryResponse"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Репозитории установки GitHub App."
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AvailableRepositoryListResponse",
+        "description": "Репозитории, доступные для подключения."
+      },
+      "AvailableRepositoryResponse": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/Provider",
+            "description": "Хостинг репозитория.",
+            "examples": [
+              "github"
+            ]
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id",
+            "description": "Идентификатор репозитория у провайдера.",
+            "examples": [
+              "123456789"
+            ]
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name",
+            "description": "Полное имя у провайдера: владелец/репозиторий.",
+            "examples": [
+              "octo-org/api"
+            ]
+          },
+          "default_branch": {
+            "type": "string",
+            "title": "Default Branch",
+            "description": "Ветка по умолчанию у провайдера.",
+            "examples": [
+              "main"
+            ]
+          },
+          "already_connected": {
+            "type": "boolean",
+            "title": "Already Connected",
+            "description": "Репозиторий уже зарегистрирован в сервисе."
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider",
+          "provider_id",
+          "full_name",
+          "default_branch",
+          "already_connected"
+        ],
+        "title": "AvailableRepositoryResponse",
+        "description": "Репозиторий у провайдера, который вошедший пользователь может подключить к сервису."
+      },
+      "CommentKind": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "inline",
+          "thread_reply"
+        ],
+        "title": "CommentKind",
+        "description": "Форма комментария, публикуемого обратно на хостинг."
+      },
+      "ConnectRepositoryRequest": {
+        "properties": {
+          "provider": {
+            "$ref": "#/components/schemas/Provider",
+            "description": "Хостинг репозитория.",
+            "examples": [
+              "github"
+            ]
+          },
+          "providerId": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Providerid",
+            "description": "Идентификатор репозитория у провайдера (из списка доступных).",
+            "examples": [
+              "123456789"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "providerId"
+        ],
+        "title": "ConnectRepositoryRequest",
+        "description": "Запрос на подключение репозитория к сервису."
       },
       "CreateReviewRequest": {
         "properties": {
@@ -1491,11 +1790,6 @@
             "title": "Title",
             "description": "Заголовок у провайдера."
           },
-          "description": {
-            "type": "string",
-            "title": "Description",
-            "description": "Описание запроса на изменение; пустая строка, если его нет."
-          },
           "author": {
             "type": "string",
             "title": "Author",
@@ -1520,19 +1814,24 @@
               "develop"
             ]
           },
+          "state": {
+            "$ref": "#/components/schemas/MergeRequestState",
+            "description": "Состояние у провайдера.",
+            "examples": [
+              "open"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "description": "Описание запроса на изменение; пустая строка, если его нет."
+          },
           "head_sha": {
             "type": "string",
             "title": "Head Sha",
             "description": "Последний коммит ветки с изменениями.",
             "examples": [
               "a1b2c3d4e5f6789012345678abcdef0123456789"
-            ]
-          },
-          "state": {
-            "$ref": "#/components/schemas/MergeRequestState",
-            "description": "Состояние у провайдера.",
-            "examples": [
-              "open"
             ]
           },
           "created_at": {
@@ -1561,12 +1860,12 @@
           "id",
           "number",
           "title",
-          "description",
           "author",
           "source_branch",
           "target_branch",
-          "head_sha",
           "state",
+          "description",
+          "head_sha",
           "created_at",
           "updated_at"
         ],
@@ -1582,6 +1881,93 @@
         ],
         "title": "MergeRequestState",
         "description": "Состояние запроса на изменения на хостинге, сведённое к общему для обоих.\n\n`locked` у GitLab и closed с `merged_at` у GitHub адаптер провайдера\nпереводит в эти значения ещё до того, как они попадут в хранилище."
+      },
+      "MergeRequestSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "number": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Number",
+            "description": "Номер запроса на изменение у провайдера.",
+            "examples": [
+              42
+            ]
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Заголовок у провайдера."
+          },
+          "author": {
+            "type": "string",
+            "title": "Author",
+            "description": "Логин автора у провайдера.",
+            "examples": [
+              "octocat"
+            ]
+          },
+          "source_branch": {
+            "type": "string",
+            "title": "Source Branch",
+            "description": "Ветка с изменениями.",
+            "examples": [
+              "feat/login"
+            ]
+          },
+          "target_branch": {
+            "type": "string",
+            "title": "Target Branch",
+            "description": "Ветка, в которую предлагается слить.",
+            "examples": [
+              "develop"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/MergeRequestState",
+            "description": "Состояние у провайдера.",
+            "examples": [
+              "open"
+            ]
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Страница запроса на изменение у провайдера; строится из провайдера, полного имени репозитория и номера. null, если формат ссылки провайдера не поддержан.",
+            "examples": [
+              "https://github.com/octo-org/api/pull/42"
+            ]
+          },
+          "repository": {
+            "$ref": "#/components/schemas/RepositorySummary",
+            "description": "Репозиторий запроса на изменение."
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "number",
+          "title",
+          "author",
+          "source_branch",
+          "target_branch",
+          "state",
+          "url",
+          "repository"
+        ],
+        "title": "MergeRequestSummary",
+        "description": "Запрос на изменение, который ревьюит прогон, вместе с его репозиторием."
       },
       "MethodNotAllowedProblem": {
         "properties": {
@@ -1878,6 +2264,63 @@
           }
         ]
       },
+      "PublishedCommentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "finding_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finding Id",
+            "description": "Находка, к которой относится комментарий или ответ в тред; null у сводки."
+          },
+          "provider_comment_id": {
+            "type": "string",
+            "title": "Provider Comment Id",
+            "description": "Идентификатор комментария у провайдера.",
+            "examples": [
+              "2345678901"
+            ]
+          },
+          "kind": {
+            "$ref": "#/components/schemas/CommentKind",
+            "description": "Форма комментария: сводка, комментарий к строке или ответ в тред.",
+            "examples": [
+              "inline"
+            ]
+          },
+          "published_at": {
+            "type": "string",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?Z$",
+            "format": "date-time",
+            "title": "Published At",
+            "description": "Когда комментарий опубликован.",
+            "examples": [
+              "2026-10-11T10:00:00Z"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "finding_id",
+          "provider_comment_id",
+          "kind",
+          "published_at"
+        ],
+        "title": "PublishedCommentResponse",
+        "description": "Комментарий, который прогон опубликовал на хостинге."
+      },
       "RepositoryListResponse": {
         "properties": {
           "items": {
@@ -1981,20 +2424,20 @@
               "github"
             ]
           },
-          "provider_id": {
-            "type": "string",
-            "title": "Provider Id",
-            "description": "Идентификатор репозитория у провайдера.",
-            "examples": [
-              "123456789"
-            ]
-          },
           "full_name": {
             "type": "string",
             "title": "Full Name",
             "description": "Полное имя у провайдера: владелец/репозиторий.",
             "examples": [
               "octo-org/api"
+            ]
+          },
+          "provider_id": {
+            "type": "string",
+            "title": "Provider Id",
+            "description": "Идентификатор репозитория у провайдера.",
+            "examples": [
+              "123456789"
             ]
           },
           "default_branch": {
@@ -2035,8 +2478,8 @@
         "required": [
           "id",
           "provider",
-          "provider_id",
           "full_name",
+          "provider_id",
           "default_branch",
           "auto_review_enabled",
           "created_at",
@@ -2044,6 +2487,38 @@
         ],
         "title": "RepositoryResponse",
         "description": "Репозиторий, зарегистрированный в сервисе: его запросы на изменение ревьюятся."
+      },
+      "RepositorySummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "provider": {
+            "$ref": "#/components/schemas/Provider",
+            "description": "Хостинг репозитория.",
+            "examples": [
+              "github"
+            ]
+          },
+          "full_name": {
+            "type": "string",
+            "title": "Full Name",
+            "description": "Полное имя у провайдера: владелец/репозиторий.",
+            "examples": [
+              "octo-org/api"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "full_name"
+        ],
+        "title": "RepositorySummary",
+        "description": "Репозиторий запроса на изменение: ровно то, что нужно, чтобы его назвать и сослаться."
       },
       "ReviewAlreadyActiveProblem": {
         "properties": {
@@ -2478,6 +2953,10 @@
             "title": "Merge Request Id",
             "description": "Запрос на изменение, к которому относится прогон."
           },
+          "merge_request": {
+            "$ref": "#/components/schemas/MergeRequestSummary",
+            "description": "Запрос на изменение прогона: тот же, что merge_request_id."
+          },
           "head_sha": {
             "type": "string",
             "title": "Head Sha",
@@ -2538,6 +3017,12 @@
             ],
             "title": "Tokens Used",
             "description": "Токенов LLM потрачено; null до анализа."
+          },
+          "rejected_findings": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Rejected Findings",
+            "description": "Сколько находок отброшено: привязка вне изменённых строк диффа."
           },
           "duration_seconds": {
             "anyOf": [
@@ -2617,25 +3102,36 @@
             "type": "array",
             "title": "Findings",
             "description": "Находки прогона: по времени создания, затем по id."
+          },
+          "published_comments": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedCommentResponse"
+            },
+            "type": "array",
+            "title": "Published Comments",
+            "description": "Комментарии, опубликованные прогоном на хостинге: по времени публикации, затем по id."
           }
         },
         "type": "object",
         "required": [
           "id",
           "merge_request_id",
+          "merge_request",
           "head_sha",
           "base_sha",
           "status",
           "trigger",
           "model",
           "tokens_used",
+          "rejected_findings",
           "duration_seconds",
           "failure_reason",
           "failed_stage",
           "last_progress_at",
           "created_at",
           "updated_at",
-          "findings"
+          "findings",
+          "published_comments"
         ],
         "title": "ReviewRunResponse",
         "description": "Прогон ревью вместе с его находками."

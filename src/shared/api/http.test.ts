@@ -123,6 +123,17 @@ describe('createHttpTransport', () => {
     vi.restoreAllMocks()
   })
 
+  it('POST отправляет JSON-тело и отдаёт ответ как unknown', async () => {
+    const calls = stubFetch({ 'POST /api/v1/repositories': { status: 201, body: { id: 'r-1' } } })
+
+    await expect(
+      createHttpTransport().post('/repositories', { provider: 'github', providerId: '1' }),
+    ).resolves.toEqual({ id: 'r-1' })
+    expect(calls[0].init.body).toBe('{"provider":"github","providerId":"1"}')
+    expect(new Headers(calls[0].init.headers).get('Content-Type')).toBe('application/json')
+    expect(calls[0].init.credentials).toBe('include')
+  })
+
   it('GET идёт через apiFetch с cookie и отдаёт тело как unknown', async () => {
     const calls = stubFetch({ 'GET /api/v1/repositories': { status: 200, body: [{ id: 1 }] } })
 

@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { DiffFile } from '../../../entities/diff'
 import type { ReviewFinding } from '../../../entities/review-finding'
-import type { ReviewRun } from '../../../entities/review-run'
+import type { ReviewRun, Verdict } from '../../../entities/review-run'
 import type { ReviewRunAction } from '../../../entities/review-run-action'
 import { initialFilterFindingsState, useFilterFindings } from '../../../features/filter-findings'
 import { ApiError, type ApiTransport } from '../../../shared/api'
@@ -21,7 +21,8 @@ import {
 } from '../../../test/factories'
 import { initialReviewWorkspaceState, useReviewWorkspace } from '../../../widgets/review-workspace'
 import { initialRunInspectorState, useRunInspector } from '../../../widgets/run-inspector'
-import { mockReviewPath } from '../model/mockReview'
+import { fakeTransport } from '../../../test/api'
+import { reviewExtrasPath, reviewPath } from '../model/review'
 import { AppProviders } from '../../../app/providers/AppProviders'
 import { createQueryClient } from '../../../app/providers/queryClient'
 import { ReviewRunView } from './ReviewRunView'
@@ -81,34 +82,54 @@ const general = makeFinding({
   message: 'Нет тестов на чтение окружения.',
 })
 
+/** Вердикт и оценка живут не в прогоне, а в дополнениях экрана; в тестах их задают вместе. */
+type RunWithVerdict = ReviewRun & { verdict?: Verdict | null; score?: number | null }
+
+function makeRun(overrides: Partial<RunWithVerdict> = {}): RunWithVerdict {
+  return { ...makeReviewRun(), verdict: 'request_changes', score: 42, ...overrides }
+}
+
 type Backend = {
-  run?: ReviewRun
+  run?: RunWithVerdict
   files?: DiffFile[]
   findings?: ReviewFinding[]
   actions?: ReviewRunAction[]
+  /** `false` — дополнений нет, как у бэкенда: путь отвечает 404. */
+  extras?: boolean
 }
 
 /** Подменяем adapter данных, а не `fetch`: та же граница, что у HTTP-клиента. */
-function fakeAdapter(source: Backend | (() => Backend) = {}): ApiTransport {
-  return {
+function fakeAdapter(source: Backend | ((path: string) => Backend) = {}): ApiTransport {
+  return fakeTransport({
     get: async (path) => {
       const {
-        run = makeReviewRun(),
+        run: { verdict = null, score = null, ...run } = makeRun(),
         files = [api, util],
         findings = [leak, removed, general],
         actions = [],
-      } = typeof source === 'function' ? source() : source
-      if (path !== mockReviewPath(run.id)) throw new ApiError(404, path)
-      return {
-        run,
-        files: files.map((file) => makeFileSummary({ path: file.path, is_binary: file.is_binary })),
-        diffs_by_path: Object.fromEntries(files.map((file) => [file.path, file])),
-        findings,
-        published_comments: [makePublishedComment({ finding_id: 'leak' })],
-        actions,
+        extras = true,
+      } = typeof source === 'function' ? source(path) : source
+      if (path === reviewPath(run.id)) {
+        return {
+          ...run,
+          findings,
+          published_comments: [makePublishedComment({ finding_id: 'leak' })],
+        }
       }
+      if (extras && path === reviewExtrasPath(run.id)) {
+        return {
+          verdict,
+          score,
+          files: files.map((file) =>
+            makeFileSummary({ path: file.path, is_binary: file.is_binary }),
+          ),
+          diffs_by_path: Object.fromEntries(files.map((file) => [file.path, file])),
+          actions,
+        }
+      }
+      throw new ApiError(404, path)
     },
-  }
+  })
 }
 
 /** Текст области изменений: подсветка режет строку кода на отдельные узлы. */
@@ -146,26 +167,37 @@ describe('ReviewRunView', () => {
   })
 
   it('пока adapter не ответил, экран говорит, что идёт загрузка', () => {
-    renderView({ get: () => new Promise(() => {}) })
+    renderView(fakeTransport({ get: () => new Promise(() => {}) }))
 
     expect(screen.getByRole('status')).toHaveTextContent('Загружаем прогон')
   })
 
   it('запрашивает прогон по id из адреса', async () => {
     const paths: string[] = []
-    const adapter = fakeAdapter({ run: makeReviewRun({ id: 'a1b2-c3' }) })
+    const adapter = fakeAdapter({ run: makeRun({ id: 'a1b2-c3' }) })
     renderView(
-      {
+      fakeTransport({
         get: (path) => {
           paths.push(path)
           return adapter.get(path)
         },
-      },
+      }),
       'a1b2-c3',
     )
 
     expect(await screen.findByText('Прогон ревью')).toBeInTheDocument()
-    expect(paths).toEqual(['/mock-review/a1b2-c3'])
+    expect(paths).toEqual(['/reviews/a1b2-c3', '/mock/reviews/a1b2-c3/extras'])
+  })
+
+  it('без дополнений (бэкенд) — замечания списком, без вердикта и диффа', async () => {
+    renderView(fakeAdapter({ extras: false }))
+
+    const list = await screen.findByRole('region', { name: 'Замечания' })
+    expect(within(list).getByRole('article', { name: /Токен печатается в лог/ })).toBeVisible()
+    expect(within(list).getByText('app/api.py:3')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^Вердикт:/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Вердикт появится после завершения')).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
   })
 
   it('неизвестный id — «Прогон не найден», без повтора', async () => {
@@ -196,8 +228,9 @@ describe('ReviewRunView', () => {
   })
 
   it('показывает метаданные прогона и сводку', async () => {
-    const change_request = { provider: 'git', url: 'https://git.example.com/acme/api/42' }
-    renderView(fakeAdapter({ run: makeReviewRun({ change_request }) }))
+    const url = 'https://github.com/acme/api/pull/7'
+    const merge_request = { ...makeReviewRun().merge_request, url }
+    renderView(fakeAdapter({ run: makeRun({ merge_request }) }))
 
     expect(await screen.findByRole('heading', { name: 'Прогон ревью' })).toBeInTheDocument()
     expect(screen.getByText('Завершён')).toBeInTheDocument()
@@ -205,9 +238,9 @@ describe('ReviewRunView', () => {
     expect(screen.getByText('a.petrova')).toBeInTheDocument()
     expect(screen.getByText('feat/env-token → develop')).toBeInTheDocument()
     expect(screen.getByLabelText('Вердикт: Нужны правки')).toHaveTextContent('Оценка 42/100')
-    expect(screen.getByRole('link', { name: /Открыть источник/ })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: /Открыть запрос на изменение/ })).toHaveAttribute(
       'href',
-      change_request.url,
+      url,
     )
     const summary = screen.getByRole('region', { name: 'Сводка' })
     expect(within(summary).getByText('Нет тестов на чтение окружения.')).toBeInTheDocument()
@@ -312,16 +345,14 @@ describe('ReviewRunView', () => {
   })
 
   it('INT-02: идущий прогон показан идущим, вердикта ещё нет', async () => {
-    renderView(
-      fakeAdapter({ run: makeReviewRun({ status: 'analysing', verdict: null, score: null }) }),
-    )
+    renderView(fakeAdapter({ run: makeRun({ status: 'analysing', verdict: null, score: null }) }))
 
     expect(await screen.findByText('Анализ')).toBeInTheDocument()
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
   })
 
   it('INT-03: упавший прогон показывает причину и не выдаёт результат за полный', async () => {
-    const run = makeReviewRun({
+    const run = makeRun({
       status: 'failed',
       failure_reason: 'LLM не ответила за отведённое время',
       verdict: null,
@@ -342,7 +373,7 @@ describe('ReviewRunView', () => {
   })
 
   it('INT-05: ответ вне схемы — ошибка и возможность повторить', async () => {
-    renderView({ get: async () => ({ run: { id: 'run-1' } }) })
+    renderView(fakeTransport({ get: async () => ({ id: 'run-1' }) }))
 
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('не соответствует контракту')
@@ -373,9 +404,7 @@ describe('ReviewRunView', () => {
   })
 
   it('INT-07: отменённый прогон показан завершённым, результат — неполным', async () => {
-    renderView(
-      fakeAdapter({ run: makeReviewRun({ status: 'cancelled', verdict: null, score: null }) }),
-    )
+    renderView(fakeAdapter({ run: makeRun({ status: 'cancelled', verdict: null, score: null }) }))
 
     // «Отменён» — и значок статуса, и подпись прогресса.
     expect(await screen.findAllByText('Отменён')).toHaveLength(2)
@@ -384,23 +413,21 @@ describe('ReviewRunView', () => {
   })
 
   it('INT-08: незнакомый статус не роняет экран и показан идущим', async () => {
-    renderView(fakeAdapter({ run: makeReviewRun({ status: 'waiting_for_quota', verdict: null }) }))
+    renderView(fakeAdapter({ run: makeRun({ status: 'waiting_for_quota', verdict: null }) }))
 
     expect(await screen.findByText('waiting_for_quota')).toBeInTheDocument()
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
   })
 
   it('без базовой ревизии объясняет, почему диффа нет', async () => {
-    renderView(fakeAdapter({ run: makeReviewRun({ base_sha: null }) }))
+    renderView(fakeAdapter({ run: makeRun({ base_sha: null }) }))
 
     expect(await screen.findByText(/не сохранена базовая ревизия/)).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
   })
   describe('статус в реальном времени', () => {
     it('INT-09: смена статуса по событию видна без перезагрузки', async () => {
-      renderView(
-        fakeAdapter({ run: makeReviewRun({ status: 'analysing', verdict: null, score: null }) }),
-      )
+      renderView(fakeAdapter({ run: makeRun({ status: 'analysing', verdict: null, score: null }) }))
       await screen.findByText('Анализ')
 
       act(() => stream.emitStatus({ status: 'publishing' }))
@@ -413,7 +440,7 @@ describe('ReviewRunView', () => {
 
     it('INT-10: прогон доходит до completed, замечания и вердикт появляются сами', async () => {
       let backend: Backend = {
-        run: makeReviewRun({ status: 'analysing', verdict: null, score: null }),
+        run: makeRun({ status: 'analysing', verdict: null, score: null }),
         findings: [],
       }
       renderView(fakeAdapter(() => backend))
@@ -421,7 +448,7 @@ describe('ReviewRunView', () => {
       expect(screen.queryByRole('article', { name: /Токен печатается/ })).not.toBeInTheDocument()
 
       // К завершению сервер отдаёт замечания и вердикт; событие только сообщает о статусе.
-      backend = { run: makeReviewRun({ status: 'completed' }) }
+      backend = { run: makeRun({ status: 'completed' }) }
       act(() => stream.emitStatus({ status: 'completed' }))
 
       expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
@@ -432,13 +459,13 @@ describe('ReviewRunView', () => {
 
     it('INT-11: сбой по событию показывает этап и причину', async () => {
       let backend: Backend = {
-        run: makeReviewRun({ status: 'analysing', verdict: null, score: null }),
+        run: makeRun({ status: 'analysing', verdict: null, score: null }),
       }
       renderView(fakeAdapter(() => backend))
       await screen.findByText('Анализ')
 
       backend = {
-        run: makeReviewRun({
+        run: makeRun({
           status: 'failed',
           failed_stage: 'analysing',
           failure_reason: 'LLM не ответила',
@@ -461,7 +488,7 @@ describe('ReviewRunView', () => {
 
     it('INT-12: отказ сервера в подписке не прячет прогон, а «Обновить» открывает поток заново', async () => {
       const user = userEvent.setup()
-      renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing', verdict: null }) }))
+      renderView(fakeAdapter({ run: makeRun({ status: 'analysing', verdict: null }) }))
       await screen.findByText('Анализ')
 
       act(() => stream.setState('failed'))
@@ -476,22 +503,21 @@ describe('ReviewRunView', () => {
     it('INT-20: идущий прогон без событий не опрашивается по таймеру', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
       const inner = fakeAdapter({
-        run: makeReviewRun({ status: 'analysing', verdict: null, score: null }),
+        run: makeRun({ status: 'analysing', verdict: null, score: null }),
       })
       const get = vi.fn(inner.get)
-      renderView({ get })
+      renderView(fakeTransport({ get }))
       await screen.findByText('Анализ')
 
       await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
 
-      expect(get).toHaveBeenCalledTimes(1)
+      const runRequests = get.mock.calls.filter(([path]) => path === reviewPath('run-1'))
+      expect(runRequests).toHaveLength(1)
       expect(screen.getByText('Анализ')).toBeInTheDocument()
     })
 
     it('INT-21: при обрыве соединения замечания и данные прогона остаются на экране', async () => {
-      renderView(
-        fakeAdapter({ run: makeReviewRun({ status: 'analysing', verdict: null, score: null }) }),
-      )
+      renderView(fakeAdapter({ run: makeRun({ status: 'analysing', verdict: null, score: null }) }))
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       act(() => stream.emitStatus({ status: 'publishing' }))
@@ -686,14 +712,15 @@ describe('ReviewRunView', () => {
         message: 'Новое замечание после перезапроса',
       })
       const { queryClient } = renderView(
-        fakeAdapter(() => {
-          responses += 1
+        fakeAdapter((path) => {
+          // Считаем ответы прогона; дополнения запрашиваются рядом и отдают ту же версию данных.
+          if (path === reviewPath('run-1')) responses += 1
           return responses === 1
-            ? { files, findings, run: makeReviewRun({ status: 'analysing', verdict: null }) }
+            ? { files, findings, run: makeRun({ status: 'analysing', verdict: null }) }
             : {
                 files,
                 findings: [...findings, extra],
-                run: makeReviewRun({ status: 'completed', tokens_used: 20000 }),
+                run: makeRun({ status: 'completed', tokens_used: 20000 }),
               }
         }),
       )

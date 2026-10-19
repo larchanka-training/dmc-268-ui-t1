@@ -104,6 +104,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/repositories/available": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Репозитории, доступные для подключения
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #41). Когда ручка заработает: репозитории установки GitHub App, доступные вошедшему пользователю, с отметкой, подключён ли репозиторий к сервису. Требует сессию.
+         */
+        get: operations["listAvailableRepositories"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/repositories": {
         parameters: {
             query?: never;
@@ -117,7 +137,11 @@ export interface paths {
          */
         get: operations["listRepositories"];
         put?: never;
-        post?: never;
+        /**
+         * Подключить репозиторий
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #41). Когда ручка заработает: 201 с зарегистрированным репозиторием; подключать может только пользователь с правами admin на репозиторий у провайдера. Требует сессию и Origin сервиса; Origin проверяется раньше сессии и разбора тела.
+         */
+        post: operations["connectRepository"];
         delete?: never;
         options?: never;
         head?: never;
@@ -173,7 +197,7 @@ export interface paths {
         };
         /**
          * Прогон ревью вместе с находками
-         * @description Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings.
+         * @description Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings. Опубликованные комментарии — по времени публикации, затем по id; пока прогон ничего не опубликовал — пустой published_comments.
          */
         get: operations["getReview"];
         put?: never;
@@ -217,6 +241,74 @@ export interface components {
          *     `INTERNAL_ERROR` (сбой сервера). Остальные коды операция объявляет в своих ответах.
          */
         AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
+        /**
+         * AvailableRepositoryListResponse
+         * @description Репозитории, доступные для подключения.
+         */
+        AvailableRepositoryListResponse: {
+            /**
+             * Items
+             * @description Репозитории установки GitHub App.
+             */
+            items: components["schemas"]["AvailableRepositoryResponse"][];
+        };
+        /**
+         * AvailableRepositoryResponse
+         * @description Репозиторий у провайдера, который вошедший пользователь может подключить к сервису.
+         */
+        AvailableRepositoryResponse: {
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
+            provider: components["schemas"]["Provider"];
+            /**
+             * Provider Id
+             * @description Идентификатор репозитория у провайдера.
+             * @example 123456789
+             */
+            provider_id: string;
+            /**
+             * Full Name
+             * @description Полное имя у провайдера: владелец/репозиторий.
+             * @example octo-org/api
+             */
+            full_name: string;
+            /**
+             * Default Branch
+             * @description Ветка по умолчанию у провайдера.
+             * @example main
+             */
+            default_branch: string;
+            /**
+             * Already Connected
+             * @description Репозиторий уже зарегистрирован в сервисе.
+             */
+            already_connected: boolean;
+        };
+        /**
+         * CommentKind
+         * @description Форма комментария, публикуемого обратно на хостинг.
+         * @enum {string}
+         */
+        CommentKind: "summary" | "inline" | "thread_reply";
+        /**
+         * ConnectRepositoryRequest
+         * @description Запрос на подключение репозитория к сервису.
+         */
+        ConnectRepositoryRequest: {
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
+            provider: components["schemas"]["Provider"];
+            /**
+             * Providerid
+             * @description Идентификатор репозитория у провайдера (из списка доступных).
+             * @example 123456789
+             */
+            providerId: string;
+        };
         /**
          * CreateReviewRequest
          * @description Запрос ручного запуска ревью запроса на изменение.
@@ -467,11 +559,6 @@ export interface components {
              */
             title: string;
             /**
-             * Description
-             * @description Описание запроса на изменение; пустая строка, если его нет.
-             */
-            description: string;
-            /**
              * Author
              * @description Логин автора у провайдера.
              * @example octocat
@@ -490,16 +577,21 @@ export interface components {
              */
             target_branch: string;
             /**
+             * @description Состояние у провайдера.
+             * @example open
+             */
+            state: components["schemas"]["MergeRequestState"];
+            /**
+             * Description
+             * @description Описание запроса на изменение; пустая строка, если его нет.
+             */
+            description: string;
+            /**
              * Head Sha
              * @description Последний коммит ветки с изменениями.
              * @example a1b2c3d4e5f6789012345678abcdef0123456789
              */
             head_sha: string;
-            /**
-             * @description Состояние у провайдера.
-             * @example open
-             */
-            state: components["schemas"]["MergeRequestState"];
             /**
              * Created At
              * Format: date-time
@@ -524,6 +616,59 @@ export interface components {
          * @enum {string}
          */
         MergeRequestState: "open" | "closed" | "merged";
+        /**
+         * MergeRequestSummary
+         * @description Запрос на изменение, который ревьюит прогон, вместе с его репозиторием.
+         */
+        MergeRequestSummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Number
+             * @description Номер запроса на изменение у провайдера.
+             * @example 42
+             */
+            number: number;
+            /**
+             * Title
+             * @description Заголовок у провайдера.
+             */
+            title: string;
+            /**
+             * Author
+             * @description Логин автора у провайдера.
+             * @example octocat
+             */
+            author: string;
+            /**
+             * Source Branch
+             * @description Ветка с изменениями.
+             * @example feat/login
+             */
+            source_branch: string;
+            /**
+             * Target Branch
+             * @description Ветка, в которую предлагается слить.
+             * @example develop
+             */
+            target_branch: string;
+            /**
+             * @description Состояние у провайдера.
+             * @example open
+             */
+            state: components["schemas"]["MergeRequestState"];
+            /**
+             * Url
+             * @description Страница запроса на изменение у провайдера; строится из провайдера, полного имени репозитория и номера. null, если формат ссылки провайдера не поддержан.
+             * @example https://github.com/octo-org/api/pull/42
+             */
+            url: string | null;
+            /** @description Репозиторий запроса на изменение. */
+            repository: components["schemas"]["RepositorySummary"];
+        };
         /**
          * MethodNotAllowedProblem
          * @description `405 METHOD_NOT_ALLOWED`: путь есть, а метод для него не объявлен; разрешённые — в заголовке `Allow`.
@@ -750,6 +895,40 @@ export interface components {
             trace_id: string;
         };
         /**
+         * PublishedCommentResponse
+         * @description Комментарий, который прогон опубликовал на хостинге.
+         */
+        PublishedCommentResponse: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Finding Id
+             * @description Находка, к которой относится комментарий или ответ в тред; null у сводки.
+             */
+            finding_id: string | null;
+            /**
+             * Provider Comment Id
+             * @description Идентификатор комментария у провайдера.
+             * @example 2345678901
+             */
+            provider_comment_id: string;
+            /**
+             * @description Форма комментария: сводка, комментарий к строке или ответ в тред.
+             * @example inline
+             */
+            kind: components["schemas"]["CommentKind"];
+            /**
+             * Published At
+             * Format: date-time
+             * @description Когда комментарий опубликован.
+             * @example 2026-10-11T10:00:00Z
+             */
+            published_at: string;
+        };
+        /**
          * RepositoryListResponse
          * @description Страница списка репозиториев.
          */
@@ -831,17 +1010,17 @@ export interface components {
              */
             provider: components["schemas"]["Provider"];
             /**
-             * Provider Id
-             * @description Идентификатор репозитория у провайдера.
-             * @example 123456789
-             */
-            provider_id: string;
-            /**
              * Full Name
              * @description Полное имя у провайдера: владелец/репозиторий.
              * @example octo-org/api
              */
             full_name: string;
+            /**
+             * Provider Id
+             * @description Идентификатор репозитория у провайдера.
+             * @example 123456789
+             */
+            provider_id: string;
             /**
              * Default Branch
              * @description Ветка по умолчанию у провайдера.
@@ -867,6 +1046,28 @@ export interface components {
              * @example 2026-10-11T10:00:00Z
              */
             updated_at: string;
+        };
+        /**
+         * RepositorySummary
+         * @description Репозиторий запроса на изменение: ровно то, что нужно, чтобы его назвать и сослаться.
+         */
+        RepositorySummary: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
+            provider: components["schemas"]["Provider"];
+            /**
+             * Full Name
+             * @description Полное имя у провайдера: владелец/репозиторий.
+             * @example octo-org/api
+             */
+            full_name: string;
         };
         /**
          * ReviewAlreadyActiveProblem
@@ -1134,6 +1335,8 @@ export interface components {
              * @description Запрос на изменение, к которому относится прогон.
              */
             merge_request_id: string;
+            /** @description Запрос на изменение прогона: тот же, что merge_request_id. */
+            merge_request: components["schemas"]["MergeRequestSummary"];
             /**
              * Head Sha
              * @description Коммит, который ревьюится.
@@ -1166,6 +1369,11 @@ export interface components {
              * @description Токенов LLM потрачено; null до анализа.
              */
             tokens_used: number | null;
+            /**
+             * Rejected Findings
+             * @description Сколько находок отброшено: привязка вне изменённых строк диффа.
+             */
+            rejected_findings: number;
             /**
              * Duration Seconds
              * @description Длительность прогона в секундах; null, пока не завершён.
@@ -1207,6 +1415,11 @@ export interface components {
              * @description Находки прогона: по времени создания, затем по id.
              */
             findings: components["schemas"]["FindingResponse"][];
+            /**
+             * Published Comments
+             * @description Комментарии, опубликованные прогоном на хостинге: по времени публикации, затем по id.
+             */
+            published_comments: components["schemas"]["PublishedCommentResponse"][];
         };
         /**
          * ReviewRunStatus
@@ -1877,6 +2090,57 @@ export interface operations {
             };
         };
     };
+    listAvailableRepositories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Репозитории установки GitHub App. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailableRepositoryListResponse"];
+                };
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
     listRepositories: {
         parameters: {
             query?: {
@@ -1919,6 +2183,81 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    connectRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConnectRepositoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Репозиторий зарегистрирован. */
+            201: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RepositoryResponse"];
+                };
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description `Origin` изменяющего запроса отсутствует или не совпадает с адресом сервиса. */
+            403: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["OriginForbiddenProblem"];
+                };
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -2099,7 +2438,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Прогон и его находки. */
+            /** @description Прогон, его запрос на изменение, находки и опубликованные комментарии. */
             200: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];

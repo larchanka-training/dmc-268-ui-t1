@@ -1,6 +1,12 @@
 import { useState } from 'react'
 
-import type { ApiTransport, EventStream } from '../shared/api'
+import {
+  createEventSourceStream,
+  createHttpTransport,
+  type ApiTransport,
+  type EventStream,
+} from '../shared/api'
+import { USE_MOCK_API } from '../shared/config/env'
 import { createMockAdapter } from './mocks/mockAdapter'
 import { createScenarioEventStream } from './mocks/mockEventStream'
 import { createMockServer } from './mocks/mockServer'
@@ -8,18 +14,31 @@ import { AppProviders } from './providers/AppProviders'
 import { AppRouter } from './router/AppRouter'
 
 type Props = {
-  /** До backend-контракта интерфейс работает на mock adapter (FE-DEC-06). */
+  /** Источник данных; по умолчанию — по `VITE_USE_MOCK_API`. */
   transport?: ApiTransport
-  /** До SSE-эндпоинта бэкенда статусы проигрывает сценарий; `createEventSourceStream` — замена. */
   eventStream?: EventStream
+  useMockApi?: boolean
 }
 
-export function App({ transport, eventStream }: Props) {
+/**
+ * Mock adapter и сценарный поток или HTTP-клиент и `EventSource`: экраны ходят только через
+ * `ApiTransport` и `EventStream`, поэтому переход на бэкенд — смена флага, а не правка экранов.
+ */
+function createDataSources(useMockApi: boolean): { transport: ApiTransport; stream: EventStream } {
+  if (!useMockApi) return { transport: createHttpTransport(), stream: createEventSourceStream() }
   // Adapter и поток читают одно состояние «сервера», иначе перезапрос после завершения вернул бы
   // старый статус и подписка открывалась бы по кругу.
-  const [server] = useState(() => createMockServer())
-  const [adapter] = useState(() => transport ?? createMockAdapter({ server }))
-  const [stream] = useState(() => eventStream ?? createScenarioEventStream(server))
+  const server = createMockServer()
+  return {
+    transport: createMockAdapter({ server }),
+    stream: createScenarioEventStream(server),
+  }
+}
+
+export function App({ transport, eventStream, useMockApi = USE_MOCK_API }: Props) {
+  const [sources] = useState(() => createDataSources(useMockApi))
+  const adapter = transport ?? sources.transport
+  const stream = eventStream ?? sources.stream
   return (
     <AppProviders transport={adapter} eventStream={stream}>
       <AppRouter />

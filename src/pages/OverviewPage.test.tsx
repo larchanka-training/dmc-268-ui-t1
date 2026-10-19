@@ -4,7 +4,10 @@ import { MemoryRouter } from 'react-router-dom'
 
 import { RequireAuth } from '@/features/auth'
 import { OverviewPage } from '@/pages/OverviewPage'
-import { ME, renderWithQuery, stubFetch } from '@/test/api'
+import { fakeTransport, ME, renderWithTransport, stubFetch } from '@/test/api'
+
+/** Профиль — из `fetch` (`RequireAuth`), список репозиториев — через `ApiTransport`. */
+const noRepositories = fakeTransport({ get: async () => ({ items: [] }) })
 
 describe('OverviewPage', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -15,12 +18,13 @@ describe('OverviewPage', () => {
   ])('%s — приветствие с логином', async (_, patch) => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, ...patch } } })
 
-    renderWithQuery(
+    renderWithTransport(
       <MemoryRouter>
         <RequireAuth>
           <OverviewPage />
         </RequireAuth>
       </MemoryRouter>,
+      noRepositories,
     )
 
     expect(await screen.findByText('С возвращением, octocat')).toBeInTheDocument()
@@ -29,12 +33,13 @@ describe('OverviewPage', () => {
   it('с именем приветствует по имени', async () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
 
-    renderWithQuery(
+    renderWithTransport(
       <MemoryRouter>
         <RequireAuth>
           <OverviewPage />
         </RequireAuth>
       </MemoryRouter>,
+      noRepositories,
     )
 
     expect(await screen.findByText('С возвращением, The Octocat')).toBeInTheDocument()

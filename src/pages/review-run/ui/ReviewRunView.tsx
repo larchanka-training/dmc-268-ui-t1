@@ -12,11 +12,12 @@ import { ErrorState, LoadingState } from '../../../shared/ui'
 import { ReviewSummary, RunHeader, RunProgress } from '../../../widgets/review-run-view'
 import { ReviewWorkspace } from '../../../widgets/review-workspace'
 import { RunInspector } from '../../../widgets/run-inspector'
-import { mockReviewKey, useMockReview, type MockReviewState } from '../model/mockReview'
+import { FindingsList } from './FindingsList'
+import { reviewKey, useReviewExtras, useReviewRun, type ReviewRunResponse } from '../model/review'
 
-/** Событие статуса патчит прогон в кэше, остальные данные экрана остаются как есть. */
-function patchRun(data: MockReviewState, event: RunStatusEvent): MockReviewState {
-  return { ...data, run: applyStatusEvent(data.run, event) }
+/** Событие статуса патчит прогон в кэше; замечания и публикации остаются как есть. */
+function patchRun(data: ReviewRunResponse, event: RunStatusEvent): ReviewRunResponse {
+  return { ...data, ...applyStatusEvent(data, event) }
 }
 
 /**
@@ -26,10 +27,11 @@ function patchRun(data: MockReviewState, event: RunStatusEvent): MockReviewState
 export function ReviewRunView() {
   // Маршрут `/reviews/:reviewId`; id — UUID прогона на бэкенде.
   const { reviewId = '' } = useParams()
-  const review = useMockReview(reviewId)
+  const review = useReviewRun(reviewId)
+  const extras = useReviewExtras(reviewId)
   // Ключ — в зависимостях эффекта подписки: новый массив на каждый рендер переоткрывал бы поток.
-  const queryKey = useMemo(() => mockReviewKey(reviewId), [reviewId])
-  const loadedRun = review.data?.run
+  const queryKey = useMemo(() => reviewKey(reviewId), [reviewId])
+  const loadedRun = review.data
   // Пока прогон не загружен, подписываться не на что: хук получает пустой идентификатор
   // и терминальный статус, а потому не открывает поток.
   const live = useRunLiveStatus({
@@ -59,23 +61,29 @@ export function ReviewRunView() {
     )
   }
 
-  const { run, files, diffs_by_path, findings, published_comments, actions } = review.data
+  const { findings, published_comments, ...run } = review.data
+  // Дополнения вне контракта: пока грузятся или их нет у источника — экран без них.
+  const extra = extras.data ?? null
   return (
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
-      <RunHeader run={run} />
+      <RunHeader run={run} verdict={extra} />
       {!isTerminalStatus(run.status) && (
         <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
       )}
       <RunProgress run={run} seenStage={live.seenStage} />
       <ReviewSummary run={run} findings={findings} publishedComments={published_comments} />
-      <ReviewWorkspace
-        run={run}
-        files={files}
-        diffsByPath={diffs_by_path}
-        findings={findings}
-        publishedComments={published_comments}
-      />
-      <RunInspector actions={actions} />
+      {extra ? (
+        <ReviewWorkspace
+          run={run}
+          files={extra.files}
+          diffsByPath={extra.diffs_by_path}
+          findings={findings}
+          publishedComments={published_comments}
+        />
+      ) : (
+        <FindingsList findings={findings} publishedComments={published_comments} />
+      )}
+      {extra && <RunInspector actions={extra.actions} />}
     </main>
   )
 }

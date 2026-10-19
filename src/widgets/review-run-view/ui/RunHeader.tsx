@@ -6,6 +6,7 @@ import {
   VerdictBadge,
   type ReviewRun,
   type RunTrigger,
+  type Verdict,
 } from '../../../entities/review-run'
 import {
   formatDateTime,
@@ -30,9 +31,18 @@ function Meta({ term, wide, children }: { term: string; wide?: boolean; children
   )
 }
 
-export function RunHeader({ run }: { run: ReviewRun }) {
-  const sourceUrl = run.change_request ? safeExternalUrl(run.change_request.url) : null
+/** Вердикт и оценка; в контракте их нет, `null` — данных нет, бейдж не показывается. */
+export type RunVerdict = { verdict: Verdict | null; score: number | null }
+
+export function RunHeader({
+  run,
+  verdict = null,
+}: {
+  run: ReviewRun
+  verdict?: RunVerdict | null
+}) {
   const mr = run.merge_request
+  const sourceUrl = mr.url ? safeExternalUrl(mr.url) : null
   return (
     <header className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -47,30 +57,31 @@ export function RunHeader({ run }: { run: ReviewRun }) {
                 rel="noreferrer"
                 className="text-sm font-medium text-blue-700 hover:underline"
               >
-                Открыть источник ↗
+                Открыть запрос на изменение ↗
               </a>
             )}
           </div>
-          {mr && <p className="text-base text-slate-700">{mr.title}</p>}
+          <p className="text-base text-slate-700">
+            {mr.title} <span className="text-slate-500">#{mr.number}</span>
+          </p>
+          <p className="text-sm text-slate-500">{mr.repository.full_name}</p>
         </div>
-        <VerdictBadge
-          verdict={run.verdict}
-          score={run.score}
-          finished={isTerminalStatus(run.status)}
-        />
+        {verdict && (
+          <VerdictBadge
+            verdict={verdict.verdict}
+            score={verdict.score}
+            finished={isTerminalStatus(run.status)}
+          />
+        )}
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
-        {mr && (
-          <>
-            <Meta term="Автор">{mr.author}</Meta>
-            <Meta term="Ветки" wide>
-              <span className="font-mono text-xs">
-                {mr.source_branch} → {mr.target_branch}
-              </span>
-            </Meta>
-          </>
-        )}
+        <Meta term="Автор">{mr.author}</Meta>
+        <Meta term="Ветки" wide>
+          <span className="font-mono text-xs">
+            {mr.source_branch} → {mr.target_branch}
+          </span>
+        </Meta>
         <Meta term="Коммит">
           <code className="font-mono">
             {run.base_sha ? `${shortSha(run.base_sha)}…` : ''}

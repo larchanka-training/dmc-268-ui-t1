@@ -5,26 +5,36 @@ import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { AvailableRepository } from '@/entities/repository'
 import { useAvailableRepositories, useConnectRepository } from '@/features/repository'
+import { ApiError } from '@/shared/api'
+
+/** Ручки уже в контракте, но бэкенд отвечает `501`, пока подключение не реализовано (api#41). */
+function isNotImplemented(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'NOT_IMPLEMENTED'
+}
 
 export function ConnectRepositoryPage() {
   const navigate = useNavigate()
-  const { data: repos = [], isLoading, isError } = useAvailableRepositories()
+  const { data: repos = [], isLoading, isError, error } = useAvailableRepositories()
   const connectMutation = useConnectRepository()
   const [search, setSearch] = useState('')
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return repos
-    return repos.filter((r) => r.fullName.toLowerCase().includes(q))
+    return repos.filter((r) => r.full_name.toLowerCase().includes(q))
   }, [repos, search])
 
-  const handleConnect = async (repoId: string) => {
+  const handleConnect = async (repo: AvailableRepository) => {
     try {
-      await connectMutation.mutateAsync(repoId)
+      await connectMutation.mutateAsync({ provider: repo.provider, providerId: repo.provider_id })
       message.success('Репозиторий подключён')
       navigate('/repositories')
     } catch (err) {
-      const text = err instanceof Error ? err.message : 'Не удалось подключить репозиторий'
+      const text = isNotImplemented(err)
+        ? 'Подключение репозиториев пока недоступно'
+        : err instanceof Error
+          ? err.message
+          : 'Не удалось подключить репозиторий'
       message.error(text)
     }
   }
@@ -32,8 +42,8 @@ export function ConnectRepositoryPage() {
   const columns: ColumnsType<AvailableRepository> = [
     {
       title: 'Репозиторий',
-      dataIndex: 'fullName',
-      key: 'fullName',
+      dataIndex: 'full_name',
+      key: 'full_name',
     },
     {
       title: 'Провайдер',
@@ -43,14 +53,14 @@ export function ConnectRepositoryPage() {
     },
     {
       title: 'Ветка',
-      dataIndex: 'defaultBranch',
-      key: 'defaultBranch',
+      dataIndex: 'default_branch',
+      key: 'default_branch',
     },
     {
       title: 'Действие',
       key: 'action',
       render: (_, record) =>
-        record.alreadyConnected ? (
+        record.already_connected ? (
           <Tag icon={<CheckOutlined />} color="success">
             Подключён
           </Tag>
@@ -59,8 +69,11 @@ export function ConnectRepositoryPage() {
             type="primary"
             size="small"
             icon={<LinkOutlined />}
-            loading={connectMutation.isPending && connectMutation.variables === record.id}
-            onClick={() => handleConnect(record.id)}
+            loading={
+              connectMutation.isPending &&
+              connectMutation.variables?.providerId === record.provider_id
+            }
+            onClick={() => void handleConnect(record)}
           >
             Подключить
           </Button>
@@ -74,11 +87,13 @@ export function ConnectRepositoryPage() {
         Подключение репозитория
       </Typography.Title>
       <Typography.Paragraph type="secondary">
-        Выберите репозиторий из вашей учётной записи VCS. Данные имитируются до появления API.
+        Выберите репозиторий из установки GitHub App.
       </Typography.Paragraph>
       {isError && (
         <Typography.Text type="danger" className="page-error">
-          Не удалось загрузить список репозиториев
+          {isNotImplemented(error)
+            ? 'Подключение репозиториев пока недоступно: бэкенд его ещё не реализовал'
+            : 'Не удалось загрузить список репозиториев'}
         </Typography.Text>
       )}
       <Input.Search
@@ -89,7 +104,7 @@ export function ConnectRepositoryPage() {
       />
       <div className="app-content-card">
         <Table
-          rowKey="id"
+          rowKey={(record) => `${record.provider}:${record.provider_id}`}
           loading={isLoading}
           columns={columns}
           dataSource={filtered}

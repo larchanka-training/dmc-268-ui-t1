@@ -65,5 +65,13 @@ async function readProblem(
 export function createHttpTransport(): ApiTransport {
   return {
     get: async (path) => (await apiFetch(path)).json() as Promise<unknown>,
+    post: async (path, body) => {
+      const response = await apiFetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      return response.status === 204 ? null : (response.json() as Promise<unknown>)
+    },
   }
 }

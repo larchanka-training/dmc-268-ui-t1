@@ -73,6 +73,7 @@ httpOnly cookie `session`. Кабинет берёт профиль из `GET /a
 - Сессия в httpOnly cookie, профиль из `/api/v1/auth/me`, выход через `/api/v1/auth/logout`
 - App shell: sidebar, header, навигация, статус авторизации, светлая/тёмная тема
 - Список подключённых репозиториев и экран подключения нового репозитория
+- Данные экранов — по контракту бэкенда через `ApiTransport`: mock adapter по умолчанию, бэкенд при `VITE_USE_MOCK_API=false`. Ручки, которые бэкенд ещё не реализовал, отвечают `501`, и экран говорит об этом
 
 ### UI: Ant Design и Tailwind
 
@@ -81,11 +82,11 @@ httpOnly cookie `session`. Кабинет берёт профиль из `GET /a
 Дополнительные переменные (опционально). `VITE_USE_MOCK_API`, `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
 читаются из `.env`, `.env.local` и окружения оболочки:
 
-| Переменная              | По умолчанию            | Описание                                                                    |
-| ----------------------- | ----------------------- | --------------------------------------------------------------------------- |
-| `VITE_USE_MOCK_API`     | `true`                  | `false` — мока нет, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` |
-| `VITE_API_PROXY_TARGET` | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`               |
-| `VITE_API_BASE_URL`     | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                |
+| Переменная              | По умолчанию            | Описание                                                                                                           |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `VITE_USE_MOCK_API`     | `true`                  | `false` — мока нет: данные кабинета и вход идут на бэкенд, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` |
+| `VITE_API_PROXY_TARGET` | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`                                                      |
+| `VITE_API_BASE_URL`     | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                                                       |
 
 Против настоящего бэкенда: `VITE_USE_MOCK_API=false pnpm dev`. Прокси не переписывает путь и пропускает
 cookie, а `Origin` браузера остаётся `http://localhost:3000` — поэтому у API должен стоять
