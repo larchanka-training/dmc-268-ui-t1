@@ -71,7 +71,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Пользователь текущей сессии */
+        /**
+         * Пользователь текущей сессии
+         * @description Требует сессию. По ответу кабинет решает, показывать ли страницу входа.
+         */
         get: operations["me"];
         put?: never;
         post?: never;
@@ -110,7 +113,7 @@ export interface paths {
         };
         /**
          * Список зарегистрированных репозиториев
-         * @description Постранично, по времени регистрации, затем по id. limit выше 200 не отклоняется, а приводится к 200. Общего числа записей в ответе нет: конец списка — страница короче limit.
+         * @description Требует сессию. Постранично, по времени регистрации, затем по id. limit выше 200 не отклоняется, а приводится к 200. Общего числа записей в ответе нет: конец списка — страница короче limit.
          */
         get: operations["listRepositories"];
         put?: never;
@@ -130,7 +133,7 @@ export interface paths {
         };
         /**
          * Список запросов на изменение репозитория
-         * @description Постранично, по номеру запроса на изменение. Пагинация та же, что у списка репозиториев.
+         * @description Требует сессию. Постранично, по номеру запроса на изменение. Пагинация та же, что у списка репозиториев: limit выше 200 приводится к 200. Репозитория нет — 404.
          */
         get: operations["listPullRequests"];
         put?: never;
@@ -152,7 +155,7 @@ export interface paths {
         put?: never;
         /**
          * Запустить ревью вручную
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы; план ручного запуска — PIPELINE_SPEC.md §4. Сейчас ревью запускает только вебхук. Когда ручка заработает: 202 с ReviewJob, 409 REVIEW_ALREADY_ACTIVE, если по этому коммиту прогон уже идёт.
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы; план ручного запуска — PIPELINE_SPEC.md §4. Сейчас ревью запускает только вебхук. Когда ручка заработает: 202 с ReviewJob, 409 REVIEW_ALREADY_ACTIVE, если по этому коммиту прогон уже идёт. Требует сессию и Origin сервиса; Origin проверяется раньше сессии и разбора тела.
          */
         post: operations["createReview"];
         delete?: never;
@@ -170,7 +173,7 @@ export interface paths {
         };
         /**
          * Прогон ревью вместе с находками
-         * @description Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings.
+         * @description Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings.
          */
         get: operations["getReview"];
         put?: never;
@@ -190,7 +193,7 @@ export interface paths {
         };
         /**
          * Поток событий статуса прогона (Server-Sent Events)
-         * @description Первое событие после подключения — `status` со снимком текущего состояния, дальше — по событию `status` на каждую смену статуса и `ping` в тишине, не реже раза в 15 секунд. После терминального статуса сервер закрывает поток. Поток начинается со строки `retry: 3000`. Поток отражает состояние, а не журнал: несколько переходов между проверками приходят одним событием.
+         * @description Первое событие после подключения — `status` со снимком текущего состояния, дальше — по событию `status` на каждую смену статуса и `ping` в тишине, не реже раза в 15 секунд. После терминального статуса сервер закрывает поток. Поток начинается со строки `retry: 3000`. Поток отражает состояние, а не журнал: несколько переходов между проверками приходят одним событием. Требует сессию: она проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
          */
         get: operations["streamReviewEvents"];
         put?: never;
@@ -219,6 +222,10 @@ export interface components {
          * @description Запрос ручного запуска ревью запроса на изменение.
          */
         CreateReviewRequest: {
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
             provider: components["schemas"]["Provider"];
             /**
              * Providerrepositoryid
@@ -228,9 +235,14 @@ export interface components {
             providerRepositoryId: string;
             /**
              * Pullrequestnumber
+             * @description Номер запроса на изменение у провайдера.
              * @example 123
              */
             pullRequestNumber: number;
+            /**
+             * @description Источник запуска.
+             * @example manual
+             */
             trigger: components["schemas"]["TriggerSource"];
         };
         /**
@@ -245,27 +257,61 @@ export interface components {
          * @enum {string}
          */
         FindingCategory: "security" | "correctness" | "performance" | "readability";
-        /** FindingResponse */
+        /**
+         * FindingResponse
+         * @description Находка ревью, привязанная к строке диффа.
+         */
         FindingResponse: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** File Path */
+            /**
+             * File Path
+             * @description Путь файла от корня репозитория.
+             * @example app/main.py
+             */
             file_path: string;
+            /**
+             * @description Сторона диффа, к которой привязана находка.
+             * @example new
+             */
             side: components["schemas"]["DiffSide"];
-            /** Old Line */
+            /**
+             * Old Line
+             * @description Строка в старой версии файла, с 1; null, если находка на новой стороне.
+             */
             old_line: number | null;
-            /** New Line */
+            /**
+             * New Line
+             * @description Строка в новой версии файла, с 1; null, если находка на старой стороне.
+             */
             new_line: number | null;
+            /**
+             * @description Ось ревью, к которой относится находка.
+             * @example security
+             */
             category: components["schemas"]["FindingCategory"];
+            /**
+             * @description Насколько находка важна.
+             * @example high
+             */
             severity: components["schemas"]["FindingSeverity"];
-            /** Message */
+            /**
+             * Message
+             * @description Текст замечания.
+             */
             message: string;
-            /** Suggestion */
+            /**
+             * Suggestion
+             * @description Предлагаемая правка; null, если её нет.
+             */
             suggestion: string | null;
-            /** Confidence */
+            /**
+             * Confidence
+             * @description Уверенность модели в находке, обычно от 0 до 1; null, если модель её не дала.
+             */
             confidence: number | null;
         };
         /**
@@ -388,41 +434,84 @@ export interface components {
              */
             trace_id: string;
         };
-        /** MergeRequestListResponse */
+        /**
+         * MergeRequestListResponse
+         * @description Страница списка запросов на изменение.
+         */
         MergeRequestListResponse: {
-            /** Items */
+            /**
+             * Items
+             * @description Запросы на изменение страницы; меньше limit — значит, страница последняя.
+             */
             items: components["schemas"]["MergeRequestResponse"][];
         };
-        /** MergeRequestResponse */
+        /**
+         * MergeRequestResponse
+         * @description Запрос на изменение (pull request GitHub) — каким его видел сервис при последнем вебхуке.
+         */
         MergeRequestResponse: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** Number */
+            /**
+             * Number
+             * @description Номер запроса на изменение у провайдера.
+             * @example 42
+             */
             number: number;
-            /** Title */
+            /**
+             * Title
+             * @description Заголовок у провайдера.
+             */
             title: string;
-            /** Description */
+            /**
+             * Description
+             * @description Описание запроса на изменение; пустая строка, если его нет.
+             */
             description: string;
-            /** Author */
+            /**
+             * Author
+             * @description Логин автора у провайдера.
+             * @example octocat
+             */
             author: string;
-            /** Source Branch */
+            /**
+             * Source Branch
+             * @description Ветка с изменениями.
+             * @example feat/login
+             */
             source_branch: string;
-            /** Target Branch */
+            /**
+             * Target Branch
+             * @description Ветка, в которую предлагается слить.
+             * @example develop
+             */
             target_branch: string;
-            /** Head Sha */
+            /**
+             * Head Sha
+             * @description Последний коммит ветки с изменениями.
+             * @example a1b2c3d4e5f6789012345678abcdef0123456789
+             */
             head_sha: string;
+            /**
+             * @description Состояние у провайдера.
+             * @example open
+             */
             state: components["schemas"]["MergeRequestState"];
             /**
              * Created At
              * Format: date-time
+             * @description Когда сервис впервые записал запрос на изменение.
+             * @example 2026-10-11T10:00:00Z
              */
             created_at: string;
             /**
              * Updated At
              * Format: date-time
+             * @description Когда запись последний раз менялась.
+             * @example 2026-10-11T10:00:00Z
              */
             updated_at: string;
         };
@@ -660,9 +749,15 @@ export interface components {
              */
             trace_id: string;
         };
-        /** RepositoryListResponse */
+        /**
+         * RepositoryListResponse
+         * @description Страница списка репозиториев.
+         */
         RepositoryListResponse: {
-            /** Items */
+            /**
+             * Items
+             * @description Репозитории страницы; меньше limit — значит, страница последняя.
+             */
             items: components["schemas"]["RepositoryResponse"][];
         };
         /**
@@ -720,30 +815,56 @@ export interface components {
              */
             trace_id: string;
         };
-        /** RepositoryResponse */
+        /**
+         * RepositoryResponse
+         * @description Репозиторий, зарегистрированный в сервисе: его запросы на изменение ревьюятся.
+         */
         RepositoryResponse: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
             provider: components["schemas"]["Provider"];
-            /** Provider Id */
+            /**
+             * Provider Id
+             * @description Идентификатор репозитория у провайдера.
+             * @example 123456789
+             */
             provider_id: string;
-            /** Full Name */
+            /**
+             * Full Name
+             * @description Полное имя у провайдера: владелец/репозиторий.
+             * @example octo-org/api
+             */
             full_name: string;
-            /** Default Branch */
+            /**
+             * Default Branch
+             * @description Ветка по умолчанию у провайдера.
+             * @example main
+             */
             default_branch: string;
-            /** Auto Review Enabled */
+            /**
+             * Auto Review Enabled
+             * @description Ревью запускается автоматически по вебхуку.
+             */
             auto_review_enabled: boolean;
             /**
              * Created At
              * Format: date-time
+             * @description Когда репозиторий зарегистрирован.
+             * @example 2026-10-11T10:00:00Z
              */
             created_at: string;
             /**
              * Updated At
              * Format: date-time
+             * @description Когда запись последний раз менялась.
+             * @example 2026-10-11T10:00:00Z
              */
             updated_at: string;
         };
@@ -813,72 +934,133 @@ export interface components {
         ReviewError: {
             /**
              * Code
+             * @description Код ошибки прогона.
+             * @example LLM_TIMEOUT
              * @enum {string}
              */
             code: "SCM_AUTH_ERROR" | "PR_NOT_FOUND" | "REPOSITORY_NOT_FOUND" | "SCM_UNAVAILABLE" | "CONTEXT_PARSING_ERROR" | "LLM_RATE_LIMITED" | "LLM_TIMEOUT" | "LLM_UNAVAILABLE" | "LLM_INVALID_OUTPUT" | "REVIEW_RUN_STALE" | "INTERNAL_ERROR";
-            /** Message */
+            /**
+             * Message
+             * @description Что случилось — по-русски, для показа пользователю.
+             */
             message: string;
-            /** Retryable */
+            /**
+             * Retryable
+             * @description Повторный запуск может пройти: сбой временный.
+             */
             retryable: boolean;
             /** @description Заполнено для SCM_AUTH_ERROR/SCM_UNAVAILABLE, иначе null. Называется scmProvider, а не provider: поле про сторону SCM, providerAttempt считает попытки и LLM, и SCM. */
             scmProvider: components["schemas"]["Provider"] | null;
             /**
              * Providerattempt
-             * @description Попытка вызова LLM/SCM провайдера. Не путать с redelivery сообщения в очереди.
+             * @description Попытка вызова LLM/SCM провайдера, с 1. Не путать с redelivery сообщения в очереди.
              */
             providerAttempt: number | null;
         };
         /**
          * ReviewJob
-         * @description Публичная проекция прогона ревью (review_runs) в camelCase.
+         * @description Прогон ревью, поставленный в очередь, — публичная проекция записи review_runs.
          *
          *     Не путать с сообщением очереди: у него нет собственной идентичности, отдельной от id прогона.
          */
         ReviewJob: {
             /**
              * Id
+             * Format: uuid
              * @description Идентификатор прогона (reviewRunId).
              */
             id: string;
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
             provider: components["schemas"]["Provider"];
-            /** Providerrepositoryid */
+            /**
+             * Providerrepositoryid
+             * @description Идентификатор репозитория у провайдера (repositories.provider_id).
+             * @example 123456789
+             */
             providerRepositoryId: string;
-            /** Pullrequestnumber */
+            /**
+             * Pullrequestnumber
+             * @description Номер запроса на изменение у провайдера.
+             * @example 42
+             */
             pullRequestNumber: number;
+            /**
+             * @description Что запустило прогон.
+             * @example webhook
+             */
             trigger: components["schemas"]["TriggerSource"];
-            /** Headcommitsha */
-            headCommitSha?: string | null;
-            /** Basecommitsha */
-            baseCommitSha?: string | null;
+            /**
+             * Headcommitsha
+             * @description Коммит, который ревьюится.
+             * @example a1b2c3d4e5f6789012345678abcdef0123456789
+             */
+            headCommitSha: string | null;
+            /**
+             * Basecommitsha
+             * @description Коммит, относительно которого считается дифф; null, пока воркер его не узнал.
+             * @example fedcba0987654321fedcba0987654321fedcba09
+             */
+            baseCommitSha: string | null;
+            /**
+             * @description Текущий статус прогона.
+             * @example queued
+             */
             status: components["schemas"]["ReviewRunStatus"];
-            /** Findingscount */
+            /**
+             * Findingscount
+             * @description Сколько находок записано; у нового прогона 0.
+             */
             findingsCount: number;
-            /** Rejectedfindings */
+            /**
+             * Rejectedfindings
+             * @description Сколько находок отброшено: привязка вне изменённых строк диффа.
+             */
             rejectedFindings: number;
-            /** Model */
-            model?: string | null;
-            /** Tokensused */
-            tokensUsed?: number | null;
-            /** Durationseconds */
-            durationSeconds?: number | null;
+            /**
+             * Model
+             * @description Модель LLM, которая провела ревью; null до анализа.
+             */
+            model: string | null;
+            /**
+             * Tokensused
+             * @description Токенов LLM потрачено; null до анализа.
+             */
+            tokensUsed: number | null;
+            /**
+             * Durationseconds
+             * @description Длительность прогона в секундах; null, пока прогон не завершён.
+             */
+            durationSeconds: number | null;
             /**
              * Createdat
              * Format: date-time
+             * @description Когда прогон создан.
+             * @example 2026-10-11T10:00:00Z
              */
             createdAt: string;
             /**
              * Updatedat
              * Format: date-time
+             * @description Когда запись последний раз менялась.
+             * @example 2026-10-11T10:00:00Z
              */
             updatedAt: string;
             /**
              * Lastprogressat
              * Format: date-time
              * @description Обновляется на каждом переходе состояния; по нему находят зависшие прогоны (§7.5 PIPELINE_SPEC.md).
+             * @example 2026-10-11T10:00:00Z
              */
             lastProgressAt: string;
-            /** @description Этап, на котором прогон упал (building_context, analysing, publishing); null, если не падал. */
-            failedStage?: components["schemas"]["ReviewRunStatus"] | null;
+            /**
+             * Failedstage
+             * @description Этап, на котором прогон упал; null, если прогон не падал.
+             */
+            failedStage: ("building_context" | "analysing" | "publishing") | null;
+            /** @description Ошибка прогона; null, если прогон не упал. */
             error: components["schemas"]["ReviewError"] | null;
         };
         /**
@@ -936,7 +1118,10 @@ export interface components {
              */
             trace_id: string;
         };
-        /** ReviewRunResponse */
+        /**
+         * ReviewRunResponse
+         * @description Прогон ревью вместе с его находками.
+         */
         ReviewRunResponse: {
             /**
              * Id
@@ -946,40 +1131,81 @@ export interface components {
             /**
              * Merge Request Id
              * Format: uuid
+             * @description Запрос на изменение, к которому относится прогон.
              */
             merge_request_id: string;
-            /** Head Sha */
+            /**
+             * Head Sha
+             * @description Коммит, который ревьюится.
+             * @example a1b2c3d4e5f6789012345678abcdef0123456789
+             */
             head_sha: string;
-            /** Base Sha */
+            /**
+             * Base Sha
+             * @description Коммит, относительно которого считается дифф; null, пока воркер его не узнал.
+             * @example fedcba0987654321fedcba0987654321fedcba09
+             */
             base_sha: string | null;
+            /**
+             * @description Текущий статус прогона.
+             * @example completed
+             */
             status: components["schemas"]["ReviewRunStatus"];
+            /**
+             * @description Что запустило прогон.
+             * @example webhook
+             */
             trigger: components["schemas"]["TriggerSource"];
-            /** Model */
+            /**
+             * Model
+             * @description Модель LLM, которая провела ревью; null до анализа.
+             */
             model: string | null;
-            /** Tokens Used */
+            /**
+             * Tokens Used
+             * @description Токенов LLM потрачено; null до анализа.
+             */
             tokens_used: number | null;
-            /** Duration Seconds */
+            /**
+             * Duration Seconds
+             * @description Длительность прогона в секундах; null, пока не завершён.
+             */
             duration_seconds: number | null;
-            /** Failure Reason */
+            /**
+             * Failure Reason
+             * @description Почему прогон упал; null, если не падал.
+             */
             failure_reason: string | null;
-            /** @description Этап, на котором прогон упал (building_context, analysing, publishing); null, если не падал. */
-            failed_stage: components["schemas"]["ReviewRunStatus"] | null;
+            /**
+             * Failed Stage
+             * @description Этап, на котором прогон упал; null, если прогон не падал.
+             */
+            failed_stage: ("building_context" | "analysing" | "publishing") | null;
             /**
              * Last Progress At
              * Format: date-time
+             * @description Время последнего перехода состояния.
+             * @example 2026-10-11T10:00:00Z
              */
             last_progress_at: string;
             /**
              * Created At
              * Format: date-time
+             * @description Когда прогон создан.
+             * @example 2026-10-11T10:00:00Z
              */
             created_at: string;
             /**
              * Updated At
              * Format: date-time
+             * @description Когда запись последний раз менялась.
+             * @example 2026-10-11T10:00:00Z
              */
             updated_at: string;
-            /** Findings */
+            /**
+             * Findings
+             * @description Находки прогона: по времени создания, затем по id.
+             */
             findings: components["schemas"]["FindingResponse"][];
         };
         /**
@@ -1159,14 +1385,33 @@ export interface components {
              */
             trace_id: string;
         };
-        /** UserResponse */
+        /**
+         * UserResponse
+         * @description Пользователь кабинета — учётная запись у провайдера входа.
+         */
         UserResponse: {
+            /**
+             * @description Провайдер, через которого выполнен вход.
+             * @example github
+             */
             provider: components["schemas"]["Provider"];
-            /** Login */
+            /**
+             * Login
+             * @description Логин у провайдера.
+             * @example octocat
+             */
             login: string;
-            /** Name */
+            /**
+             * Name
+             * @description Отображаемое имя у провайдера; null, если не задано.
+             */
             name: string | null;
-            /** Avatar Url */
+            /**
+             * Avatar Url
+             * Format: uri
+             * @description Адрес аватара у провайдера; null, если его нет.
+             * @example https://avatars.githubusercontent.com/u/1
+             */
             avatar_url: string | null;
         };
         /**
@@ -1258,6 +1503,7 @@ export interface components {
         WebhookAcknowledged: {
             /**
              * Status
+             * @description Событие треда принято.
              * @constant
              */
             status: "acknowledged";
@@ -1270,6 +1516,7 @@ export interface components {
         WebhookIgnored: {
             /**
              * Status
+             * @description Доставка принята и проигнорирована.
              * @constant
              */
             status: "ignored";
@@ -1337,17 +1584,33 @@ export interface components {
          *     модель попадает отдельным компонентом (`app/api/openapi.py`, `extra_models`).
          */
         ReviewRunStatusEvent: {
-            /** Review Run Id */
+            /**
+             * Review Run Id
+             * Format: uuid
+             * @description Прогон, о котором событие.
+             */
             review_run_id: string;
+            /**
+             * @description Статус прогона на момент события.
+             * @example analysing
+             */
             status: components["schemas"]["ReviewRunStatus"];
             /**
              * Last Progress At
              * Format: date-time
+             * @description Время последнего перехода состояния.
+             * @example 2026-10-11T10:00:00Z
              */
             last_progress_at: string;
-            /** @description Этап, на котором прогон упал (building_context, analysing, publishing); null, если не падал. */
-            failed_stage: components["schemas"]["ReviewRunStatus"] | null;
-            /** Failure Reason */
+            /**
+             * Failed Stage
+             * @description Этап, на котором прогон упал; null, если прогон не падал.
+             */
+            failed_stage: ("building_context" | "analysing" | "publishing") | null;
+            /**
+             * Failure Reason
+             * @description Почему прогон упал; null, если не падал.
+             */
             failure_reason: string | null;
         };
     };
@@ -1367,6 +1630,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Хостинг, приславший доставку. */
                 provider: components["schemas"]["Provider"];
             };
             cookie?: never;
@@ -1438,10 +1702,12 @@ export interface operations {
     beginLogin: {
         parameters: {
             query?: {
+                /** @description Куда вернуть после входа: путь под /app/. */
                 redirect?: string | null;
             };
             header?: never;
             path: {
+                /** @description Провайдер входа, например github. */
                 provider: string;
             };
             cookie?: never;
@@ -1483,12 +1749,16 @@ export interface operations {
     finishLogin: {
         parameters: {
             query?: {
+                /** @description Код авторизации от провайдера. */
                 code?: string | null;
+                /** @description state, выданный при начале входа. */
                 state?: string | null;
+                /** @description Ошибка от провайдера, например отказ пользователя. */
                 error?: string | null;
             };
             header?: never;
             path: {
+                /** @description Провайдер входа, например github. */
                 provider: string;
             };
             cookie?: never;
@@ -1610,9 +1880,9 @@ export interface operations {
     listRepositories: {
         parameters: {
             query?: {
-                /** @description Размер страницы; больше 200 приводится к 200. */
+                /** @description Размер страницы; по умолчанию 50, больше 200 приводится к 200. */
                 limit?: number;
-                /** @description Сколько записей пропустить. */
+                /** @description Сколько записей пропустить от начала списка. */
                 offset?: number;
             };
             header?: never;
@@ -1666,13 +1936,14 @@ export interface operations {
     listPullRequests: {
         parameters: {
             query?: {
-                /** @description Размер страницы; больше 200 приводится к 200. */
+                /** @description Размер страницы; по умолчанию 50, больше 200 приводится к 200. */
                 limit?: number;
-                /** @description Сколько записей пропустить. */
+                /** @description Сколько записей пропустить от начала списка. */
                 offset?: number;
             };
             header?: never;
             path: {
+                /** @description Идентификатор репозитория в сервисе. */
                 repository_id: string;
             };
             cookie?: never;
@@ -1821,6 +2092,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Идентификатор прогона ревью. */
                 review_run_id: string;
             };
             cookie?: never;
@@ -1884,6 +2156,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description Идентификатор прогона ревью. */
                 review_run_id: string;
             };
             cookie?: never;
