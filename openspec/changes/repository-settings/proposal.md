@@ -13,7 +13,7 @@
 
 ## What Changes
 
-- Страница `/repositories/:repositoryId/settings` за `RequireAuth` + `AppLayout`; вход со
+- Страница `/app/repositories/:repositoryId/settings` за `RequireAuth` + `AppLayout`; вход со
   страницы репозиториев действием «Настройки».
 - Форма настроек ревью: включение авто-ревью, фильтр веток (список glob-паттернов), порог
   severity `min_severity` — уровни бэкенда `low | medium | high | critical` (Low / Medium /

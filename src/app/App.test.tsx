@@ -97,6 +97,30 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/app/repositories')
   })
 
+  it('без сессии уводит с /app/repositories/repo-1/settings на /login с возвратом на настройки', async () => {
+    window.history.pushState({}, '', '/app/repositories/repo-1/settings')
+    stubFetch({ 'GET /api/v1/auth/me': { status: 401 } })
+
+    render(<App />)
+
+    await waitFor(() =>
+      expect(navigation.assign).toHaveBeenCalledWith(
+        '/login?redirect=%2Fapp%2Frepositories%2Frepo-1%2Fsettings',
+      ),
+    )
+    expect(screen.queryByText('Настройки репозитория')).not.toBeInTheDocument()
+  })
+
+  it('с сессией глубокая ссылка /app/repositories/repo-1/settings открывает экран настроек', async () => {
+    window.history.pushState({}, '', '/app/repositories/repo-1/settings')
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+
+    render(<App />)
+
+    expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
+    expect(window.location.pathname).toBe('/app/repositories/repo-1/settings')
+  })
+
   it('неизвестный адрес под /app уводит на /app/', async () => {
     window.history.pushState({}, '', '/app/unknown')
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
