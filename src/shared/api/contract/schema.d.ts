@@ -556,6 +556,8 @@ export interface components {
              * @description Уверенность модели в находке, обычно от 0 до 1; null, если модель её не дала.
              */
             confidence: number | null;
+            /** @description Пункт правила владельца, по которому выпущена находка; null - находка по стандартным критериям. */
+            rule: components["schemas"]["RuleRefResponse"] | null;
         };
         /**
          * FindingSeverity
@@ -1537,6 +1539,16 @@ export interface components {
              */
             rejected_findings: number;
             /**
+             * @description Итог второго прохода модели (Reflection Pass); null, пока анализ не завершён.
+             * @example verified
+             */
+            verification: components["schemas"]["VerificationOutcome"] | null;
+            /**
+             * Verifier Dropped Findings
+             * @description Сколько находок отбросил верификатор.
+             */
+            verifier_dropped_findings: number;
+            /**
              * Duration Seconds
              * @description Длительность прогона в секундах; null, пока не завершён.
              */
@@ -1696,6 +1708,29 @@ export interface components {
              * @example 4bf92f3577b34da6a3ce929d0e0e4736
              */
             trace_id: string;
+        };
+        /**
+         * RuleRefResponse
+         * @description Пункт правила владельца, по которому выпущена находка.
+         */
+        RuleRefResponse: {
+            /**
+             * Name
+             * @description Имя правила из .review/rules.md.
+             * @example Error Handling Standards
+             */
+            name: string;
+            /**
+             * Check
+             * @description Номер пункта правила, с 1.
+             * @example 2
+             */
+            check: number;
+            /**
+             * Check Text
+             * @description Текст пункта на момент прогона.
+             */
+            check_text: string;
         };
         /**
          * ScmUnavailableProblem
@@ -1924,6 +1959,15 @@ export interface components {
              */
             errors: components["schemas"]["ValidationErrorItem"][];
         };
+        /**
+         * VerificationOutcome
+         * @description Чем закончился второй проход модели (Reflection Pass) для прогона.
+         *
+         *     `unavailable` - fail-open: верификатор упал или ответил не по схеме, и
+         *     опубликованы замечания, прошедшие только детерминированный отсев.
+         * @enum {string}
+         */
+        VerificationOutcome: "verified" | "not_required" | "unavailable";
         /**
          * WebhookAcknowledged
          * @description Тело `202` для события pull_request_review_thread: отметка закрытия треда принята.

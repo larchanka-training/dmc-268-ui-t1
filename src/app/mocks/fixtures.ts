@@ -39,6 +39,8 @@ export const run: ReviewRun = {
   model: 'claude-sonnet-5',
   tokens_used: 48213,
   rejected_findings: 2,
+  verification: 'verified',
+  verifier_dropped_findings: 0,
   duration_seconds: 134,
   failure_reason: null,
   failed_stage: null,
@@ -218,6 +220,7 @@ const findings: ReviewFinding[] = [
     suggestion:
       '    query = text("SELECT * FROM review_runs WHERE id = :id").bindparams(id=run_id)',
     confidence: 0.97,
+    rule: null,
   }),
   finding({
     id: 'f-auth-removed',
@@ -230,6 +233,7 @@ const findings: ReviewFinding[] = [
     message: 'Удалена зависимость `require_reader`: эндпоинт стал доступен без проверки прав.',
     suggestion: null,
     confidence: 0.91,
+    rule: null,
   }),
   finding({
     id: 'f-missing-404',
@@ -243,6 +247,7 @@ const findings: ReviewFinding[] = [
       'Пропала обработка отсутствующего прогона: вместо 404 клиент получит `null` с кодом 200.',
     suggestion: '    if row is None:\n        raise HTTPException(status_code=404)\n    return row',
     confidence: 0.88,
+    rule: null,
   }),
   finding({
     id: 'f-row-dict',
@@ -255,6 +260,7 @@ const findings: ReviewFinding[] = [
     message: '`Row` в SQLAlchemy 2 не приводится через `dict()` — упадёт с `TypeError`.',
     suggestion: '    return [row._asdict() for row in rows]',
     confidence: 0.74,
+    rule: null,
   }),
   finding({
     id: 'f-no-tests',
@@ -267,6 +273,7 @@ const findings: ReviewFinding[] = [
     message: 'Для нового эндпоинта `/findings` не добавлено ни одного теста.',
     suggestion: null,
     confidence: 0.6,
+    rule: null,
   }),
   finding({
     id: 'f-broad-except',
@@ -280,6 +287,7 @@ const findings: ReviewFinding[] = [
       '`except Exception` повторяет и неисправимые ошибки: `IntegrityError` выполнится трижды.\nПовторять стоит только сбои соединения.',
     suggestion: '        except OperationalError:',
     confidence: 0.82,
+    rule: null,
   }),
   finding({
     id: 'f-no-backoff',
@@ -292,6 +300,7 @@ const findings: ReviewFinding[] = [
     message: 'Фиксированная задержка без backoff: под нагрузкой повторы придут одновременно.',
     suggestion: '            time.sleep(delay * 2**attempt)',
     confidence: 0.55,
+    rule: null,
   }),
   finding({
     id: 'f-error-message',
@@ -305,6 +314,7 @@ const findings: ReviewFinding[] = [
     suggestion:
       '  if (!response.ok) throw new Error(`GET /api/v1/review-runs/${id}: HTTP ${response.status}`)',
     confidence: 0.5,
+    rule: null,
   }),
   finding({
     id: 'f-outside-hunk',
@@ -317,6 +327,7 @@ const findings: ReviewFinding[] = [
     message: '`listRuns` дублирует обработку ответа из `getRun` — стоит вынести в общий helper.',
     suggestion: null,
     confidence: 0.45,
+    rule: null,
   }),
 ]
 

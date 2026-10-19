@@ -65,6 +65,9 @@ export const ReviewRunSchema = z.object({
   model: z.string().nullable(),
   tokens_used: z.number().int().nullable(),
   rejected_findings: z.number().int(),
+  /** Итог второго прохода модели (Reflection Pass); `null` — анализ ещё не завершён. */
+  verification: z.enum(['verified', 'not_required', 'unavailable']).nullable(),
+  verifier_dropped_findings: z.number().int(),
   duration_seconds: z.number().nullable(),
   failure_reason: z.string().nullable(),
   /** Этап, на котором упал прогон; `null` — не сообщён. */

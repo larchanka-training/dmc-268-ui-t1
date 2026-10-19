@@ -16,6 +16,14 @@ export const ReviewFindingSchema = z.object({
   message: z.string(),
   suggestion: z.string().nullable(),
   confidence: z.number().nullable(),
+  /** Пункт `.review/rules.md`, по которому выпущено замечание; `null` — по стандартным критериям. */
+  rule: z
+    .object({
+      name: z.string(),
+      check: z.number().int(),
+      check_text: z.string(),
+    })
+    .nullable(),
 })
 
 export type ReviewFinding = z.infer<typeof ReviewFindingSchema>

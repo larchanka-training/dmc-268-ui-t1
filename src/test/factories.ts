@@ -28,6 +28,8 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
     model: 'claude-sonnet-5',
     tokens_used: 18432,
     rejected_findings: 0,
+    verification: 'verified',
+    verifier_dropped_findings: 0,
     duration_seconds: 134,
     failure_reason: null,
     failed_stage: null,
@@ -76,6 +78,7 @@ export function makeFinding(overrides: Partial<ReviewFinding> = {}): ReviewFindi
     message: 'Ошибка не обрабатывается.',
     suggestion: null,
     confidence: 0.8,
+    rule: null,
     ...overrides,
   }
 }
