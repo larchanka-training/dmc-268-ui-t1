@@ -34,21 +34,26 @@ function GlobChip({ kind, value }: { kind: 'pattern' | 'exclude'; value: string 
   )
 }
 
+/**
+ * Списки превью read-only и не сортируются, а содержимое `.review/rules.md` может
+ * повторяться (одноимённые разделы, одинаковые проверки и паттерны) — поэтому ключ по
+ * индексу, а не по содержимому.
+ */
 function RuleBlock({ rule }: { rule: RepoRule }) {
   return (
     <section>
       <h4 className="mb-1 text-sm font-semibold text-slate-700">{rule.name}</h4>
       <div className="mb-2 flex flex-wrap gap-1.5">
-        {rule.patterns.map((pattern) => (
-          <GlobChip key={`pattern:${pattern}`} kind="pattern" value={pattern} />
+        {rule.patterns.map((pattern, index) => (
+          <GlobChip key={index} kind="pattern" value={pattern} />
         ))}
-        {rule.excludes.map((exclude) => (
-          <GlobChip key={`exclude:${exclude}`} kind="exclude" value={exclude} />
+        {rule.excludes.map((exclude, index) => (
+          <GlobChip key={index} kind="exclude" value={exclude} />
         ))}
       </div>
       <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-slate-600">
-        {rule.checks.map((check) => (
-          <li key={check}>
+        {rule.checks.map((check, index) => (
+          <li key={index}>
             <TextWithCode text={check} />
           </li>
         ))}
@@ -65,8 +70,8 @@ function RejectedRules({ rejected }: { rejected: RejectedRule[] }) {
     <div className={NOTE_CLASS}>
       <p className="font-medium">Отклонённые разделы — не применяются:</p>
       <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
-        {rejected.map((rule) => (
-          <li key={rule.name}>
+        {rejected.map((rule, index) => (
+          <li key={index}>
             {rule.name} — {rule.reason}
           </li>
         ))}
@@ -98,8 +103,8 @@ export function RulesPreview({ status }: { status: RulesStatus }) {
           <TextWithCode text={EMPTY_RULES_TEXT} />
         </p>
       )}
-      {status.rules.map((rule) => (
-        <RuleBlock key={rule.name} rule={rule} />
+      {status.rules.map((rule, index) => (
+        <RuleBlock key={index} rule={rule} />
       ))}
       <RejectedRules rejected={status.rejected} />
     </div>
