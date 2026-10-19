@@ -8,7 +8,7 @@
 
 ### Requirement: Server state via TanStack Query
 
-Списки репозиториев и подключение SHALL использовать TanStack Query (запросы и мутации) поверх `ApiTransport`, а не прямую загрузку данных в компонентах страниц. Пути и формы ответов SHALL соответствовать контракту бэкенда: подключённые — `GET /api/v1/repositories`, доступные — `GET /api/v1/repositories/available`, подключение — `POST /api/v1/repositories` с телом `{provider, providerId}`.
+Списки репозиториев и подключение SHALL использовать TanStack Query (запросы и мутации) поверх `ApiTransport`, а не прямую загрузку данных в компонентах страниц. Пути и формы ответов SHALL соответствовать контракту бэкенда: подключённые — `GET /api/v1/repositories`, доступные — `GET /api/v1/repositories/available`, подключение — `POST /api/v1/repositories` с телом `{provider, provider_id}`.
 
 #### Scenario: Connected repositories list
 

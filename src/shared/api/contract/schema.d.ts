@@ -343,11 +343,11 @@ export interface components {
              */
             provider: components["schemas"]["Provider"];
             /**
-             * Providerid
+             * Provider Id
              * @description Идентификатор репозитория у провайдера (из списка доступных).
              * @example 123456789
              */
-            providerId: string;
+            provider_id: string;
         };
         /**
          * CreateReviewRequest
@@ -360,17 +360,17 @@ export interface components {
              */
             provider: components["schemas"]["Provider"];
             /**
-             * Providerrepositoryid
+             * Provider Repository Id
              * @description Идентификатор репозитория у провайдера (repositories.provider_id).
              * @example 123456789
              */
-            providerRepositoryId: string;
+            provider_repository_id: string;
             /**
-             * Pullrequestnumber
+             * Pull Request Number
              * @description Номер запроса на изменение у провайдера.
              * @example 123
              */
-            pullRequestNumber: number;
+            pull_request_number: number;
             /**
              * @description Источник запуска.
              * @example manual
@@ -1312,13 +1312,13 @@ export interface components {
              * @description Повторный запуск может пройти: сбой временный.
              */
             retryable: boolean;
-            /** @description Заполнено для SCM_AUTH_ERROR/SCM_UNAVAILABLE, иначе null. Называется scmProvider, а не provider: поле про сторону SCM, providerAttempt считает попытки и LLM, и SCM. */
-            scmProvider: components["schemas"]["Provider"] | null;
+            /** @description Заполнено для SCM_AUTH_ERROR/SCM_UNAVAILABLE, иначе null. Называется scm_provider, а не provider: поле про сторону SCM, provider_attempt считает попытки и LLM, и SCM. */
+            scm_provider: components["schemas"]["Provider"] | null;
             /**
-             * Providerattempt
+             * Provider Attempt
              * @description Попытка вызова LLM/SCM провайдера, с 1. Не путать с redelivery сообщения в очереди.
              */
-            providerAttempt: number | null;
+            provider_attempt: number | null;
         };
         /**
          * ReviewJob
@@ -1330,7 +1330,7 @@ export interface components {
             /**
              * Id
              * Format: uuid
-             * @description Идентификатор прогона (reviewRunId).
+             * @description Идентификатор прогона (review_run_id).
              */
             id: string;
             /**
@@ -1339,90 +1339,90 @@ export interface components {
              */
             provider: components["schemas"]["Provider"];
             /**
-             * Providerrepositoryid
+             * Provider Repository Id
              * @description Идентификатор репозитория у провайдера (repositories.provider_id).
              * @example 123456789
              */
-            providerRepositoryId: string;
+            provider_repository_id: string;
             /**
-             * Pullrequestnumber
+             * Pull Request Number
              * @description Номер запроса на изменение у провайдера.
              * @example 42
              */
-            pullRequestNumber: number;
+            pull_request_number: number;
             /**
              * @description Что запустило прогон.
              * @example webhook
              */
             trigger: components["schemas"]["TriggerSource"];
             /**
-             * Headcommitsha
+             * Head Commit Sha
              * @description Коммит, который ревьюится.
              * @example a1b2c3d4e5f6789012345678abcdef0123456789
              */
-            headCommitSha: string | null;
+            head_commit_sha: string | null;
             /**
-             * Basecommitsha
+             * Base Commit Sha
              * @description Коммит, относительно которого считается дифф; null, пока воркер его не узнал.
              * @example fedcba0987654321fedcba0987654321fedcba09
              */
-            baseCommitSha: string | null;
+            base_commit_sha: string | null;
             /**
              * @description Текущий статус прогона.
              * @example queued
              */
             status: components["schemas"]["ReviewRunStatus"];
             /**
-             * Findingscount
+             * Findings Count
              * @description Сколько находок записано; у нового прогона 0.
              */
-            findingsCount: number;
+            findings_count: number;
             /**
-             * Rejectedfindings
+             * Rejected Findings
              * @description Сколько находок отброшено: привязка вне изменённых строк диффа.
              */
-            rejectedFindings: number;
+            rejected_findings: number;
             /**
              * Model
              * @description Модель LLM, которая провела ревью; null до анализа.
              */
             model: string | null;
             /**
-             * Tokensused
+             * Tokens Used
              * @description Токенов LLM потрачено; null до анализа.
              */
-            tokensUsed: number | null;
+            tokens_used: number | null;
             /**
-             * Durationseconds
+             * Duration Seconds
              * @description Длительность прогона в секундах; null, пока прогон не завершён.
              */
-            durationSeconds: number | null;
+            duration_seconds: number | null;
             /**
-             * Createdat
+             * Created At
              * Format: date-time
              * @description Когда прогон создан.
              * @example 2026-10-11T10:00:00Z
              */
-            createdAt: string;
+            created_at: string;
             /**
-             * Updatedat
+             * Updated At
              * Format: date-time
              * @description Когда запись последний раз менялась.
              * @example 2026-10-11T10:00:00Z
              */
-            updatedAt: string;
+            updated_at: string;
             /**
-             * Lastprogressat
+             * Last Progress At
              * Format: date-time
              * @description Обновляется на каждом переходе состояния; по нему находят зависшие прогоны (§7.5 PIPELINE_SPEC.md).
              * @example 2026-10-11T10:00:00Z
              */
-            lastProgressAt: string;
+            last_progress_at: string;
             /**
-             * Failedstage
+             * Failed Stage
              * @description Этап, на котором прогон упал; null, если прогон не падал.
              */
-            failedStage: ("building_context" | "analysing" | "publishing") | null;
+            failed_stage: ("building_context" | "analysing" | "publishing") | null;
             /** @description Ошибка прогона; null, если прогон не упал. */
             error: components["schemas"]["ReviewError"] | null;
         };

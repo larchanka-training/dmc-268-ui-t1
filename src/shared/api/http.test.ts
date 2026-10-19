@@ -127,9 +127,9 @@ describe('createHttpTransport', () => {
     const calls = stubFetch({ 'POST /api/v1/repositories': { status: 201, body: { id: 'r-1' } } })
 
     await expect(
-      createHttpTransport().post('/repositories', { provider: 'github', providerId: '1' }),
+      createHttpTransport().post('/repositories', { provider: 'github', provider_id: '1' }),
     ).resolves.toEqual({ id: 'r-1' })
-    expect(calls[0].init.body).toBe('{"provider":"github","providerId":"1"}')
+    expect(calls[0].init.body).toBe('{"provider":"github","provider_id":"1"}')
     expect(new Headers(calls[0].init.headers).get('Content-Type')).toBe('application/json')
     expect(calls[0].init.credentials).toBe('include')
   })

@@ -26,7 +26,7 @@ export function ConnectRepositoryPage() {
 
   const handleConnect = async (repo: AvailableRepository) => {
     try {
-      await connectMutation.mutateAsync({ provider: repo.provider, providerId: repo.provider_id })
+      await connectMutation.mutateAsync({ provider: repo.provider, provider_id: repo.provider_id })
       message.success('Репозиторий подключён')
       navigate('/repositories')
     } catch (err) {
@@ -71,7 +71,7 @@ export function ConnectRepositoryPage() {
             icon={<LinkOutlined />}
             loading={
               connectMutation.isPending &&
-              connectMutation.variables?.providerId === record.provider_id
+              connectMutation.variables?.provider_id === record.provider_id
             }
             onClick={() => void handleConnect(record)}
           >

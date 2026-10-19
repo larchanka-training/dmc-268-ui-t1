@@ -54,8 +54,8 @@ function createBackend() {
       throw new ApiError(404, path)
     },
     post: async (path, body) => {
-      const { providerId } = body as ConnectRepositoryRequest
-      const repo = pool.find((r) => r.provider_id === providerId)
+      const { provider_id } = body as ConnectRepositoryRequest
+      const repo = pool.find((r) => r.provider_id === provider_id)
       if (path !== '/repositories' || !repo) throw new ApiError(404, path)
       register(repo)
       return connected[connected.length - 1]

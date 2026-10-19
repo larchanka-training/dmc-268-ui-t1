@@ -48,8 +48,10 @@ export function createRepositoryStore() {
     available: () => ({
       items: installation.map((repo) => ({ ...repo, already_connected: isConnected(repo) })),
     }),
-    connect: ({ provider, providerId }: ConnectRepositoryRequest): Repository => {
-      const repo = installation.find((r) => r.provider === provider && r.provider_id === providerId)
+    connect: ({ provider, provider_id }: ConnectRepositoryRequest): Repository => {
+      const repo = installation.find(
+        (r) => r.provider === provider && r.provider_id === provider_id,
+      )
       if (!repo) throw new ApiError(404, 'Репозитория нет в установке GitHub App', 'NOT_FOUND')
       if (isConnected(repo)) throw new ApiError(409, 'Репозиторий уже подключён', 'CONFLICT')
       const created = registered(repo, connected.length + 1, new Date().toISOString())
