@@ -15,7 +15,6 @@ const testData = vi.hoisted(() => ({
   pool: [] as AvailableRepository[],
 }))
 
-// Объявления функций, а не const: фабрика vi.mock поднимается выше и вызывает их при импорте.
 function available(id: string, name: string): AvailableRepository {
   return {
     id,
