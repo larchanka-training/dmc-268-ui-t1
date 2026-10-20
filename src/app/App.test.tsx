@@ -18,9 +18,11 @@ function setup(scenario?: Parameters<typeof createMockServer>[0]) {
   const adapter = createMockAdapter({ latencyMs: 0, server })
   const stream = createScenarioEventStream(server)
   const calls = { get: 0, subscribe: 0 }
+  // Считаем только запросы самого прогона: дополнения экрана грузятся рядом и не меняют сценарий.
   const transport: ApiTransport = {
+    ...adapter,
     get: (path) => {
-      calls.get += 1
+      if (path === '/reviews/run-42') calls.get += 1
       return adapter.get(path)
     },
   }
@@ -53,6 +55,20 @@ describe('App', () => {
     render(<App />)
 
     await waitFor(() => expect(navigation.assign).toHaveBeenCalledWith('/login?redirect=%2Fapp%2F'))
+  })
+
+  it('без мока данные кабинета идут на бэкенд через HTTP', async () => {
+    window.history.pushState({}, '', '/app/repositories')
+    const calls = stubFetch({
+      'GET /api/v1/auth/me': { status: 200, body: ME },
+      'GET /api/v1/repositories?limit=200': { status: 200, body: { items: [] } },
+    })
+
+    render(<App useMockApi={false} />)
+
+    await waitFor(() =>
+      expect(calls.map((call) => call.url)).toContain('/api/v1/repositories?limit=200'),
+    )
   })
 
   it('с сессией открывает обзор под /app/', async () => {
@@ -128,7 +144,18 @@ describe('App на mock adapter и mock-потоке', () => {
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 3))
-    expect(await screen.findByText('Публикация', { selector: 'span' })).toBeInTheDocument()
+    // Статус — в шапке прогона: «Публикация» есть и в списке шагов.
+    const header = screen.getByRole('heading', { name: 'Прогон ревью' }).closest('header')
+    expect(
+      await within(header as HTMLElement).findByText('Публикация', { selector: 'span' }),
+    ).toBeInTheDocument()
+    // Текущий шаг виден в ходе прогона: список шагов перезапрашивается на смене этапа.
+    const steps = await screen.findByRole('list', { name: 'Шаги прогона' })
+    await waitFor(() =>
+      expect(within(steps).getAllByRole('listitem').slice(-1)[0]).toHaveTextContent(
+        /Публикация.*выполняется/,
+      ),
+    )
     expect(calls.get).toBe(1)
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS))

@@ -3,6 +3,8 @@ import { render } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { vi } from 'vitest'
 
+import { TransportContext, type ApiTransport } from '@/shared/api'
+
 export const ME = {
   provider: 'github',
   login: 'octocat',
@@ -31,4 +33,22 @@ export function stubFetch(routes: Record<string, Reply>) {
 export function renderWithQuery(ui: ReactNode) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
+/** Транспорт, который на все запросы отвечает ошибкой: тест задаёт только нужные методы. */
+export function fakeTransport(overrides: Partial<ApiTransport> = {}): ApiTransport {
+  const unexpected = (path: string) => Promise.reject(new Error(`неожиданный запрос ${path}`))
+  return { get: unexpected, post: unexpected, ...overrides }
+}
+
+/** Рендер экрана с данными через `ApiTransport`, как в приложении. */
+export function renderWithTransport(ui: ReactNode, transport: ApiTransport) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <TransportContext value={transport}>{ui}</TransportContext>
+    </QueryClientProvider>,
+  )
 }

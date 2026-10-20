@@ -2,3 +2,7 @@ dist
 node_modules
 pnpm-lock.yaml
 coverage
+# Сгенерировано pnpm api:sync: контракт лежит байт в байт как у бэкенда,
+# типы — как их выдал openapi-typescript; pnpm api:check сравнивает побайтно.
+src/shared/api/contract/openapi.json
+src/shared/api/contract/schema.d.ts

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { ReviewRun, RunStage } from '../../../entities/review-run'
 import { AppProviders } from '../../../app/providers/AppProviders'
+import { fakeTransport } from '../../../test/api'
 import { createFakeEventStream } from '../../../test/fakeEventStream'
 import { makeReviewRun } from '../../../test/factories'
 import { RunProgress, STALE_AFTER } from './RunProgress'
@@ -88,13 +89,6 @@ describe('RunProgress', () => {
     expect(screen.getByText('Этап сбоя неизвестен')).toBeInTheDocument()
   })
 
-  it('failed_stage вне трёх этапов не считается известным', () => {
-    renderProgress({ status: 'failed', failed_stage: 'rendering' })
-
-    expect(stepStates()).toEqual(['ожидает', 'ожидает', 'ожидает'])
-    expect(screen.getByText('Этап сбоя неизвестен')).toBeInTheDocument()
-  })
-
   it('отмена из анализа: контекст завершён, остальное не начато', () => {
     renderProgress({ status: 'cancelled' }, 'analysing')
 
@@ -169,7 +163,7 @@ describe('RunProgress', () => {
       vi.useFakeTimers()
       vi.setSystemTime(Date.parse(progressAt) + 60_000)
       render(
-        <AppProviders transport={{ get }} eventStream={stream}>
+        <AppProviders transport={fakeTransport({ get })} eventStream={stream}>
           <RunProgress
             run={makeReviewRun({ status: 'analysing', last_progress_at: progressAt })}
             seenStage={null}
@@ -225,12 +219,6 @@ describe('RunProgress', () => {
 
     it('у завершённого прогона предупреждения нет', () => {
       renderAt(Date.parse(progressAt) + STALE_AFTER * 5, { status: 'completed' })
-
-      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    })
-
-    it('без last_progress_at предупреждать не о чем', () => {
-      renderAt(Date.parse(progressAt) + STALE_AFTER * 5, { last_progress_at: null })
 
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })

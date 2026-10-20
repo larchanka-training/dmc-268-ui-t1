@@ -6,6 +6,8 @@ import { createContext, useContext } from 'react'
  */
 export type ApiTransport = {
   get: (path: string) => Promise<unknown>
+  /** Изменяющий запрос с JSON-телом; ответ без тела (`204`) — `null`. */
+  post: (path: string, body: unknown) => Promise<unknown>
 }
 
 export const TransportContext = createContext<ApiTransport | null>(null)

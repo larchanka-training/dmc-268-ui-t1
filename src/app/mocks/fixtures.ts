@@ -1,50 +1,52 @@
 import {
   buildHunk as hunk,
-  withLineIds,
+  toApiDiffFile,
   type DiffFile,
-  type DiffFileSummary,
+  type ReviewDiff,
 } from '../../entities/diff'
 import type { PublishedComment } from '../../entities/published-comment'
 import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
-import type { ReviewRunAction } from '../../entities/review-run-action'
-import type { MockReviewState } from '../../pages/review-run'
+import type { ReviewRunStep } from '../../entities/review-run-step'
+import type { ReviewRunResponse } from '../../pages/review-run'
 
 /**
- * Mock-данные одного прогона (FRONTEND_ARCHITECTURE.md §8.1). `ReviewRun`, `ReviewFinding` и
- * `PublishedComment` повторяют доменные значения бэкенда; diff-модели и действия —
- * предположение фронтенда до browser-контракта (docs/testing/TEST_PLAN.md §3.5).
+ * Mock-данные одного прогона в форме контракта бэкенда: прогон (`ReviewRunResponse`), дифф
+ * (`ReviewDiffResponse`) и шаги (`ReviewRunStepListResponse`). Ханки диффа удобно писать строками
+ * через `buildHunk`; в ответ они уходят без UI-полей — их строит фронт.
  */
 
 const RUN_ID = 'run-42'
 
 export const run: ReviewRun = {
   id: RUN_ID,
-  head_sha: '9f3c2a17e4b8d6c0a5f1',
-  base_sha: '2b7e41d09c3a8f6e1d24',
-  status: 'completed',
-  trigger: 'webhook',
-  created_at: '2026-09-26T09:12:04Z',
-  updated_at: '2026-09-26T09:14:18Z',
-  failure_reason: null,
-  last_progress_at: null,
-  failed_stage: null,
-  model: 'claude-sonnet-5',
-  tokens_used: 48213,
-  duration_seconds: 134,
-  rejected_findings: 2,
-  change_request: {
-    provider: 'git',
-    url: 'https://git.example.com/acme/review-service/merge-requests/42',
-  },
+  merge_request_id: 'mr-42',
   merge_request: {
+    id: 'mr-42',
+    number: 42,
     title: 'Эндпоинт замечаний прогона и повтор запросов к БД',
     author: 'a.petrova',
     source_branch: 'feat/findings-endpoint',
     target_branch: 'develop',
+    state: 'open',
+    url: 'https://github.com/acme/review-service/pull/42',
+    repository: { id: 'repo-1', provider: 'github', full_name: 'acme/review-service' },
   },
-  verdict: 'request_changes',
-  score: 38,
+  head_sha: '9f3c2a17e4b8d6c0a5f1',
+  base_sha: '2b7e41d09c3a8f6e1d24',
+  status: 'completed',
+  trigger: 'webhook',
+  model: 'claude-sonnet-5',
+  tokens_used: 48213,
+  rejected_findings: 2,
+  verification: 'verified',
+  verifier_dropped_findings: 0,
+  duration_seconds: 134,
+  failure_reason: null,
+  failed_stage: null,
+  last_progress_at: '2026-09-26T09:14:18Z',
+  created_at: '2026-09-26T09:12:04Z',
+  updated_at: '2026-09-26T09:14:18Z',
 }
 
 const rawDiffFiles: DiffFile[] = [
@@ -218,6 +220,7 @@ const findings: ReviewFinding[] = [
     suggestion:
       '    query = text("SELECT * FROM review_runs WHERE id = :id").bindparams(id=run_id)',
     confidence: 0.97,
+    rule: null,
   }),
   finding({
     id: 'f-auth-removed',
@@ -230,6 +233,7 @@ const findings: ReviewFinding[] = [
     message: 'Удалена зависимость `require_reader`: эндпоинт стал доступен без проверки прав.',
     suggestion: null,
     confidence: 0.91,
+    rule: null,
   }),
   finding({
     id: 'f-missing-404',
@@ -243,6 +247,7 @@ const findings: ReviewFinding[] = [
       'Пропала обработка отсутствующего прогона: вместо 404 клиент получит `null` с кодом 200.',
     suggestion: '    if row is None:\n        raise HTTPException(status_code=404)\n    return row',
     confidence: 0.88,
+    rule: null,
   }),
   finding({
     id: 'f-row-dict',
@@ -255,6 +260,7 @@ const findings: ReviewFinding[] = [
     message: '`Row` в SQLAlchemy 2 не приводится через `dict()` — упадёт с `TypeError`.',
     suggestion: '    return [row._asdict() for row in rows]',
     confidence: 0.74,
+    rule: null,
   }),
   finding({
     id: 'f-no-tests',
@@ -267,6 +273,7 @@ const findings: ReviewFinding[] = [
     message: 'Для нового эндпоинта `/findings` не добавлено ни одного теста.',
     suggestion: null,
     confidence: 0.6,
+    rule: null,
   }),
   finding({
     id: 'f-broad-except',
@@ -280,6 +287,7 @@ const findings: ReviewFinding[] = [
       '`except Exception` повторяет и неисправимые ошибки: `IntegrityError` выполнится трижды.\nПовторять стоит только сбои соединения.',
     suggestion: '        except OperationalError:',
     confidence: 0.82,
+    rule: null,
   }),
   finding({
     id: 'f-no-backoff',
@@ -292,6 +300,7 @@ const findings: ReviewFinding[] = [
     message: 'Фиксированная задержка без backoff: под нагрузкой повторы придут одновременно.',
     suggestion: '            time.sleep(delay * 2**attempt)',
     confidence: 0.55,
+    rule: null,
   }),
   finding({
     id: 'f-error-message',
@@ -305,6 +314,7 @@ const findings: ReviewFinding[] = [
     suggestion:
       '  if (!response.ok) throw new Error(`GET /api/v1/review-runs/${id}: HTTP ${response.status}`)',
     confidence: 0.5,
+    rule: null,
   }),
   finding({
     id: 'f-outside-hunk',
@@ -317,10 +327,12 @@ const findings: ReviewFinding[] = [
     message: '`listRuns` дублирует обработку ответа из `getRun` — стоит вынести в общий helper.',
     suggestion: null,
     confidence: 0.45,
+    rule: null,
   }),
 ]
 
 const published = (findingId: string | null, n: number): PublishedComment => ({
+  id: `pc-${n}`,
   finding_id: findingId,
   provider_comment_id: String(2400000 + n),
   kind: findingId === null ? 'summary' : 'inline',
@@ -335,75 +347,41 @@ const publishedComments: PublishedComment[] = [
   published('f-broad-except', 5),
 ]
 
-const action = (
-  position: number,
-  tool: string,
-  fields: Partial<ReviewRunAction> = {},
-): ReviewRunAction => ({
-  id: `a-${position}`,
-  review_run_id: RUN_ID,
-  position,
-  tool,
+const step = (
+  stage: ReviewRunStep['stage'],
+  offsetSeconds: number,
+  fields: Partial<ReviewRunStep> = {},
+): ReviewRunStep => ({
+  stage,
   status: 'completed',
-  request_preview: null,
-  response_preview: null,
-  error: null,
-  started_at: new Date(Date.parse('2026-09-26T09:12:06Z') + position * 9000).toISOString(),
+  started_at: new Date(Date.parse('2026-09-26T09:12:06Z') + offsetSeconds * 1000).toISOString(),
   duration_seconds: 2,
+  tokens_used: null,
+  error_code: null,
   ...fields,
 })
 
-const actions: ReviewRunAction[] = [
-  action(1, 'get_diff', {
-    request_preview: { head_sha: '9f3c2a1', base_sha: '2b7e41d' },
-    response_preview: { files: 6, additions: 43, deletions: 24 },
-  }),
-  action(2, 'get_tree', { response_preview: { entries: 128, truncated: false } }),
-  action(3, 'read_file', {
-    request_preview: { path: 'app/api/review_runs.py', window: '±30' },
-    response_preview: 'окно 1–53, 1 842 байта после редакции секретов',
-  }),
-  action(4, 'read_file', {
-    request_preview: { path: 'app/services/retry.py', window: 'whole_file' },
-    response_preview: 'файл целиком, 412 байт',
-  }),
-  action(5, 'build_context', {
-    response_preview: { tiers: ['diff', 'surrounding', 'whole_file'], tokens: 11840 },
-  }),
-  action(6, 'call_llm', {
-    status: 'failed',
-    duration_seconds: 30,
-    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
-    error: { code: 'LLM_TIMEOUT', message: 'Модель не ответила за 30 с, повтор' },
-  }),
-  action(7, 'call_llm', {
-    duration_seconds: 41,
-    request_preview: { model: 'claude-sonnet-5', tokens: 11840 },
-    response_preview: { findings: 11, rejected_by_validate_anchor: 2 },
-  }),
-  action(8, 'post_review', { response_preview: { inline: 4, summary: 1 } }),
+const steps: ReviewRunStep[] = [
+  step('fetching_diff', 0),
+  step('building_context', 3, { duration_seconds: 4 }),
+  step('analysing', 8, { duration_seconds: 30, status: 'failed', error_code: 'LLM_TIMEOUT' }),
+  step('analysing', 39, { duration_seconds: 41, tokens_used: 41320 }),
+  step('verifying', 81, { duration_seconds: 9, tokens_used: 6893 }),
+  step('publishing', 91, { duration_seconds: 3 }),
 ]
 
-const diffFiles = rawDiffFiles.map(withLineIds)
+/** Дифф в форме контракта: без идентификаторов строк и признака свёрнутого контекста. */
+const diff: ReviewDiff = { files: rawDiffFiles.map(toApiDiffFile) }
 
-const countLines = (file: DiffFile, kind: 'added' | 'removed') =>
-  file.hunks.reduce((sum, item) => sum + item.lines.filter((line) => line.kind === kind).length, 0)
-
-const summaries: DiffFileSummary[] = diffFiles.map((file) => ({
-  path: file.path,
-  previous_path: file.previous_path,
-  status: file.status,
-  is_binary: file.is_binary,
-  additions: countLines(file, 'added'),
-  deletions: countLines(file, 'removed'),
-  findings_count: findings.filter((item) => item.file_path === file.path).length,
-}))
-
-export const mockReviewState: MockReviewState = {
-  run,
-  files: summaries,
-  diffs_by_path: Object.fromEntries(diffFiles.map((file) => [file.path, file])),
+/** Ответ `GET /reviews/run-42` в форме контракта. */
+export const mockReview: ReviewRunResponse = {
+  ...run,
   findings,
   published_comments: publishedComments,
-  actions,
 }
+
+/** Ответ `GET /reviews/run-42/diff`. */
+export const mockDiff = diff
+
+/** Ответ `GET /reviews/run-42/steps`. */
+export const mockSteps = { items: steps }

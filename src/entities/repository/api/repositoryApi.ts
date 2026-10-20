@@ -1,23 +1,35 @@
 import {
-  connectRepository,
-  getAvailableRepositories,
-  getConnectedRepositories,
-} from '@/entities/repository/api/mockStore'
-import type { AvailableRepository, ConnectedRepository } from '@/entities/repository/model/types'
+  AvailableRepositoryListSchema,
+  RepositorySchema,
+  RepositoryListSchema,
+  type AvailableRepository,
+  type ConnectRepositoryRequest,
+  type Repository,
+} from '@/entities/repository/model/schema'
+import { parseResponse, type ApiTransport } from '@/shared/api'
 
-const delay = (ms = 350) => new Promise((resolve) => setTimeout(resolve, ms))
+export const REPOSITORIES_PATH = '/repositories'
+export const AVAILABLE_REPOSITORIES_PATH = '/repositories/available'
 
-export async function fetchConnectedRepositories(): Promise<ConnectedRepository[]> {
-  await delay()
-  return getConnectedRepositories()
+/** Первая страница подключённых: больше 200 бэкенд всё равно не отдаст. */
+const PAGE = '?limit=200'
+
+export async function fetchConnectedRepositories(transport: ApiTransport): Promise<Repository[]> {
+  const path = REPOSITORIES_PATH + PAGE
+  return parseResponse(RepositoryListSchema, path, await transport.get(path)).items
 }
 
-export async function fetchAvailableRepositories(): Promise<AvailableRepository[]> {
-  await delay()
-  return getAvailableRepositories()
+export async function fetchAvailableRepositories(
+  transport: ApiTransport,
+): Promise<AvailableRepository[]> {
+  const path = AVAILABLE_REPOSITORIES_PATH
+  return parseResponse(AvailableRepositoryListSchema, path, await transport.get(path)).items
 }
 
-export async function connectRepositoryById(repoId: string): Promise<ConnectedRepository> {
-  await delay(500)
-  return connectRepository(repoId)
+export async function connectRepository(
+  transport: ApiTransport,
+  request: ConnectRepositoryRequest,
+): Promise<Repository> {
+  const path = REPOSITORIES_PATH
+  return parseResponse(RepositorySchema, path, await transport.post(path, request))
 }
