@@ -21,7 +21,7 @@ pnpm api:check                   # контракт и типы совпадаю
 pnpm api:sync [<sha>]            # контракт с головы develop бэкенда (или с <sha>) и типы из него
 ```
 
-Node 22, версия зафиксирована в `.nvmrc`. Хуки включаются `pnpm install` (`core.hooksPath`
+Node 24, версия зафиксирована в `.nvmrc`. Хуки включаются `pnpm install` (`core.hooksPath`
 указывает на `.githooks`).
 
 ## Где что лежит

@@ -104,8 +104,11 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.image }}
           # Абсолютный адрес стенда попадает в canonical, Open Graph,
-          # sitemap.xml и robots.txt лендинга при сборке.
-          build-args: PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
+          # sitemap.xml и robots.txt лендинга при сборке. Источник данных
+          # кабинета — переменная репозитория VITE_USE_MOCK_API, по умолчанию моки.
+          build-args: |
+            PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
+            VITE_USE_MOCK_API=${{ vars.VITE_USE_MOCK_API || 'true' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
