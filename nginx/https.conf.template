@@ -49,7 +49,9 @@ server {
     add_header Strict-Transport-Security "max-age=86400" always;
     # Без merge location со своим add_header (index.html, /assets/ в
     # site.conf) теряет Alt-Svc и HSTS — а index.html браузер получает первым.
-    add_header_inherit merge;
+    # add_header_inherit merge задан в site.conf, на уровне этого же server:
+    # он нужен и режиму HTTP, а повтор директивы nginx не примет. Там же
+    # заголовки безопасности (CSP и другие), общие для обоих режимов.
 
     acme_certificate letsencrypt ${PUBLIC_HOST};
 
