@@ -3,9 +3,19 @@ export {
   DiffFileSummarySchema,
   DiffHunkSchema,
   DiffLineSchema,
+  ReviewDiffSchema,
 } from './model/schema'
-export type { DiffFile, DiffFileStatus, DiffFileSummary, DiffHunk, DiffLine } from './model/schema'
-export { buildHunk, withLineIds } from './lib/build'
+export type {
+  ApiDiffFile,
+  DiffFile,
+  DiffFileStatus,
+  DiffFileSummary,
+  DiffHunk,
+  DiffLine,
+  ReviewDiff,
+} from './model/schema'
+export { toDiffFile, VISIBLE_CONTEXT } from './lib/fromApi'
+export { buildHunk, toApiDiffFile, withLineIds } from './lib/build'
 export { collapseContext } from './lib/collapseContext'
 export type { CollapsedGap } from './lib/collapseContext'
 export { indexLines } from './lib/indexLines'

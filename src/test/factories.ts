@@ -2,35 +2,40 @@ import { buildHunk, withLineIds, type DiffFile, type DiffFileSummary } from '../
 import type { PublishedComment } from '../entities/published-comment'
 import type { ReviewFinding } from '../entities/review-finding'
 import type { ReviewRun } from '../entities/review-run'
-import type { ReviewRunAction } from '../entities/review-run-action'
+import type { ReviewRunStep } from '../entities/review-run-step'
 
 export { buildHunk as hunk }
 
 export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   return {
     id: 'run-1',
-    head_sha: 'b3e1f0c9a8d7e6f5',
-    base_sha: 'a1c2e3f4b5d6a7c8',
-    status: 'completed',
-    trigger: 'webhook',
-    created_at: '2026-09-20T14:05:00Z',
-    updated_at: '2026-09-20T14:07:14Z',
-    failure_reason: null,
-    last_progress_at: null,
-    failed_stage: null,
-    model: 'claude-sonnet-5',
-    tokens_used: 18432,
-    duration_seconds: 134,
-    rejected_findings: 0,
-    change_request: null,
+    merge_request_id: 'mr-1',
     merge_request: {
+      id: 'mr-1',
+      number: 7,
       title: 'Чтение токена из окружения',
       author: 'a.petrova',
       source_branch: 'feat/env-token',
       target_branch: 'develop',
+      state: 'open',
+      url: null,
+      repository: { id: 'repo-1', provider: 'github', full_name: 'acme/api' },
     },
-    verdict: 'request_changes',
-    score: 42,
+    head_sha: 'b3e1f0c9a8d7e6f5',
+    base_sha: 'a1c2e3f4b5d6a7c8',
+    status: 'completed',
+    trigger: 'webhook',
+    model: 'claude-sonnet-5',
+    tokens_used: 18432,
+    rejected_findings: 0,
+    verification: 'verified',
+    verifier_dropped_findings: 0,
+    duration_seconds: 134,
+    failure_reason: null,
+    failed_stage: null,
+    last_progress_at: '2026-09-20T14:07:14Z',
+    created_at: '2026-09-20T14:05:00Z',
+    updated_at: '2026-09-20T14:07:14Z',
     ...overrides,
   }
 }
@@ -73,12 +78,14 @@ export function makeFinding(overrides: Partial<ReviewFinding> = {}): ReviewFindi
     message: 'Ошибка не обрабатывается.',
     suggestion: null,
     confidence: 0.8,
+    rule: null,
     ...overrides,
   }
 }
 
 export function makePublishedComment(overrides: Partial<PublishedComment> = {}): PublishedComment {
   return {
+    id: 'published-1',
     finding_id: 'finding-1',
     provider_comment_id: '1001',
     kind: 'inline',
@@ -87,18 +94,14 @@ export function makePublishedComment(overrides: Partial<PublishedComment> = {}):
   }
 }
 
-export function makeAction(overrides: Partial<ReviewRunAction> = {}): ReviewRunAction {
+export function makeStep(overrides: Partial<ReviewRunStep> = {}): ReviewRunStep {
   return {
-    id: 'action-1',
-    review_run_id: 'run-1',
-    position: 1,
-    tool: 'get_diff',
+    stage: 'analysing',
     status: 'completed',
-    request_preview: null,
-    response_preview: null,
-    error: null,
     started_at: '2026-09-20T14:05:10Z',
     duration_seconds: 2,
+    tokens_used: null,
+    error_code: null,
     ...overrides,
   }
 }

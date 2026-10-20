@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import type { ApiSchemas, MatchesContract } from '@/shared/api/contract'
+
 /** Статусы из `ReviewRunStatus` бэкенда (`app/domain/enums.py`). */
 export const KNOWN_STATUSES = [
   'queued',
@@ -28,59 +30,54 @@ const TERMINAL_STATUSES: ReadonlySet<string> = new Set<KnownRunStatus>([
   'cancelled',
 ])
 
-export const ChangeRequestLinkSchema = z.object({
-  // Продукт не привязан к конкретному провайдеру: адрес собирает бэкенд, UI его не разбирает.
-  provider: z.string(),
-  url: z.string(),
-})
-
-/**
- * Расширение §8.2 ради ТЗ шапки: запрос на изменения, который проверял прогон. Поля есть в
- * доменной `MergeRequest` бэкенда, в модели `ReviewRun` архитектуры — нет.
- */
+/** Запрос на изменение прогона вместе с репозиторием (`MergeRequestSummary` контракта). */
 export const MergeRequestSummarySchema = z.object({
+  id: z.string(),
+  number: z.number().int(),
   title: z.string(),
   author: z.string(),
   source_branch: z.string(),
   target_branch: z.string(),
+  state: z.enum(['open', 'closed', 'merged']),
+  // Ссылку собирает бэкенд; `null` — формат ссылок провайдера не поддержан.
+  url: z.string().nullable(),
+  repository: z.object({
+    id: z.string(),
+    provider: z.enum(['github', 'gitlab']),
+    full_name: z.string(),
+  }),
 })
 
-/** Расширение §8.2 ради ТЗ: итог ревью. `null`, пока прогон не завершён. */
+/** Итог ревью. В контракте его нет: фронт выводит его из замечаний (решение 1 в dmc-268-ui-t1#37). */
 export const VERDICTS = ['approve', 'comment', 'request_changes'] as const
 
-/** Поля и статусы — как в merged backend PR #5 (FRONTEND_ARCHITECTURE.md §8.2). */
+/** Прогон из `GET /api/v1/reviews/{id}` без вложенных списков (`ReviewRunResponse` контракта). */
 export const ReviewRunSchema = z.object({
   id: z.string(),
+  merge_request_id: z.string(),
+  merge_request: MergeRequestSummarySchema,
   head_sha: z.string(),
   base_sha: z.string().nullable(),
   // Чужой enum будет расти: незнакомый статус не должен ронять страницу,
   // поэтому схема принимает любую строку, а UI считает его нетерминальным.
   status: z.string(),
   trigger: z.enum(['webhook', 'manual', 'mention']),
-  created_at: z.string(),
-  updated_at: z.string(),
-  failure_reason: z.string().nullable(),
-  // Ответ GET /api/v1/reviews/{id} этих двух полей пока не отдаёт: они приходят событиями
-  // статуса, поэтому отсутствие поля — то же, что `null`.
-  last_progress_at: z.string().nullable().default(null),
-  /** Этап, на котором упал прогон; `null` — не сообщён. */
-  failed_stage: z.string().nullable().default(null),
   model: z.string().nullable(),
   tokens_used: z.number().int().nullable(),
+  rejected_findings: z.number().int(),
+  /** Итог второго прохода модели (Reflection Pass); `null` — анализ ещё не завершён. */
+  verification: z.enum(['verified', 'not_required', 'unavailable']).nullable(),
+  verifier_dropped_findings: z.number().int(),
   duration_seconds: z.number().nullable(),
-  // GET /api/v1/reviews/{id} его пока не отдаёт (dmc-268-api-t1#36); нужен ли он — решаем в #18.
-  rejected_findings: z.number().int().nullable().default(null),
-  // Ниже — расширения ТЗ, их нет ни в §8.2, ни в ответе бэкенда: ссылка на источник, запрос на
-  // изменения, итог. Отсутствие поля — то же, что `null`, чтобы экран не падал на ответе API.
-  change_request: ChangeRequestLinkSchema.nullable().default(null),
-  merge_request: MergeRequestSummarySchema.nullable().default(null),
-  verdict: z.enum(VERDICTS).nullable().default(null),
-  /** Общая оценка изменений, 0–100. */
-  score: z.number().min(0).max(100).nullable().default(null),
+  failure_reason: z.string().nullable(),
+  /** Этап, на котором упал прогон; `null` — не сообщён. */
+  failed_stage: z.enum(RUN_STAGES).nullable(),
+  last_progress_at: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
 })
 
 export type ReviewRun = z.infer<typeof ReviewRunSchema>
-export type ChangeRequestLink = z.infer<typeof ChangeRequestLinkSchema>
 export type RunTrigger = ReviewRun['trigger']
 export type MergeRequestSummary = z.infer<typeof MergeRequestSummarySchema>
 export type Verdict = (typeof VERDICTS)[number]
@@ -100,9 +97,9 @@ export function isKnownStatus(status: string): status is KnownRunStatus {
 export const RunStatusEventSchema = z.object({
   review_run_id: z.string(),
   status: z.string(),
-  last_progress_at: z.string().nullable().default(null),
-  failed_stage: z.string().nullable().default(null),
-  failure_reason: z.string().nullable().default(null),
+  last_progress_at: z.string(),
+  failed_stage: z.enum(RUN_STAGES).nullable(),
+  failure_reason: z.string().nullable(),
 })
 
 export type RunStatusEvent = z.infer<typeof RunStatusEventSchema>
@@ -117,3 +114,15 @@ export function applyStatusEvent(run: ReviewRun, event: RunStatusEvent): ReviewR
     failure_reason: event.failure_reason,
   }
 }
+
+/** Статус шире enum контракта намеренно (см. `ReviewRunSchema.status`), остальное — поле в поле. */
+type WithoutStatus<T> = Omit<T, 'status'>
+
+const contractCheck: [
+  MatchesContract<
+    WithoutStatus<ReviewRun>,
+    WithoutStatus<Omit<ApiSchemas['ReviewRunResponse'], 'findings' | 'published_comments'>>
+  >,
+  MatchesContract<WithoutStatus<RunStatusEvent>, WithoutStatus<ApiSchemas['ReviewRunStatusEvent']>>,
+] = [true, true]
+void contractCheck

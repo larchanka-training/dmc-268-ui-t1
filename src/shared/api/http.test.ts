@@ -50,6 +50,19 @@ describe('apiFetch', () => {
   })
 })
 
+// Тело ошибки бэкенда по RFC 9457 (`AnyProblem` контракта).
+function problem(status: number, code: string, detail: string) {
+  return {
+    type: `urn:dmc-268:problem:${code.toLowerCase().split('_').join('-')}`,
+    title: 'Ошибка',
+    status,
+    detail,
+    instance: '/api/v1/x',
+    code,
+    trace_id: '4bf92f3577b34da6a3ce929d0e0e4736',
+  }
+}
+
 describe('ApiError.code', () => {
   beforeEach(() => {
     vi.spyOn(navigation, 'assign').mockImplementation(() => {})
@@ -60,28 +73,43 @@ describe('ApiError.code', () => {
     vi.restoreAllMocks()
   })
 
-  it('берёт code из тела ошибки', async () => {
+  it('берёт code и detail из problem-тела', async () => {
     stubFetch({
-      'GET /api/v1/x': { status: 403, body: { code: 'ORIGIN_FORBIDDEN', message: 'нельзя' } },
+      'GET /api/v1/x': { status: 403, body: problem(403, 'ORIGIN_FORBIDDEN', 'Чужой Origin.') },
     })
 
-    await expect(apiFetch('/x')).rejects.toMatchObject({ status: 403, code: 'ORIGIN_FORBIDDEN' })
+    await expect(apiFetch('/x')).rejects.toMatchObject({
+      status: 403,
+      code: 'ORIGIN_FORBIDDEN',
+      message: 'Чужой Origin.',
+    })
     expect(navigation.assign).not.toHaveBeenCalled()
   })
 
-  it('401 несёт code и уводит на /login', async () => {
+  it('401 несёт code и detail и уводит на /login', async () => {
     stubFetch({
-      'GET /api/v1/x': { status: 401, body: { code: 'UNAUTHENTICATED', message: 'вход' } },
+      'GET /api/v1/x': {
+        status: 401,
+        body: problem(401, 'UNAUTHENTICATED', 'Нет действительной сессии.'),
+      },
     })
 
-    await expect(apiFetch('/x')).rejects.toMatchObject({ status: 401, code: 'UNAUTHENTICATED' })
+    await expect(apiFetch('/x')).rejects.toMatchObject({
+      status: 401,
+      code: 'UNAUTHENTICATED',
+      message: 'Нет действительной сессии.',
+    })
     expect(navigation.assign).toHaveBeenCalledWith('/login?redirect=%2Fapp%2F')
   })
 
-  it('тело не по форме — code пустой', async () => {
+  it('тело не по форме — code пустой, текст общий', async () => {
     stubFetch({ 'GET /api/v1/x': { status: 500 } })
 
-    await expect(apiFetch('/x')).rejects.toMatchObject({ status: 500, code: undefined })
+    await expect(apiFetch('/x')).rejects.toMatchObject({
+      status: 500,
+      code: undefined,
+      message: 'Запрос /x завершился ошибкой 500',
+    })
   })
 })
 
@@ -93,6 +121,17 @@ describe('createHttpTransport', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
+  })
+
+  it('POST отправляет JSON-тело и отдаёт ответ как unknown', async () => {
+    const calls = stubFetch({ 'POST /api/v1/repositories': { status: 201, body: { id: 'r-1' } } })
+
+    await expect(
+      createHttpTransport().post('/repositories', { provider: 'github', provider_id: '1' }),
+    ).resolves.toEqual({ id: 'r-1' })
+    expect(calls[0].init.body).toBe('{"provider":"github","provider_id":"1"}')
+    expect(new Headers(calls[0].init.headers).get('Content-Type')).toBe('application/json')
+    expect(calls[0].init.credentials).toBe('include')
   })
 
   it('GET идёт через apiFetch с cookie и отдаёт тело как unknown', async () => {

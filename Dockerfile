@@ -10,6 +10,10 @@ COPY . .
 # Без аргумента Vite берёт http://localhost:3000.
 ARG PUBLIC_ORIGIN
 ENV PUBLIC_ORIGIN=$PUBLIC_ORIGIN
+# Источник данных кабинета: без аргумента — mock adapter, `false` — бэкенд.
+# Флаг печатается в бандл, поэтому меняется только пересборкой.
+ARG VITE_USE_MOCK_API
+ENV VITE_USE_MOCK_API=$VITE_USE_MOCK_API
 RUN pnpm run build
 # Готовые .gz рядом с файлами — их отдаёт gzip_static в nginx/site.conf.
 RUN find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.xml' -o -name '*.txt' \) \

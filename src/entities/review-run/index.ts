@@ -9,7 +9,6 @@ export {
   VERDICTS,
 } from './model/schema'
 export type {
-  ChangeRequestLink,
   KnownRunStatus,
   MergeRequestSummary,
   ReviewRun,

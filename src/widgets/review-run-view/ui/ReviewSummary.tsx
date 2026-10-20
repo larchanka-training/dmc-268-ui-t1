@@ -54,7 +54,7 @@ export function ReviewSummary({ run, findings, publishedComments }: Props) {
         </div>
         <div>
           <dt className="text-xs text-slate-500">Отброшено валидацией</dt>
-          <dd className="text-lg font-semibold text-slate-900">{run.rejected_findings ?? '—'}</dd>
+          <dd className="text-lg font-semibold text-slate-900">{run.rejected_findings}</dd>
         </div>
       </dl>
 

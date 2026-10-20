@@ -1,68 +1,213 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
-import * as store from '@/entities/repository/api/mockStore'
+import type { HistoryRun, Repository, RepositorySettings, RulesStatus } from '@/entities/repository'
 import { repositoryKeys } from '@/features/repository'
+import type { ApiTransport } from '@/shared/api'
+import { renderWithTransport } from '@/test/api'
+import { RepositorySettingsPage } from './RepositorySettingsPage'
 
-// Заглушки поверх реальных функций store: по умолчанию — сквозной вызов,
-// в отдельных сценариях — ошибка или данные вне схемы на уровне adapter'а.
-vi.mock('@/entities/repository/api/mockStore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/entities/repository/api/mockStore')>()
-  return {
-    ...actual,
-    getRepositorySettings: vi.fn(actual.getRepositorySettings),
-    getRulesStatus: vi.fn(actual.getRulesStatus),
-    getRepositoryHistory: vi.fn(actual.getRepositoryHistory),
-    saveRepositorySettings: vi.fn(actual.saveRepositorySettings),
-  }
-})
-
-/** Фикстура repo-1 на старте: тесты сохранения меняют store, afterEach возвращает её. */
-const REPO1_SETTINGS = store.getRepositorySettings('repo-1')
-
-// Настоящие функции store: afterEach возвращает их как passthrough после подмен.
-// restoreAllMocks для этого не годится — он не восстанавливает реализацию vi.fn(impl).
-const actual = await vi.importActual<typeof import('@/entities/repository/api/mockStore')>(
-  '@/entities/repository/api/mockStore',
-)
-
-/** Цепочка задержек mock adapter — 350 мс репозитории + 350 мс блок: ждём с запасом. */
-const FIND = { timeout: 3000 }
-
-function renderSettingsPage(repositoryId = 'repo-1') {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
-  })
-  const utils = render(
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[`/repositories/${repositoryId}/settings`]}>
-        <Routes>
-          <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
-          {/* Заглушка экрана прогона: проверяем только переход по ссылке. */}
-          <Route path="/reviews/:reviewId" element={<div>Экран прогона</div>} />
-        </Routes>
-      </MemoryRouter>
-    </QueryClientProvider>,
-  )
-  return { ...utils, queryClient }
+/**
+ * Управляемый бэкенд теста: записи можно менять до рендера и между рефетчами, `failures`
+ * роняет один блок, `badShape` отвечает данными вне схемы, `beforeSave` держит сохранение,
+ * пока тест не отпустит.
+ */
+type Backend = {
+  repositories: Repository[]
+  settings: Record<string, RepositorySettings>
+  rules: Record<string, RulesStatus>
+  history: Record<string, HistoryRun[]>
+  failures: { repositories?: Error; settings?: Error; rules?: Error; history?: Error; save?: Error }
+  badShape: { settings?: unknown; rules?: unknown; history?: unknown }
+  beforeSave?: () => Promise<void>
 }
 
-afterEach(() => {
-  vi.mocked(store.getRepositorySettings).mockImplementation(actual.getRepositorySettings)
-  vi.mocked(store.getRulesStatus).mockImplementation(actual.getRulesStatus)
-  vi.mocked(store.getRepositoryHistory).mockImplementation(actual.getRepositoryHistory)
-  vi.mocked(store.saveRepositorySettings).mockImplementation(actual.saveRepositorySettings)
-  actual.saveRepositorySettings('repo-1', REPO1_SETTINGS)
-})
+const DEFAULT_SETTINGS: RepositorySettings = {
+  autoReviewEnabled: true,
+  branchFilter: [],
+  minSeverity: 'critical',
+}
+
+function repository(n: number, full_name: string): Repository {
+  return {
+    id: `repo-${n}`,
+    provider: 'github',
+    provider_id: String(100 + n),
+    full_name,
+    default_branch: 'main',
+    auto_review_enabled: true,
+    created_at: '2026-09-20T10:00:00Z',
+    updated_at: '2026-09-20T10:00:00Z',
+  }
+}
+
+const RULES_PATH = '.review/rules.md'
+
+function createBackend(): Backend {
+  return {
+    repositories: [
+      repository(1, 'larchanka-training/platform-api'),
+      repository(2, 'larchanka-training/docs'),
+      repository(3, 'larchanka-training/design-system'),
+    ],
+    settings: {
+      'repo-1': {
+        autoReviewEnabled: true,
+        branchFilter: ['feature/**', 'fix/**'],
+        minSeverity: 'high',
+      },
+      'repo-2': { autoReviewEnabled: false, branchFilter: ['docs/**'], minSeverity: 'critical' },
+    },
+    rules: {
+      'repo-1': {
+        status: 'loaded',
+        branch: 'main',
+        path: RULES_PATH,
+        rules: [
+          {
+            name: 'Security',
+            patterns: ['app/**/*.py'],
+            excludes: ['**/tests/**'],
+            checks: [
+              'Не хранить секреты и токены в коде',
+              'Проверять новые зависимости на известные уязвимости',
+            ],
+          },
+          {
+            name: 'Performance',
+            patterns: ['app/**/*.py', 'src/**/*.ts'],
+            excludes: ['**/migrations/**'],
+            checks: [
+              'Не допускать N+1 запросов в циклах',
+              'Проверять индексы под новые SQL-запросы',
+            ],
+          },
+          {
+            name: 'Style',
+            patterns: ['src/**/*.{ts,tsx}'],
+            excludes: ['**/*.generated.ts'],
+            checks: ['Следовать правилам `.editorconfig` и eslint'],
+          },
+        ],
+        rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
+        fetchedAt: '2026-10-11T09:40:00.000Z',
+      },
+      'repo-2': { status: 'absent', branch: 'main', path: RULES_PATH },
+      'repo-3': {
+        status: 'loaded',
+        branch: 'main',
+        path: RULES_PATH,
+        rules: [],
+        rejected: [
+          { name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' },
+          { name: 'A11y', reason: 'нет паттерна (pattern)' },
+        ],
+        fetchedAt: '2026-10-11T09:35:00.000Z',
+      },
+    },
+    history: {
+      'repo-1': [
+        {
+          id: 'run-42',
+          number: 42,
+          title: 'Чтение токена из окружения',
+          sourceBranch: 'feat/env-token',
+          status: 'completed',
+          createdAt: '2026-10-05T17:03:26Z',
+        },
+        {
+          id: 'run-41',
+          number: 41,
+          title: 'Отмена прогона при деплое соседнего сервиса',
+          sourceBranch: 'feat/bulk-export',
+          status: 'cancelled',
+          createdAt: '2026-10-04T12:10:00Z',
+        },
+      ],
+      'repo-2': [],
+    },
+    failures: {},
+    badShape: {},
+  }
+}
+
+/** Транспорт поверх бэкенда теста: те же пути, что у entity api. */
+function backendTransport(backend: Backend): ApiTransport {
+  const get = async (path: string): Promise<unknown> => {
+    if (path === '/repositories?limit=200') {
+      if (backend.failures.repositories) throw backend.failures.repositories
+      return { items: backend.repositories }
+    }
+    const settingsRoute = /^\/repositories\/([^/]+)\/settings$/.exec(path)
+    if (settingsRoute) {
+      if (backend.failures.settings) throw backend.failures.settings
+      if (backend.badShape.settings !== undefined) return structuredClone(backend.badShape.settings)
+      return structuredClone(backend.settings[settingsRoute[1]] ?? DEFAULT_SETTINGS)
+    }
+    const rulesRoute = /^\/repositories\/([^/]+)\/rules$/.exec(path)
+    if (rulesRoute) {
+      if (backend.failures.rules) throw backend.failures.rules
+      if (backend.badShape.rules !== undefined) return structuredClone(backend.badShape.rules)
+      return structuredClone(
+        backend.rules[rulesRoute[1]] ?? {
+          status: 'absent',
+          branch: 'main',
+          path: RULES_PATH,
+        },
+      )
+    }
+    const historyRoute = /^\/repositories\/([^/]+)\/history$/.exec(path)
+    if (historyRoute) {
+      if (backend.failures.history) throw backend.failures.history
+      if (backend.badShape.history !== undefined) return structuredClone(backend.badShape.history)
+      return structuredClone(backend.history[historyRoute[1]] ?? [])
+    }
+    throw new Error(`неожиданный запрос ${path}`)
+  }
+
+  const post = async (path: string, body: unknown): Promise<unknown> => {
+    const settingsRoute = /^\/repositories\/([^/]+)\/settings$/.exec(path)
+    if (settingsRoute) {
+      if (backend.failures.save) throw backend.failures.save
+      await backend.beforeSave?.()
+      const draft = structuredClone(body) as RepositorySettings
+      backend.settings[settingsRoute[1]] = draft
+      return structuredClone(draft)
+    }
+    throw new Error(`неожиданный запрос ${path}`)
+  }
+
+  return { get, post }
+}
+
+function deferred() {
+  let release!: () => void
+  const promise = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  return { promise, release }
+}
+
+function renderSettingsPage(repositoryId = 'repo-1', backend = createBackend()) {
+  const utils = renderWithTransport(
+    <MemoryRouter initialEntries={[`/repositories/${repositoryId}/settings`]}>
+      <Routes>
+        <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
+        {/* Заглушка экрана прогона: проверяем только переход по ссылке. */}
+        <Route path="/reviews/:reviewId" element={<div>Экран прогона</div>} />
+      </Routes>
+    </MemoryRouter>,
+    backendTransport(backend),
+  )
+  return { ...utils, backend }
+}
 
 describe('RepositorySettingsPage: загрузка', () => {
   it('форма показывает сохранённые значения repo-1', async () => {
     renderSettingsPage()
 
-    expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
+    expect(await screen.findByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     expect(screen.getByText('feature/**')).toBeInTheDocument()
     expect(screen.getByText('fix/**')).toBeInTheDocument()
@@ -82,65 +227,65 @@ describe('RepositorySettingsPage: загрузка', () => {
 describe('RepositorySettingsPage: сохранение настроек', () => {
   it('успех: форма и данные показывают новые значения', async () => {
     const user = userEvent.setup()
-    const { unmount } = renderSettingsPage()
+    const backend = createBackend()
+    const { unmount } = renderSettingsPage('repo-1', backend)
 
-    await screen.findByRole('switch', undefined, FIND)
+    await screen.findByRole('switch')
     await user.click(screen.getByRole('switch'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
-    expect(await screen.findByText('Настройки сохранены', undefined, FIND)).toBeInTheDocument()
-    expect(store.getRepositorySettings('repo-1').autoReviewEnabled).toBe(false)
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
+    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(false)
 
     // Новый заход на экран читает уже сохранённые значения.
     unmount()
-    renderSettingsPage()
-    expect(await screen.findByRole('switch', undefined, FIND)).not.toBeChecked()
+    renderSettingsPage('repo-1', backend)
+    expect(await screen.findByRole('switch')).not.toBeChecked()
   })
 
-  it('ошибка: черновик остаётся в форме, store не меняется', async () => {
-    vi.mocked(store.saveRepositorySettings).mockImplementationOnce(() => {
-      throw new Error('Сеть недоступна')
-    })
+  it('ошибка: черновик остаётся в форме, бэкенд не меняется', async () => {
     const user = userEvent.setup()
-    renderSettingsPage()
+    const { backend } = renderSettingsPage()
+    backend.failures.save = new Error('Сеть недоступна')
 
-    await screen.findByRole('switch', undefined, FIND)
+    await screen.findByRole('switch')
     await user.click(screen.getByRole('switch'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
-    expect(
-      await screen.findByText('Не удалось сохранить настройки', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось сохранить настройки')).toBeInTheDocument()
     expect(screen.getByText('Сеть недоступна')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(store.getRepositorySettings('repo-1').autoReviewEnabled).toBe(true)
+    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(true)
   })
 
-  it('поля заблокированы на время сохранения, после успеха форма совпадает с store', async () => {
+  it('поля заблокированы на время сохранения, после успеха форма совпадает с бэкендом', async () => {
     const user = userEvent.setup()
-    renderSettingsPage()
+    const gate = deferred()
+    const { backend } = renderSettingsPage()
+    backend.beforeSave = () => gate.promise
 
-    await screen.findByRole('switch', undefined, FIND)
+    await screen.findByRole('switch')
     await user.click(screen.getByRole('switch'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
-    // Сохранение в полёте (адаптер отвечает не мгновенно): правка невозможна, успеха ещё нет.
-    expect(screen.getByRole('switch')).toBeDisabled()
+    // Сохранение в полёте (бэкенд молчит, пока тест не отпустит): правка невозможна.
+    await waitFor(() => expect(screen.getByRole('switch')).toBeDisabled())
     expect(screen.getByRole('radio', { name: 'Low' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Сбросить' })).toBeDisabled()
     expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
 
-    expect(await screen.findByText('Настройки сохранены', undefined, FIND)).toBeInTheDocument()
+    gate.release()
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeDisabled()
     expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(store.getRepositorySettings('repo-1').autoReviewEnabled).toBe(false)
+    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(false)
   })
 
   it('сброс возвращает сохранённые значения', async () => {
     const user = userEvent.setup()
     renderSettingsPage()
 
-    expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
+    expect(await screen.findByRole('switch')).toBeChecked()
     await user.click(screen.getByRole('switch'))
     // Radio-кнопка antd прячет input от указателя — клик идёт по подписи.
     await user.click(screen.getByText('Critical'))
@@ -156,10 +301,10 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const user = userEvent.setup()
     renderSettingsPage()
 
-    await screen.findByRole('switch', undefined, FIND)
+    await screen.findByRole('switch')
     await user.click(screen.getByRole('switch'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    expect(await screen.findByText('Настройки сохранены', undefined, FIND)).toBeInTheDocument()
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
 
     // Правка скрывает баннер, сброс не должен возвращать его над откатанной формой.
     await user.click(screen.getByRole('switch'))
@@ -170,18 +315,14 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
   })
 
   it('сброс после ошибки сохранения убирает её баннер', async () => {
-    vi.mocked(store.saveRepositorySettings).mockImplementationOnce(() => {
-      throw new Error('Сеть недоступна')
-    })
     const user = userEvent.setup()
-    renderSettingsPage()
+    const { backend } = renderSettingsPage()
+    backend.failures.save = new Error('Сеть недоступна')
 
-    await screen.findByRole('switch', undefined, FIND)
+    await screen.findByRole('switch')
     await user.click(screen.getByRole('switch'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
-    expect(
-      await screen.findByText('Не удалось сохранить настройки', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось сохранить настройки')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))
 
@@ -241,9 +382,8 @@ describe('RepositorySettingsPage: история проверок', () => {
   })
 
   it('незнакомый статус прогона показывается как есть и не ломает список', async () => {
-    // Не Once: за прогон геттер может зваться повторно, mockImplementation покрывает все
-    // вызовы и сбрасывается restoreAllMocks в afterEach.
-    vi.mocked(store.getRepositoryHistory).mockImplementation(() => [
+    const backend = createBackend()
+    backend.history['repo-1'] = [
       {
         id: 'run-99',
         number: 99,
@@ -252,10 +392,10 @@ describe('RepositorySettingsPage: история проверок', () => {
         status: 'rebasing',
         createdAt: '2026-10-10T10:00:00Z',
       },
-    ])
-    renderSettingsPage()
+    ]
+    renderSettingsPage('repo-1', backend)
 
-    expect(await screen.findByText('rebasing', undefined, FIND)).toBeInTheDocument()
+    expect(await screen.findByText('rebasing')).toBeInTheDocument()
     expect(screen.getByText('Ребейз поверх develop')).toBeInTheDocument()
     // Время — одним форматтером с экраном прогона: Intl, UTC.
     expect(screen.getByText('10.10.2026, 10:00 UTC')).toBeInTheDocument()
@@ -264,98 +404,75 @@ describe('RepositorySettingsPage: история проверок', () => {
 
 describe('RepositorySettingsPage: состояния данных', () => {
   it('ошибка одного блока не ломает остальные, повтор чинит блок', async () => {
-    vi.mocked(store.getRulesStatus).mockImplementation(() => {
-      throw new Error('rules boom')
-    })
     const user = userEvent.setup()
-    renderSettingsPage()
+    const { backend } = renderSettingsPage()
+    backend.failures.rules = new Error('rules boom')
 
-    expect(
-      await screen.findByText('Не удалось загрузить статус правил', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
+    expect(await screen.findByText('rules boom')).toBeInTheDocument()
     // Настройки и история работают.
-    expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
-    expect(
-      await screen.findByText('Чтение токена из окружения', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByRole('switch')).toBeChecked()
+    expect(await screen.findByText('Чтение токена из окружения')).toBeInTheDocument()
 
-    // Чиним adapter и повторяем запрос блока.
-    vi.mocked(store.getRulesStatus).mockImplementation(actual.getRulesStatus)
+    // Чиним бэкенд и повторяем запрос блока.
+    delete backend.failures.rules
     await user.click(screen.getByRole('button', { name: 'Повторить' }))
-    expect(await screen.findByText('Кастомные правила', undefined, FIND)).toBeInTheDocument()
+    expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
   })
 
   it('данные вне схемы: каждый блок показывает ошибку контракта, экран не падает', async () => {
-    vi.mocked(store.getRepositorySettings).mockImplementation(
-      () => ({ autoReviewEnabled: 'yes' }) as never,
-    )
-    vi.mocked(store.getRulesStatus).mockImplementation(() => ({ status: 'half-loaded' }) as never)
-    vi.mocked(store.getRepositoryHistory).mockImplementation(() => [{ nope: true }] as never)
-    renderSettingsPage()
+    const backend = createBackend()
+    backend.badShape = {
+      settings: { autoReviewEnabled: 'yes' },
+      rules: { status: 'half-loaded' },
+      history: [{ nope: true }],
+    }
+    renderSettingsPage('repo-1', backend)
 
-    expect(
-      await screen.findByText('Не удалось загрузить настройки', undefined, FIND),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByText('Не удалось загрузить статус правил', undefined, FIND),
-    ).toBeInTheDocument()
-    expect(
-      await screen.findByText('Не удалось загрузить историю проверок', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось загрузить настройки')).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось загрузить историю проверок')).toBeInTheDocument()
     expect(screen.getAllByText(/не соответствует контракту/)).toHaveLength(3)
   })
 
   it('фоновая ошибка настроек: форма остаётся на данных из кэша, сверху Alert с повтором', async () => {
     const user = userEvent.setup()
-    const { queryClient } = renderSettingsPage()
+    const { backend, client } = renderSettingsPage()
 
-    expect(await screen.findByRole('switch', undefined, FIND)).toBeChecked()
+    expect(await screen.findByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
 
-    vi.mocked(store.getRepositorySettings).mockImplementation(() => {
-      throw new Error('settings boom')
-    })
-    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
+    backend.failures.settings = new Error('settings boom')
+    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
 
     expect(
-      await screen.findByText(
-        'Не удалось обновить настройки — показаны сохранённые значения',
-        undefined,
-        FIND,
-      ),
+      await screen.findByText('Не удалось обновить настройки — показаны сохранённые значения'),
     ).toBeInTheDocument()
     expect(screen.getByText('settings boom')).toBeInTheDocument()
     // Форма не заменена ошибкой: значения из кэша на месте.
     expect(screen.getByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
 
-    // Повтор с починенным adapter убирает Alert.
-    vi.mocked(store.getRepositorySettings).mockImplementation(actual.getRepositorySettings)
+    // Повтор с починенным бэкендом убирает Alert.
+    delete backend.failures.settings
     await user.click(screen.getByRole('button', { name: 'Повторить' }))
-    await waitFor(
-      () => expect(screen.queryByText(/Не удалось обновить настройки/)).not.toBeInTheDocument(),
-      FIND,
+    await waitFor(() =>
+      expect(screen.queryByText(/Не удалось обновить настройки/)).not.toBeInTheDocument(),
     )
     expect(screen.getByRole('switch')).toBeChecked()
   })
 
   it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert', async () => {
-    const { queryClient } = renderSettingsPage()
+    const { backend, client } = renderSettingsPage()
 
-    expect(
-      await screen.findByText('Чтение токена из окружения', undefined, FIND),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Чтение токена из окружения')).toBeInTheDocument()
 
-    vi.mocked(store.getRepositoryHistory).mockImplementation(() => {
-      throw new Error('history boom')
-    })
-    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.history('repo-1') }))
+    backend.failures.history = new Error('history boom')
+    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.history('repo-1') }))
 
     expect(
       await screen.findByText(
         'Не удалось обновить историю проверок — показана последняя загруженная',
-        undefined,
-        FIND,
       ),
     ).toBeInTheDocument()
     expect(screen.getByText('history boom')).toBeInTheDocument()

@@ -1,8 +1,8 @@
 export type {
   AvailableRepository,
-  ConnectedRepository,
-  RepositoryConnectionStatus,
-} from '@/entities/repository/model/types'
+  ConnectRepositoryRequest,
+  Repository,
+} from '@/entities/repository/model/schema'
 export type {
   HistoryRun,
   RejectedRule,
@@ -13,18 +13,27 @@ export type {
   SeverityLevel,
 } from '@/entities/repository/model/settings'
 export {
-  connectRepositoryById,
+  AVAILABLE_REPOSITORIES_PATH,
+  connectRepository,
   fetchAvailableRepositories,
   fetchConnectedRepositories,
   fetchRepositoryHistory,
   fetchRepositorySettings,
   fetchRulesStatus,
+  REPOSITORIES_PATH,
+  repositoryHistoryPath,
+  repositoryRulesPath,
+  repositorySettingsPath,
   saveRepositorySettings,
 } from '@/entities/repository/api/repositoryApi'
+export {
+  HistoryRunSchema,
+  RepositorySettingsSchema,
+  RulesStatusSchema,
+} from '@/entities/repository/model/settings'
 export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'
 export { RulesPreview } from '@/entities/repository/ui/RulesPreview'
 export {
   SEVERITY_LEVEL_LABEL,
   SEVERITY_LEVEL_OPTIONS,
 } from '@/entities/repository/lib/severityLevelLabels'
-export { repositoryStatusLabel } from '@/entities/repository/lib/statusLabels'

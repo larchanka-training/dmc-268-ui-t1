@@ -1,51 +1,113 @@
 import { ApiError, type ApiTransport } from '../../shared/api'
-import { mockReviewPath } from '../../pages/review-run'
-import { mockReviewState } from './fixtures'
+import type { ConnectRepositoryRequest, RepositorySettings } from '../../entities/repository'
+import {
+  reviewDiffPath,
+  reviewPath,
+  reviewStepsPath,
+  type ReviewRunResponse,
+} from '../../pages/review-run'
+import { mockDiff, mockReview, mockSteps } from './fixtures'
 import type { MockServer } from './mockServer'
+import { createRepositoryStore } from './repositories'
+import { createRepositorySettingsStore } from './repositorySettings'
 
 /**
- * Временный adapter с той же границей, что и будущий HTTP-клиент: отдаёт `unknown`,
- * который проверяется схемой `MockReviewState` до передачи компонентам.
+ * Mock adapter с той же границей, что и HTTP-клиент: пути и формы ответов — как в контракте
+ * бэкенда, ответ отдаётся как `unknown` и проверяется схемой сущности.
  *
  * С `server` прогон «идёт»: статус берётся из текущего шага сценария, того же, что видит
- * mock-поток событий. Пока прогон не завершён, вердикта и замечаний нет; к завершению
- * они приходят из фикстуры. Без `server` отдаётся готовый завершённый прогон.
+ * mock-поток событий. Пока прогон не завершён, замечаний, публикаций и шагов нет; к
+ * завершению они приходят из фикстуры. Дифф есть сразу: его получают до анализа. Без `server` отдаётся готовый завершённый прогон.
  *
- * Прогон в фикстуре один, `/reviews/run-42`; любой другой id — 404, как у бэкенда.
+ * Прогон в фикстуре один, `/reviews/run-42`; любой другой путь — 404, как у бэкенда.
+ * Настройки, статус правил и история живут в своём store и отвечают схемам
+ * `model/settings.ts` — ручек в контракте бэкенда для них ещё нет (#28, api#49).
  */
 export function createMockAdapter({
   latencyMs = 250,
   server,
 }: { latencyMs?: number; server?: MockServer } = {}): ApiTransport {
+  const repositories = createRepositoryStore()
+  const repositorySettings = createRepositorySettingsStore({
+    findRepository: (repositoryId) => repositories.find(repositoryId),
+  })
+
+  const runNow = (): ReviewRunResponse => {
+    // Копия, как после сети: UI не должен мутировать фикстуры.
+    const review = structuredClone(mockReview)
+    if (!server) return review
+    const index = server.currentIndex()
+    const step = server.scenario[index]
+    const finished = step.status === 'completed'
+    return {
+      ...review,
+      status: step.status,
+      last_progress_at: new Date(server.enteredAt(index)).toISOString(),
+      failed_stage: step.failed_stage ?? null,
+      failure_reason: step.failure_reason ?? null,
+      findings: finished ? review.findings : [],
+      published_comments: finished ? review.published_comments : [],
+    }
+  }
+
+  /** Пройденные шаги и текущий — `running`; после завершения — все шаги из фикстуры. */
+  const stepsNow = () => {
+    const all = structuredClone(mockSteps)
+    if (!server) return all
+    const status = server.scenario[server.currentIndex()].status
+    if (status === 'completed') return all
+    const current = all.items.findIndex((step) => step.stage === status)
+    if (current < 0) return { items: [] }
+    const items = all.items.slice(0, current + 1)
+    items[current] = {
+      ...items[current],
+      status: 'running',
+      duration_seconds: null,
+      error_code: null,
+    }
+    return { items }
+  }
+
+  const get = (path: string): unknown => {
+    const route = path.split('?')[0]
+    if (route === '/repositories') return repositories.list()
+    if (route === '/repositories/available') return repositories.available()
+    // `/repositories/{id}/settings|rules|history` — блок настроек вне контракта (#29).
+    const blockRoute = /^\/repositories\/([^/?]+)\/(settings|rules|history)$/.exec(route)
+    if (blockRoute) {
+      const [, repositoryId, part] = blockRoute
+      if (part === 'settings') return repositorySettings.settings(repositoryId)
+      if (part === 'rules') return repositorySettings.rulesStatus(repositoryId)
+      return repositorySettings.history(repositoryId)
+    }
+    if (route === reviewPath(mockReview.id)) return runNow()
+    if (route === reviewDiffPath(mockReview.id)) return structuredClone(mockDiff)
+    if (route === reviewStepsPath(mockReview.id)) return stepsNow()
+    throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
+  }
+
+  const post = (path: string, body: unknown): unknown => {
+    if (path === '/repositories') return repositories.connect(body as ConnectRepositoryRequest)
+    const settingsRoute = /^\/repositories\/([^/?]+)\/settings$/.exec(path)
+    if (settingsRoute) {
+      return repositorySettings.saveSettings(settingsRoute[1], body as RepositorySettings)
+    }
+    throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
+  }
+
+  const respond = (answer: () => unknown) =>
+    new Promise<unknown>((resolve, reject) => {
+      setTimeout(() => {
+        try {
+          resolve(answer())
+        } catch (error) {
+          reject(error instanceof Error ? error : new Error(String(error)))
+        }
+      }, latencyMs)
+    })
+
   return {
-    get: (path) =>
-      new Promise((resolve, reject) => {
-        setTimeout(() => {
-          if (path !== mockReviewPath(mockReviewState.run.id)) {
-            reject(new ApiError(404, `Нет такого ресурса: ${path}`))
-            return
-          }
-          // Копия, как после сети: UI не должен мутировать фикстуры.
-          const state = structuredClone(mockReviewState)
-          if (server) {
-            const index = server.currentIndex()
-            const step = server.scenario[index]
-            state.run = {
-              ...state.run,
-              status: step.status,
-              last_progress_at: new Date(server.enteredAt(index)).toISOString(),
-              failed_stage: step.failed_stage ?? null,
-              failure_reason: step.failure_reason ?? null,
-            }
-            if (step.status !== 'completed') {
-              state.run.verdict = null
-              state.run.score = null
-              state.findings = []
-              state.published_comments = []
-            }
-          }
-          resolve(state)
-        }, latencyMs)
-      }),
+    get: (path) => respond(() => get(path)),
+    post: (path, body) => respond(() => post(path, body)),
   }
 }

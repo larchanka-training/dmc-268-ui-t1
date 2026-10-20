@@ -25,6 +25,15 @@ jobs:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
+      # Контракт и типы из него совпадают с бэкендом на коммите из
+      # src/shared/api/contract/VERSION (ловит правку сгенерированного руками
+      # и забытый pnpm api:sync), и этот коммит входит в develop бэкенда:
+      # коммит из PR бэкенда в мёрж не пройдёт. Если в develop контракт новее —
+      # только предупреждение. Ходит в сеть к raw.githubusercontent.com и
+      # api.github.com; токен — против лимита анонимных запросов (60 в час).
+      - run: pnpm api:check
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest

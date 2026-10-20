@@ -1,120 +1,78 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ContractError } from '@/shared/api'
+import { fakeTransport } from '@/test/api'
 import type { RepositorySettings } from '../model/settings'
-import * as store from './mockStore'
 import {
   fetchRepositoryHistory,
   fetchRepositorySettings,
   fetchRulesStatus,
+  repositoryHistoryPath,
+  repositoryRulesPath,
+  repositorySettingsPath,
   saveRepositorySettings,
 } from './repositoryApi'
 
-// Заглушки поверх реальных функций store: по умолчанию — сквозной вызов,
-// в тестах контракта — подмена ответа данными вне схемы.
-vi.mock('./mockStore', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('./mockStore')>()
-  return {
-    ...actual,
-    getRepositorySettings: vi.fn(actual.getRepositorySettings),
-    getRulesStatus: vi.fn(actual.getRulesStatus),
-    getRepositoryHistory: vi.fn(actual.getRepositoryHistory),
-  }
-})
+const SETTINGS: RepositorySettings = {
+  autoReviewEnabled: false,
+  branchFilter: ['docs/**'],
+  minSeverity: 'critical',
+}
 
-beforeEach(() => {
-  vi.useFakeTimers()
-})
+describe('fetch-функции блока настроек', () => {
+  it('настройки идут своим путём и проходят схему', async () => {
+    const get = vi.fn(async () => structuredClone(SETTINGS))
 
-afterEach(() => {
-  vi.restoreAllMocks()
-  vi.useRealTimers()
-})
-
-describe('fetch-функции настроек', () => {
-  it('настройки приходят из store после задержки', async () => {
-    const promise = fetchRepositorySettings('repo-1')
-
-    await vi.advanceTimersByTimeAsync(349)
-    await expect(Promise.race([promise, Promise.resolve('pending')])).resolves.toBe('pending')
-    await vi.advanceTimersByTimeAsync(1)
-    await expect(promise).resolves.toEqual(store.getRepositorySettings('repo-1'))
+    await expect(fetchRepositorySettings(fakeTransport({ get }), 'repo-1')).resolves.toEqual(
+      SETTINGS,
+    )
+    expect(get).toHaveBeenCalledWith(repositorySettingsPath('repo-1'))
   })
 
-  it('статус правил repo-2 сообщает, что файла нет', async () => {
-    const promise = fetchRulesStatus('repo-2')
+  it('статус правил идёт своим путём и проходит схему', async () => {
+    const get = vi.fn(async () => ({ status: 'absent', branch: 'main', path: '.review/rules.md' }))
 
-    await vi.advanceTimersByTimeAsync(350)
-    await expect(promise).resolves.toMatchObject({ status: 'absent' })
+    await expect(fetchRulesStatus(fakeTransport({ get }), 'repo-2')).resolves.toMatchObject({
+      status: 'absent',
+    })
+    expect(get).toHaveBeenCalledWith(repositoryRulesPath('repo-2'))
   })
 
-  it('история repo-2 пуста', async () => {
-    const promise = fetchRepositoryHistory('repo-2')
+  it('история идёт своим путём и проходит схему', async () => {
+    const get = vi.fn(async () => [])
 
-    await vi.advanceTimersByTimeAsync(350)
-    await expect(promise).resolves.toEqual([])
+    await expect(fetchRepositoryHistory(fakeTransport({ get }), 'repo-2')).resolves.toEqual([])
+    expect(get).toHaveBeenCalledWith(repositoryHistoryPath('repo-2'))
   })
 })
 
 describe('saveRepositorySettings', () => {
-  it('сохраняет настройки и отдаёт записанное', async () => {
-    const draft: RepositorySettings = {
-      autoReviewEnabled: false,
-      branchFilter: ['release/**'],
-      minSeverity: 'critical',
-    }
+  it('постит настройки своим путём и возвращает записанное', async () => {
+    const post = vi.fn(async () => structuredClone(SETTINGS))
 
-    const saving = saveRepositorySettings('repo-2', draft)
-    await vi.advanceTimersByTimeAsync(500)
-    await expect(saving).resolves.toEqual(draft)
-
-    const reread = fetchRepositorySettings('repo-2')
-    await vi.advanceTimersByTimeAsync(350)
-    await expect(reread).resolves.toEqual(draft)
-  })
-
-  it('не записывает в store данные вне схемы', async () => {
-    const before = store.getRepositorySettings('repo-1')
-    const invalid = { autoReviewEnabled: 'yes' } as unknown as RepositorySettings
-
-    const expectation = expect(saveRepositorySettings('repo-1', invalid)).rejects.toBeInstanceOf(
-      ContractError,
-    )
-    await vi.advanceTimersByTimeAsync(500)
-    await expectation
-
-    expect(store.getRepositorySettings('repo-1')).toEqual(before)
+    await expect(
+      saveRepositorySettings(fakeTransport({ post }), 'repo-2', SETTINGS),
+    ).resolves.toEqual(SETTINGS)
+    expect(post).toHaveBeenCalledWith(repositorySettingsPath('repo-2'), SETTINGS)
   })
 })
 
 describe('валидация на границе', () => {
   it('настройки вне схемы не доходят до UI', async () => {
-    vi.mocked(store.getRepositorySettings).mockReturnValueOnce({
-      autoReviewEnabled: 'yes',
-    } as unknown as RepositorySettings)
+    const transport = fakeTransport({ get: async () => ({ autoReviewEnabled: 'yes' }) })
 
-    const expectation = expect(fetchRepositorySettings('repo-1')).rejects.toBeInstanceOf(
-      ContractError,
-    )
-    await vi.advanceTimersByTimeAsync(350)
-    await expectation
+    await expect(fetchRepositorySettings(transport, 'repo-1')).rejects.toBeInstanceOf(ContractError)
   })
 
   it('статус правил вне схемы не доходит до UI', async () => {
-    vi.mocked(store.getRulesStatus).mockReturnValueOnce({ status: 'half-loaded' } as never)
+    const transport = fakeTransport({ get: async () => ({ status: 'half-loaded' }) })
 
-    const expectation = expect(fetchRulesStatus('repo-1')).rejects.toBeInstanceOf(ContractError)
-    await vi.advanceTimersByTimeAsync(350)
-    await expectation
+    await expect(fetchRulesStatus(transport, 'repo-1')).rejects.toBeInstanceOf(ContractError)
   })
 
   it('история вне схемы не доходит до UI', async () => {
-    vi.mocked(store.getRepositoryHistory).mockReturnValueOnce([{ status: 42 }] as never)
+    const transport = fakeTransport({ get: async () => [{ status: 42 }] })
 
-    const expectation = expect(fetchRepositoryHistory('repo-1')).rejects.toBeInstanceOf(
-      ContractError,
-    )
-    await vi.advanceTimersByTimeAsync(350)
-    await expectation
+    await expect(fetchRepositoryHistory(transport, 'repo-1')).rejects.toBeInstanceOf(ContractError)
   })
 })

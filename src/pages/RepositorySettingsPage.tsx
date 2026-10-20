@@ -281,7 +281,7 @@ export function RepositorySettingsPage() {
           <Typography.Title level={1} className="page-title">
             Настройки репозитория
           </Typography.Title>
-          <Typography.Text type="secondary">{repo.fullName}</Typography.Text>
+          <Typography.Text type="secondary">{repo.full_name}</Typography.Text>
         </div>
         <Link to="/repositories">
           <Button>К списку репозиториев</Button>

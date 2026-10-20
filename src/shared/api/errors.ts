@@ -1,6 +1,7 @@
 /**
- * Ошибка ответа API. `code` — машинный код из тела `{code, message}`
- * (`UNAUTHENTICATED`, `ORIGIN_FORBIDDEN` и др.), если бэкенд его прислал.
+ * Ошибка ответа API. Тело ошибки — problem details по RFC 9457: `code` — машинный
+ * код (`UNAUTHENTICATED`, `ORIGIN_FORBIDDEN` и др.), `message` — `detail` из тела,
+ * а если его нет — общий текст про статус.
  */
 export class ApiError extends Error {
   readonly status: number

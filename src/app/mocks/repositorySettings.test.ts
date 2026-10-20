@@ -1,18 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  connectRepository,
-  getRepositoryHistory,
-  getRepositorySettings,
-  getRulesStatus,
-  saveRepositorySettings,
-} from './mockStore'
-import {
   HistoryRunSchema,
+  type Repository,
   RepositorySettingsSchema,
-  RulesStatusSchema,
   type RepositorySettings,
-} from '../model/settings'
+  RulesStatusSchema,
+} from '../../entities/repository'
+import { ApiError } from '../../shared/api'
+import { createRepositorySettingsStore } from './repositorySettings'
 
 /**
  * Зеркалит `ReviewRunStatus` бэкенда. Прямого импорта из `entities/review-run` нет:
@@ -28,10 +24,31 @@ const ALL_RUN_STATUSES = [
   'cancelled',
 ] as const
 
+function repository(n: number, defaultBranch = 'main'): Repository {
+  return {
+    id: `repo-${n}`,
+    provider: 'github',
+    provider_id: String(100 + n),
+    full_name: `larchanka-training/repo-${n}`,
+    default_branch: defaultBranch,
+    auto_review_enabled: true,
+    created_at: '2026-09-20T10:00:00Z',
+    updated_at: '2026-09-20T10:00:00Z',
+  }
+}
+
+/** Свой набор репозиториев на каждый тест: состояние store не протекает между тестами. */
+function createStore(...repos: Repository[]) {
+  return createRepositorySettingsStore({
+    findRepository: (repositoryId) => repos.find((repo) => repo.id === repositoryId),
+  })
+}
+
 describe('фикстуры настроек', () => {
   it('у repo-1 и repo-2 настройки различаются и проходят схему', () => {
-    const first = getRepositorySettings('repo-1')
-    const second = getRepositorySettings('repo-2')
+    const store = createStore(repository(1), repository(2))
+    const first = store.settings('repo-1')
+    const second = store.settings('repo-2')
 
     expect(first).not.toEqual(second)
     expect(RepositorySettingsSchema.safeParse(first).success).toBe(true)
@@ -39,19 +56,20 @@ describe('фикстуры настроек', () => {
   })
 
   it('возвращённые настройки — копия: мутация не меняет store', () => {
-    const settings = getRepositorySettings('repo-1')
+    const store = createStore(repository(1))
+    const settings = store.settings('repo-1')
     settings.branchFilter.push('hack/**')
 
-    expect(getRepositorySettings('repo-1').branchFilter).not.toContain('hack/**')
+    expect(store.settings('repo-1').branchFilter).not.toContain('hack/**')
   })
 })
 
 describe('статус правил', () => {
   it('repo-1: файл загружен, три правила в форме api#49 и отклонённый раздел', () => {
-    const status = getRulesStatus('repo-1')
+    const store = createStore(repository(1), repository(2), repository(3))
+    const status = store.rulesStatus('repo-1')
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
-    expect(status.status).toBe('loaded')
     if (status.status === 'loaded') {
       expect(status.rules.map((r) => r.name)).toEqual(['Security', 'Performance', 'Style'])
       expect(status.rules.every((r) => r.patterns.length > 0 && r.checks.length > 0)).toBe(true)
@@ -60,14 +78,16 @@ describe('статус правил', () => {
   })
 
   it('repo-2: файла правил нет', () => {
-    const status = getRulesStatus('repo-2')
+    const store = createStore(repository(2))
+    const status = store.rulesStatus('repo-2')
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     expect(status.status).toBe('absent')
   })
 
   it('repo-3: файл загружен, но применимых правил нет — оба раздела отклонены', () => {
-    const status = getRulesStatus('repo-3')
+    const store = createStore(repository(3))
+    const status = store.rulesStatus('repo-3')
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     if (status.status === 'loaded') {
@@ -79,7 +99,8 @@ describe('статус правил', () => {
 
 describe('история проверок', () => {
   it('repo-1: покрывает все статусы, новые прогоны сверху', () => {
-    const history = getRepositoryHistory('repo-1')
+    const store = createStore(repository(1))
+    const history = store.history('repo-1')
 
     expect(history.map((run) => run.status).sort()).toEqual([...ALL_RUN_STATUSES].sort())
     for (const run of history) {
@@ -90,66 +111,64 @@ describe('история проверок', () => {
   })
 
   it('repo-2: проверок ещё не было', () => {
-    expect(getRepositoryHistory('repo-2')).toEqual([])
+    const store = createStore(repository(2))
+    expect(store.history('repo-2')).toEqual([])
   })
 })
 
-describe('saveRepositorySettings', () => {
+describe('saveSettings', () => {
   it('сохранение меняет состояние store', () => {
+    const store = createStore(repository(1), repository(2))
     const draft: RepositorySettings = {
       autoReviewEnabled: false,
       branchFilter: ['release/**'],
       minSeverity: 'critical',
     }
 
-    const saved = saveRepositorySettings('repo-1', draft)
-
-    expect(saved).toEqual(draft)
-    expect(getRepositorySettings('repo-1')).toEqual(draft)
+    expect(store.saveSettings('repo-1', draft)).toEqual(draft)
+    expect(store.settings('repo-1')).toEqual(draft)
   })
 
   it('сохранение затрагивает только свой репозиторий', () => {
-    const before = getRepositorySettings('repo-2')
+    const store = createStore(repository(1), repository(2))
+    const before = store.settings('repo-2')
 
-    saveRepositorySettings('repo-1', {
-      autoReviewEnabled: false,
-      branchFilter: [],
-      minSeverity: 'low',
-    })
+    store.saveSettings('repo-1', { autoReviewEnabled: false, branchFilter: [], minSeverity: 'low' })
 
-    expect(getRepositorySettings('repo-2')).toEqual(before)
+    expect(store.settings('repo-2')).toEqual(before)
   })
 
   it('несуществующему репозиторию сохранить нельзя', () => {
-    expect(() => saveRepositorySettings('repo-nope', getRepositorySettings('repo-1'))).toThrow(
-      'Репозиторий не найден',
-    )
+    const store = createStore(repository(1))
+
+    expect(() => store.saveSettings('repo-nope', store.settings('repo-1'))).toThrow(ApiError)
   })
 })
 
 describe('незнакомый идентификатор репозитория', () => {
-  it.each([getRepositorySettings, getRulesStatus, getRepositoryHistory])(
-    '%s бросает ошибку, а не отдаёт пустые данные',
-    (getter) => {
-      expect(() => getter('repo-nope')).toThrow('Репозиторий не найден')
-    },
-  )
+  it.each([
+    ['settings', (store: ReturnType<typeof createStore>) => store.settings('repo-nope')],
+    ['rulesStatus', (store: ReturnType<typeof createStore>) => store.rulesStatus('repo-nope')],
+    ['history', (store: ReturnType<typeof createStore>) => store.history('repo-nope')],
+  ])('%s бросает ошибку, а не отдаёт пустые данные', (_, read) => {
+    expect(() => read(createStore())).toThrow(ApiError)
+  })
 })
 
 describe('репозиторий, подключённый после старта сессии', () => {
   it('получает дефолтные настройки, статус без правил и пустую историю', () => {
-    const connected = connectRepository('avail-4')
+    const store = createStore(repository(1), repository(4, 'develop'))
 
-    expect(getRepositorySettings(connected.id)).toEqual({
+    expect(store.settings('repo-4')).toEqual({
       autoReviewEnabled: true,
       branchFilter: [],
       minSeverity: 'critical',
     })
-    expect(getRulesStatus(connected.id)).toEqual({
+    expect(store.rulesStatus('repo-4')).toEqual({
       status: 'absent',
-      branch: connected.defaultBranch,
+      branch: 'develop',
       path: '.review/rules.md',
     })
-    expect(getRepositoryHistory(connected.id)).toEqual([])
+    expect(store.history('repo-4')).toEqual([])
   })
 })

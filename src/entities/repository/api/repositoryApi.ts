@@ -1,75 +1,92 @@
 import {
-  connectRepository,
-  getAvailableRepositories,
-  getConnectedRepositories,
-  getRepositoryHistory,
-  getRepositorySettings,
-  getRulesStatus,
-  saveRepositorySettings as persistSettings,
-} from '@/entities/repository/api/mockStore'
+  AvailableRepositoryListSchema,
+  RepositorySchema,
+  RepositoryListSchema,
+  type AvailableRepository,
+  type ConnectRepositoryRequest,
+  type Repository,
+} from '@/entities/repository/model/schema'
 import {
   HistoryRunSchema,
   RepositorySettingsSchema,
   RulesStatusSchema,
+  type HistoryRun,
+  type RepositorySettings,
+  type RulesStatus,
 } from '@/entities/repository/model/settings'
-import type {
-  HistoryRun,
-  RepositorySettings,
-  RulesStatus,
-} from '@/entities/repository/model/settings'
-import type { AvailableRepository, ConnectedRepository } from '@/entities/repository/model/types'
-import { parseResponse } from '@/shared/api'
+import { parseResponse, type ApiTransport } from '@/shared/api'
 
-const delay = (ms = 350) => new Promise((resolve) => setTimeout(resolve, ms))
+export const REPOSITORIES_PATH = '/repositories'
+export const AVAILABLE_REPOSITORIES_PATH = '/repositories/available'
 
-export async function fetchConnectedRepositories(): Promise<ConnectedRepository[]> {
-  await delay()
-  return getConnectedRepositories()
+/** Первая страница подключённых: больше 200 бэкенд всё равно не отдаст. */
+const PAGE = '?limit=200'
+
+export async function fetchConnectedRepositories(transport: ApiTransport): Promise<Repository[]> {
+  const path = REPOSITORIES_PATH + PAGE
+  return parseResponse(RepositoryListSchema, path, await transport.get(path)).items
 }
 
-export async function fetchAvailableRepositories(): Promise<AvailableRepository[]> {
-  await delay()
-  return getAvailableRepositories()
+export async function fetchAvailableRepositories(
+  transport: ApiTransport,
+): Promise<AvailableRepository[]> {
+  const path = AVAILABLE_REPOSITORIES_PATH
+  return parseResponse(AvailableRepositoryListSchema, path, await transport.get(path)).items
 }
 
-export async function connectRepositoryById(repoId: string): Promise<ConnectedRepository> {
-  await delay(500)
-  return connectRepository(repoId)
+export async function connectRepository(
+  transport: ApiTransport,
+  request: ConnectRepositoryRequest,
+): Promise<Repository> {
+  const path = REPOSITORIES_PATH
+  return parseResponse(RepositorySchema, path, await transport.post(path, request))
 }
 
 /**
- * Mock adapter с той же границей, что будущий HTTP-клиент (FE-DEC-06): ответ store
- * проходит через Zod-схему до того, как попадёт в UI. Пути — как у ожидаемого контракта.
+ * Пути блока настроек. Ручек в контракте бэкенда ещё нет (#28, домен api#49): форма ответа
+ * закреплена в `model/settings.ts` и станет схемой этих ручек, когда они появятся.
  */
-export async function fetchRepositorySettings(repoId: string): Promise<RepositorySettings> {
-  await delay()
-  return parseResponse(
-    RepositorySettingsSchema,
-    `/repositories/${repoId}/settings`,
-    getRepositorySettings(repoId),
-  )
+export function repositorySettingsPath(repositoryId: string) {
+  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/settings`
 }
 
-export async function fetchRulesStatus(repoId: string): Promise<RulesStatus> {
-  await delay()
-  return parseResponse(RulesStatusSchema, `/repositories/${repoId}/rules`, getRulesStatus(repoId))
+export function repositoryRulesPath(repositoryId: string) {
+  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/rules`
 }
 
-export async function fetchRepositoryHistory(repoId: string): Promise<HistoryRun[]> {
-  await delay()
-  return parseResponse(
-    HistoryRunSchema.array(),
-    `/repositories/${repoId}/history`,
-    getRepositoryHistory(repoId),
-  )
+export function repositoryHistoryPath(repositoryId: string) {
+  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/history`
+}
+
+export async function fetchRepositorySettings(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<RepositorySettings> {
+  const path = repositorySettingsPath(repositoryId)
+  return parseResponse(RepositorySettingsSchema, path, await transport.get(path))
+}
+
+export async function fetchRulesStatus(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<RulesStatus> {
+  const path = repositoryRulesPath(repositoryId)
+  return parseResponse(RulesStatusSchema, path, await transport.get(path))
+}
+
+export async function fetchRepositoryHistory(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<HistoryRun[]> {
+  const path = repositoryHistoryPath(repositoryId)
+  return parseResponse(HistoryRunSchema.array(), path, await transport.get(path))
 }
 
 export async function saveRepositorySettings(
-  repoId: string,
+  transport: ApiTransport,
+  repositoryId: string,
   settings: RepositorySettings,
 ): Promise<RepositorySettings> {
-  await delay(500)
-  // Проверяем тело запроса до записи: store не должен принять данные вне схемы.
-  const body = parseResponse(RepositorySettingsSchema, `/repositories/${repoId}/settings`, settings)
-  return persistSettings(repoId, body)
+  const path = repositorySettingsPath(repositoryId)
+  return parseResponse(RepositorySettingsSchema, path, await transport.post(path, settings))
 }

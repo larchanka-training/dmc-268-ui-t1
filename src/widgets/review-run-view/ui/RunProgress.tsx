@@ -107,7 +107,7 @@ export function RunProgress({ run, seenStage }: Props) {
   const now = useNow(STALE_CHECK_EVERY)
   const { steps, caption } = describeProgress(run, seenStage)
 
-  const lastProgress = run.last_progress_at ? Date.parse(run.last_progress_at) : Number.NaN
+  const lastProgress = Date.parse(run.last_progress_at)
   const stale = !isTerminalStatus(run.status) && now - lastProgress > STALE_AFTER
 
   return (

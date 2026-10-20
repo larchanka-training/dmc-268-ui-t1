@@ -1,6 +1,8 @@
+import type { RunStage } from '../../entities/review-run'
+
 export type ScenarioStep = {
   status: string
-  failed_stage?: string
+  failed_stage?: RunStage
   failure_reason?: string
 }
 
