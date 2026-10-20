@@ -56,6 +56,9 @@ export function useReviewRun(reviewId: string) {
 /**
  * Часть прогона, которую бэкенд ещё не реализовал: `501 NOT_IMPLEMENTED` (и `404` от источника
  * без этого пути) — `null`, экран показывает прогон без неё.
+ *
+ * TODO: когда бэкенд реализует дифф и шаги (dmc-268-api-t1#87, #88), перепроверить `404` —
+ * настоящий `404` на под-ресурсе сейчас маскируется под «части нет».
  */
 function usePlannedPart<T extends z.ZodType>(
   reviewId: string,
