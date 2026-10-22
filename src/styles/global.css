@@ -111,3 +111,61 @@ body {
 .link-spaced {
   margin-left: 8px;
 }
+
+/* Навигация по страницам списка (`shared/ui/PageNav`): ссылки, а не пагинация antd. */
+.page-nav {
+  padding: 12px 16px;
+}
+
+.page-nav ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.page-nav-link,
+.page-nav-gap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--app-text);
+  text-decoration: none;
+}
+
+.page-nav-link:hover {
+  border-color: var(--app-border);
+}
+
+/* Фокус с клавиатуры — заметнее наведения: контур цветом акцента темы. */
+.page-nav-link:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 1px;
+}
+
+.page-nav-link[aria-current='page'] {
+  border-color: var(--app-border);
+  background: var(--app-accent-subtle);
+  font-weight: 600;
+}
+
+.page-nav-link[aria-disabled='true'],
+.page-nav-gap {
+  color: var(--app-muted);
+}
+
+.page-nav-link[aria-disabled='true'] {
+  cursor: not-allowed;
+}
+
+.page-nav-link[aria-disabled='true']:hover {
+  border-color: transparent;
+}
