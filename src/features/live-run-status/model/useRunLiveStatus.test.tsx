@@ -3,7 +3,12 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { applyRunEvent, type ReviewRun, type ReviewRunListItem } from '../../../entities/review-run'
+import {
+  applyRunEvent,
+  mergeRunSnapshot,
+  type ReviewRun,
+  type ReviewRunListItem,
+} from '../../../entities/review-run'
 import { EventStreamContext } from '../../../shared/api'
 import { navigation } from '../../../shared/lib'
 import { ME, stubFetch } from '../../../test/api'
@@ -15,13 +20,21 @@ import { useRunLiveStatus } from './useRunLiveStatus'
 type CacheData = { run: ReviewRun }
 
 const queryKey = ['live-test'] as const
+const diffKey = [...queryKey, 'diff'] as const
 const patchCache = (data: CacheData, event: ReviewRunListItem): CacheData => ({
   run: applyRunEvent(data.run, event),
+})
+// Как у запроса прогона на экране: снимок старше кэша не откатывает статус.
+const keepNewerStatus = (old: unknown, next: unknown): unknown => ({
+  run: mergeRunSnapshot((old as CacheData | undefined)?.run, (next as CacheData).run),
 })
 
 let stream: FakeEventStream
 let fetches: number
+let diffFetches: number
 let serverRun: ReviewRun
+/** Пока не `null`, ответ на запрос прогона ждёт этого промиса: сервер прочитал, ответ в пути. */
+let responseGate: Promise<void> | null
 
 /** Экран в миниатюре: прогон в кэше запроса плюс хук подписки, больше ничего. */
 function Harness() {
@@ -29,7 +42,19 @@ function Harness() {
     queryKey,
     queryFn: async (): Promise<CacheData> => {
       fetches += 1
-      return { run: serverRun }
+      const snapshot = serverRun
+      if (responseGate) await responseGate
+      return { run: snapshot }
+    },
+    staleTime: Infinity,
+    structuralSharing: keepNewerStatus,
+  })
+  // Дифф живёт под ключом, который начинается с ключа прогона, как на экране.
+  useQuery({
+    queryKey: diffKey,
+    queryFn: async () => {
+      diffFetches += 1
+      return 'diff'
     },
     staleTime: Infinity,
   })
@@ -44,8 +69,9 @@ function Harness() {
     <div>
       <p>Статус: {run?.status}</p>
       <p>Прогресс: {run?.last_progress_at}</p>
+      <p>Токены: {run?.tokens_used}</p>
       <p>Виденный этап: {live.seenStage ?? 'нет'}</p>
-      <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
+      <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />
     </div>
   )
 }
@@ -54,6 +80,7 @@ function renderHarness(initial: Partial<ReviewRun> = { status: 'analysing' }) {
   serverRun = makeReviewRun(initial)
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   queryClient.setQueryData<CacheData>(queryKey, { run: serverRun })
+  queryClient.setQueryData(diffKey, 'diff')
   render(
     <QueryClientProvider client={queryClient}>
       <EventStreamContext value={stream}>
@@ -74,6 +101,8 @@ describe('useRunLiveStatus', () => {
   beforeEach(() => {
     stream = createFakeEventStream()
     fetches = 0
+    diffFetches = 0
+    responseGate = null
     vi.spyOn(navigation, 'assign').mockImplementation(() => {})
     // Отказ потока проверяет сессию через `/auth/me`; по умолчанию она жива.
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
@@ -149,6 +178,39 @@ describe('useRunLiveStatus', () => {
     expect(stream.opened).toHaveLength(1)
   })
 
+  it('снимок на open перезапрашивает только прогон, не дифф и шаги', async () => {
+    renderHarness()
+
+    act(() => stream.setState('open'))
+
+    await waitFor(() => expect(fetches).toBe(1))
+    expect(diffFetches).toBe(0)
+  })
+
+  it('снимок, прочитанный до события, не откатывает статус, остальное из него применяется', async () => {
+    renderHarness({ status: 'building_context', tokens_used: 1 })
+    let respond = () => {}
+    responseGate = new Promise((resolve) => {
+      respond = resolve
+    })
+
+    // Сервер прочитал прогон в building_context, ответ ещё в пути.
+    serverRun = makeReviewRun({ status: 'building_context', tokens_used: 42 })
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(fetches).toBe(1))
+
+    // Пока ответ в пути, пришло событие с большим `updated_at`.
+    act(() => stream.emitRun({ status: 'analysing', last_progress_at: '2026-09-20T14:10:00Z' }))
+    expect(await screen.findByText('Статус: analysing')).toBeInTheDocument()
+
+    await act(async () => respond())
+
+    expect(await screen.findByText('Токены: 42')).toBeInTheDocument()
+    expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
+    expect(screen.getByText('Прогресс: 2026-09-20T14:10:00Z')).toBeInTheDocument()
+    expect(screen.getByText('Виденный этап: analysing')).toBeInTheDocument()
+  })
+
   it.each(['completed', 'failed', 'cancelled'])(
     'для прогона в статусе %s подписка не открывается',
     (status) => {
@@ -170,6 +232,19 @@ describe('useRunLiveStatus', () => {
     // Запоздавшие события после завершения запросов не плодят.
     act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
     expect(fetches).toBe(1)
+  })
+
+  it('run.finished закрывает подписку, даже если кэш после него не терминальный', async () => {
+    renderHarness()
+
+    // Событие старше кэша: `patchCache` его отбросит, статус в кэше останется analysing.
+    act(() =>
+      stream.emitRun({ status: 'completed', updated_at: '2026-09-20T14:06:00Z' }, 'run.finished'),
+    )
+
+    await waitFor(() => expect(fetches).toBe(1))
+    expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
+    expect(stream.active()).toBe(0)
   })
 
   it('два run.finished подряд перезапрашивают прогон один раз', async () => {
@@ -276,15 +351,18 @@ describe('useRunLiveStatus', () => {
 
   it('отказ сервера: сообщение и «Обновить», который перезапрашивает прогон один раз', async () => {
     const user = userEvent.setup()
+    stream = createFakeEventStream({ autoOpen: true })
     renderHarness()
+    await waitFor(() => expect(fetches).toBe(1))
 
     act(() => stream.setState('failed'))
     expect(screen.getByRole('alert')).toHaveTextContent('Не удалось получить обновления статуса')
 
     await user.click(screen.getByRole('button', { name: 'Обновить' }))
 
+    // Новое соединение открылось и сразу взяло снимок: запрос прогона ровно один.
     await waitFor(() => expect(stream.opened).toHaveLength(2))
-    expect(fetches).toBe(1)
+    expect(fetches).toBe(2)
     expect(stream.active()).toBe(1)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -324,18 +402,20 @@ describe('useRunLiveStatus', () => {
     expect(calls).toHaveLength(0)
   })
 
-  it('«Обновить» не открывает подписку, если прогон за это время завершился', async () => {
+  it('«Обновить» при прогоне, завершившемся за это время: снимок после open закрывает подписку', async () => {
     const user = userEvent.setup()
+    stream = createFakeEventStream({ autoOpen: true })
     renderHarness()
+    await waitFor(() => expect(fetches).toBe(1))
     act(() => stream.setState('failed'))
     serverRun = makeReviewRun({ status: 'completed' })
 
     await user.click(screen.getByRole('button', { name: 'Обновить' }))
 
-    await waitFor(() => expect(screen.getByText('Статус: completed')).toBeInTheDocument())
-    expect(fetches).toBe(1)
+    expect(await screen.findByText('Статус: completed')).toBeInTheDocument()
+    expect(fetches).toBe(2)
+    expect(stream.opened).toHaveLength(2)
     expect(stream.active()).toBe(0)
-    expect(stream.opened).toHaveLength(1)
   })
 
   it('помнит последний этап, который видел', async () => {

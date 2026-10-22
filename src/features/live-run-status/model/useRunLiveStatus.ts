@@ -17,7 +17,11 @@ type Options<TData> = {
   runId: string
   /** Статус прогона из кэша: терминальный — подписка не открывается. */
   status: string
-  /** Ключ запроса, в кэше которого живёт прогон; должен быть стабильным между рендерами. */
+  /**
+   * Ключ запроса, в кэше которого живёт прогон; должен быть стабильным между рендерами. Ответ
+   * этого запроса, прочитанный сервером раньше уже применённого события, не должен откатывать
+   * статус: запрос сводит снимок с кэшем через `mergeRunSnapshot` (`structuralSharing`).
+   */
   queryKey: QueryKey
   /**
    * Накладывает событие прогона на данные кэша; чистая функция, стабильная между рендерами.
@@ -30,8 +34,8 @@ export type RunLiveStatus = {
   streamState: StreamState
   /** Последний этап, который экран видел у этого прогона; `null` — не видел ни одного. */
   seenStage: RunStage | null
-  /** «Обновить» после отказа сервера: один раз перезапрашивает прогон и открывает поток заново. */
-  refresh: () => Promise<void>
+  /** «Обновить» после отказа сервера: открывает поток заново, снимок прогона возьмёт `open`. */
+  refresh: () => void
 }
 
 /**
@@ -91,9 +95,11 @@ export function useRunLiveStatus<TData>({
       onStateChange: (state) => {
         setStreamState(state)
         // Пропущенное до открытия и за время обрыва поток не повторит: берём снимок прогона.
-        // Событие, пришедшее раньше снимка, не потеряется, а более старая версия проиграет по
-        // `updated_at` в `patchCache`. Только сам прогон (`exact`): ключи диффа и шагов
-        // начинаются с его ключа, а перекачивать дифф на каждое переподключение незачем.
+        // Версии сводит `updated_at`: событие старше кэша отбрасывает `patchCache`, а статус
+        // снимка, прочитанного сервером до уже применённого события, отбрасывает сам запрос
+        // (`mergeRunSnapshot`); остальные поля снимка применяются. Только сам прогон (`exact`):
+        // ключи диффа и шагов начинаются с его ключа, а перекачивать дифф на каждое
+        // переподключение незачем.
         if (state === 'open' && !finished) {
           void queryClient.invalidateQueries({ queryKey, exact: true })
         }
@@ -136,11 +142,11 @@ export function useRunLiveStatus<TData>({
     })
   }, [streamState])
 
-  const refresh = useCallback(async () => {
+  // Прогон здесь не запрашиваем: снимок возьмёт `open` нового соединения, иначе запросов два.
+  const refresh = useCallback(() => {
     setStreamState('connecting')
-    await queryClient.invalidateQueries({ queryKey })
     setAttempt((value) => value + 1)
-  }, [queryClient, queryKey])
+  }, [])
 
   return { streamState, seenStage, refresh }
 }

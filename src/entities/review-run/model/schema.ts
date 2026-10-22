@@ -119,13 +119,42 @@ export function isRunEventType(type: string): type is RunEventType {
   return (RUN_EVENT_TYPES as readonly string[]).includes(type)
 }
 
+// Формат времени контракта: UTC с `Z`, дробная часть секунд — от 1 до 6 знаков.
+const CONTRACT_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?Z$/
+
+/** Момент контракта строкой фиксированной ширины с микросекундами: такие строки сравнимы как есть. */
+function toMicros(value: string): string | null {
+  const match = CONTRACT_INSTANT.exec(value)
+  return match ? `${match[1]}.${(match[2] ?? '').padEnd(6, '0')}` : null
+}
+
 /**
  * Из двух версий строки новее та, у которой `updated_at` больше, при равном — пришедшая позже
- * (правило контракта `GET /api/v1/events`). Сравниваем моменты времени, а не строки: дробная
- * часть секунд у бэкенда переменной длины.
+ * (правило контракта `GET /api/v1/events`). Дробная часть секунд у бэкенда переменной длины, до
+ * микросекунд: дополняем её до 6 знаков и сравниваем строки — `Date.parse` режет до миллисекунд.
+ * Строку вне формата контракта сравниваем через `Date.parse`.
  */
 export function isSameOrNewer(incoming: string, current: string): boolean {
+  const a = toMicros(incoming)
+  const b = toMicros(current)
+  if (a !== null && b !== null) return a >= b
   return Date.parse(incoming) >= Date.parse(current)
+}
+
+/** Поля прогона, которые несут события `run.*`: их версия определяется `updated_at`. */
+type RunStatusFields = Pick<
+  ReviewRun,
+  'status' | 'last_progress_at' | 'failed_stage' | 'duration_seconds' | 'updated_at'
+>
+
+function statusFields(source: RunStatusFields): RunStatusFields {
+  return {
+    status: source.status,
+    last_progress_at: source.last_progress_at,
+    failed_stage: source.failed_stage,
+    duration_seconds: source.duration_seconds,
+    updated_at: source.updated_at,
+  }
 }
 
 /**
@@ -134,14 +163,19 @@ export function isSameOrNewer(incoming: string, current: string): boolean {
  */
 export function applyRunEvent<T extends ReviewRun>(run: T, event: ReviewRunListItem): T {
   if (!isSameOrNewer(event.updated_at, run.updated_at)) return run
-  return {
-    ...run,
-    status: event.status,
-    last_progress_at: event.last_progress_at,
-    failed_stage: event.failed_stage,
-    duration_seconds: event.duration_seconds,
-    updated_at: event.updated_at,
-  }
+  return { ...run, ...statusFields(event) }
+}
+
+/**
+ * Сводит снимок прогона из REST с тем, что уже лежит в кэше. Снимок могли прочитать до события,
+ * которое пришло раньше ответа: тогда его статусные поля старше кэша по `updated_at` и
+ * проигрывают, а остальное (замечания, вердикт, причина сбоя) берётся из снимка. При равном
+ * `updated_at` снимок, пришедший позже, побеждает целиком.
+ */
+export function mergeRunSnapshot<T extends ReviewRun>(cached: T | undefined, snapshot: T): T {
+  if (cached === undefined || cached.id !== snapshot.id) return snapshot
+  if (isSameOrNewer(snapshot.updated_at, cached.updated_at)) return snapshot
+  return { ...snapshot, ...statusFields(cached) }
 }
 
 /** Статус шире enum контракта намеренно (см. `ReviewRunSchema.status`), остальное — поле в поле. */

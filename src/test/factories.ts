@@ -40,7 +40,6 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   }
 }
 
-/** Идентификаторы hunk и строк выводятся из пути, как в mock-данных приложения. */
 /**
  * Строка прогона из события `run.*`: тот же прогон, что `makeReviewRun`, но `updated_at` позже,
  * чтобы событие по умолчанию было новее прогона в кэше.
@@ -63,6 +62,7 @@ export function makeRunListItem(overrides: Partial<ReviewRunListItem> = {}): Rev
   }
 }
 
+/** Идентификаторы hunk и строк выводятся из пути, как в mock-данных приложения. */
 export function makeDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
   return withLineIds({
     path: 'src/example.ts',

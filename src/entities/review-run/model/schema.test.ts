@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest'
 import {
   applyRunEvent,
   isRunEventType,
+  isSameOrNewer,
   isTerminalStatus,
+  mergeRunSnapshot,
   ReviewRunListItemSchema,
   ReviewRunSchema,
 } from './schema'
@@ -112,5 +114,60 @@ describe('applyRunEvent', () => {
         makeRunListItem({ status: 'publishing', updated_at: '2026-09-20T14:07:14.500000Z' }),
       ).status,
     ).toBe('publishing')
+  })
+})
+
+describe('isSameOrNewer', () => {
+  it('различает микросекунды, которые `Date.parse` срезал бы', () => {
+    expect(isSameOrNewer('2026-09-20T14:07:14.123456Z', '2026-09-20T14:07:14.123457Z')).toBe(false)
+    expect(isSameOrNewer('2026-09-20T14:07:14.123457Z', '2026-09-20T14:07:14.123456Z')).toBe(true)
+  })
+
+  it('дробная часть разной длины сравнивается как число', () => {
+    expect(isSameOrNewer('2026-09-20T14:07:14.5Z', '2026-09-20T14:07:14.500000Z')).toBe(true)
+    expect(isSameOrNewer('2026-09-20T14:07:14Z', '2026-09-20T14:07:14.000001Z')).toBe(false)
+    expect(isSameOrNewer('2026-09-20T14:07:14.1Z', '2026-09-20T14:07:14.09Z')).toBe(true)
+  })
+})
+
+describe('mergeRunSnapshot', () => {
+  const cached = makeReviewRun({
+    status: 'analysing',
+    last_progress_at: '2026-09-20T14:10:00Z',
+    updated_at: '2026-09-20T14:10:00.000002Z',
+    tokens_used: 1,
+  })
+
+  it('снимок старше кэша: статусные поля из кэша, остальное из снимка', () => {
+    const snapshot = makeReviewRun({
+      status: 'building_context',
+      updated_at: '2026-09-20T14:10:00.000001Z',
+      tokens_used: 42,
+      failure_reason: 'из снимка',
+    })
+
+    expect(mergeRunSnapshot(cached, snapshot)).toEqual({
+      ...snapshot,
+      status: 'analysing',
+      last_progress_at: '2026-09-20T14:10:00Z',
+      failed_stage: cached.failed_stage,
+      duration_seconds: cached.duration_seconds,
+      updated_at: '2026-09-20T14:10:00.000002Z',
+    })
+  })
+
+  it('снимок с равным или большим updated_at применяется целиком', () => {
+    const same = makeReviewRun({ status: 'completed', updated_at: cached.updated_at })
+    const newer = makeReviewRun({ status: 'failed', updated_at: '2026-09-20T14:11:00Z' })
+
+    expect(mergeRunSnapshot(cached, same)).toBe(same)
+    expect(mergeRunSnapshot(cached, newer)).toBe(newer)
+  })
+
+  it('без кэша или для другого прогона — снимок как есть', () => {
+    const snapshot = makeReviewRun({ status: 'queued', updated_at: '2026-09-20T14:00:00Z' })
+
+    expect(mergeRunSnapshot(undefined, snapshot)).toBe(snapshot)
+    expect(mergeRunSnapshot({ ...cached, id: 'other' }, snapshot)).toBe(snapshot)
   })
 })

@@ -491,6 +491,7 @@ describe('ReviewRunView', () => {
 
     it('INT-20: идущий прогон без событий не опрашивается по таймеру', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
+      stream = createFakeEventStream({ autoOpen: true })
       const inner = fakeAdapter({
         run: makeReviewRun({ status: 'analysing' }),
       })
@@ -500,9 +501,46 @@ describe('ReviewRunView', () => {
 
       await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
 
-      const runRequests = get.mock.calls.filter(([path]) => path === reviewPath('run-1'))
-      expect(runRequests).toHaveLength(1)
+      // Первая загрузка и снимок после `open`; дифф — только первая загрузка.
+      const requests = (path: string) => get.mock.calls.filter(([called]) => called === path)
+      expect(requests(reviewPath('run-1'))).toHaveLength(2)
+      expect(requests(reviewDiffPath('run-1'))).toHaveLength(1)
       expect(screen.getByText('Анализ')).toBeInTheDocument()
+    })
+
+    it('снимок, прочитанный до события, не откатывает этап, замечания из него появляются', async () => {
+      let backend: Backend = { run: makeReviewRun({ status: 'building_context' }), findings: [] }
+      let gate: Promise<void> | null = null
+      const inner = fakeAdapter(() => backend)
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            // Сервер прочитал прогон сейчас, ответ задерживается до `gate`.
+            const answer = inner.get(path)
+            if (gate && path === reviewPath('run-1')) await gate
+            return answer
+          },
+        }),
+      )
+      await waitFor(() =>
+        expect(within(progress()).getByText('Сбор контекста')).toHaveTextContent('выполняется'),
+      )
+
+      let respond = () => {}
+      gate = new Promise((resolve) => {
+        respond = resolve
+      })
+      backend = { run: makeReviewRun({ status: 'building_context' }) }
+      act(() => stream.setState('open'))
+      act(() => stream.emitRun({ status: 'analysing' }))
+      await waitFor(() =>
+        expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('выполняется'),
+      )
+
+      await act(async () => respond())
+
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('выполняется')
     })
 
     it('INT-21: при обрыве соединения замечания и данные прогона остаются на экране', async () => {
