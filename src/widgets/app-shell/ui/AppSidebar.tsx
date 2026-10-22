@@ -1,6 +1,7 @@
 import {
   BookOutlined,
   DashboardOutlined,
+  FileSearchOutlined,
   GithubOutlined,
   GitlabOutlined,
   PlusOutlined,
@@ -11,6 +12,7 @@ import styles from '@/widgets/app-shell/ui/AppSidebar.module.css'
 
 const navItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Обзор' },
+  { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
   { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
   { key: '/repositories/connect', icon: <PlusOutlined />, label: 'Подключить репозиторий' },
 ]

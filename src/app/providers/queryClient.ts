@@ -4,10 +4,10 @@ import { ApiError, ContractError } from '../../shared/api'
 
 const MAX_RETRIES = 2
 
-/** Повторяем только то, что может пройти со второй попытки: сбой сети или 5xx. */
+/** Повторяем только то, что может пройти со второй попытки: сбой сети или 5xx, кроме `501`. */
 export function shouldRetry(failureCount: number, error: unknown): boolean {
-  // 4xx и ответ вне схемы повторять бессмысленно: ответ не изменится.
-  if (error instanceof ApiError && error.status < 500) return false
+  // 4xx, `501` (ручка-заглушка) и ответ вне схемы повторять бессмысленно: ответ не изменится.
+  if (error instanceof ApiError && (error.status < 500 || error.status === 501)) return false
   if (error instanceof ContractError) return false
   return failureCount < MAX_RETRIES
 }

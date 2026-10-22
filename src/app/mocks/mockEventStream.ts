@@ -1,12 +1,11 @@
-import { isTerminalStatus, type ReviewRunListItem } from '../../entities/review-run'
+import { isTerminalStatus } from '../../entities/review-run'
 import type { EventStream } from '../../shared/api'
 import { mockReview } from './fixtures'
 import { createMockServer, type MockServer } from './mockServer'
+import { FOREIGN_RUN_ID, scenarioRow } from './reviewRuns'
 
 export { COMPLETED_SCENARIO, FAILED_SCENARIO } from './mockServer'
-
-/** Чужой прогон в общем потоке: его события экран прогона `run-42` должен пропускать. */
-export const FOREIGN_RUN_ID = 'run-7'
+export { FOREIGN_RUN_ID } from './reviewRuns'
 
 /** Тип события, которого клиент не знает: контракт велит его пропускать. */
 export const UNKNOWN_EVENT_TYPE = 'repository.synced'
@@ -22,24 +21,7 @@ export const UNKNOWN_EVENT_TYPE = 'repository.synced'
 export function createScenarioEventStream(server: MockServer = createMockServer()): EventStream {
   const { scenario } = server
 
-  const rowAt = (index: number, id: string): ReviewRunListItem => {
-    const step = scenario[index]
-    const at = new Date(server.enteredAt(index)).toISOString()
-    const terminal = isTerminalStatus(step.status)
-    return {
-      id,
-      status: step.status,
-      trigger: mockReview.trigger,
-      head_sha: mockReview.head_sha,
-      created_at: mockReview.created_at,
-      updated_at: at,
-      last_progress_at: at,
-      duration_seconds: terminal ? mockReview.duration_seconds : null,
-      failed_stage: step.failed_stage ?? null,
-      findings_count: step.status === 'completed' ? mockReview.findings.length : 0,
-      merge_request: mockReview.merge_request,
-    }
-  }
+  const rowAt = (index: number, id: string) => scenarioRow(server, index, id)
 
   return {
     subscribe(_path, { onEvent, onStateChange }) {

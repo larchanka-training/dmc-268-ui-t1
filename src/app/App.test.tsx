@@ -13,7 +13,7 @@ import { createMockServer, FAILED_SCENARIO } from './mocks/mockServer'
 const STEP_MS = 4_000
 
 /** Собирает приложение на mock adapter и mock-потоке с общим «сервером» и считает обращения. */
-function setup(scenario?: Parameters<typeof createMockServer>[0]) {
+function setup(scenario?: Parameters<typeof createMockServer>[0], url = '/app/reviews/run-42') {
   const server = createMockServer({ ...scenario, stepMs: STEP_MS })
   const adapter = createMockAdapter({ latencyMs: 0, server })
   const stream = createScenarioEventStream(server)
@@ -34,7 +34,7 @@ function setup(scenario?: Parameters<typeof createMockServer>[0]) {
   }
   // Экран прогона под `RequireAuth`: сессия жива, данные прогона — из mock adapter.
   stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
-  window.history.pushState({}, '', '/app/reviews/run-42')
+  window.history.pushState({}, '', url)
   render(<App transport={transport} eventStream={eventStream} />)
   return { calls }
 }
@@ -183,5 +183,21 @@ describe('App на mock adapter и mock-потоке', () => {
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
     expect(calls).toEqual({ get: 3, subscribe: 1 })
+  })
+
+  it('вкладка «Ревью»: список из мока, статус прогона меняется по потоку без перезагрузки', async () => {
+    setup(undefined, '/app/reviews')
+
+    expect(await screen.findByText('Найдено прогонов: 30')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Ревью/ })).toBeInTheDocument()
+    const row = () => {
+      const title = screen.getByText('#42 Эндпоинт замечаний прогона и повтор запросов к БД')
+      return title.closest('tr') as HTMLElement
+    }
+    expect(within(row()).getByText('В очереди')).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS))
+
+    await waitFor(() => expect(within(row()).getByText('Сбор контекста')).toBeInTheDocument())
   })
 })
