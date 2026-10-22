@@ -20,5 +20,6 @@ export type {
   RunTrigger,
   Verdict,
 } from './model/schema'
+export { RUN_STATUS_LABELS, RUN_TRIGGER_LABELS } from './model/labels'
 export { RunStatusBadge } from './ui/RunStatusBadge'
 export { VerdictBadge } from './ui/VerdictBadge'
