@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { KNOWN_STATUSES, RUN_STATUS_LABELS, type KnownRunStatus } from '@/entities/review-run'
 import { useConnectedRepositories } from '@/features/repository'
 
-import type { ActivityFilter, ReviewListFilters } from '../model/filters'
+import { MAX_REPOSITORIES, type ActivityFilter, type ReviewListFilters } from '../model/filters'
 
 type Props = {
   filters: ReviewListFilters
@@ -108,6 +108,8 @@ export function ReviewFilters({ filters, onChange, onReset }: Props) {
           loading={repositoriesLoading}
           className="min-w-64"
           options={repositoryOptions}
+          // Лимит контракта: больше 50 репозиториев выбрать нельзя, а не срезается молча.
+          maxCount={MAX_REPOSITORIES}
           optionFilterProp="label"
           value={filters.repositoryIds}
           onChange={(repositoryIds) => onChange({ repositoryIds })}

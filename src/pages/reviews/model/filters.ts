@@ -21,7 +21,7 @@ export const PAGE_SIZES = [10, 20, 50] as const
 export const DEFAULT_PAGE_SIZE = 20
 
 /** Лимиты контракта `GET /reviews`. */
-const MAX_REPOSITORIES = 50
+export const MAX_REPOSITORIES = 50
 const MAX_Q = 200
 const MAX_AUTHOR = 255
 
@@ -40,6 +40,9 @@ export type ReviewListFilters = {
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/
+
+/** `repository_id` в контракте — uuid: другое значение бэкенд отклонил бы с `422`. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /** День в формате `YYYY-MM-DD`, который действительно существует; иначе `null`. */
 function parseDay(raw: string | null): string | null {
@@ -73,10 +76,9 @@ export function parseFilters(params: URLSearchParams): ReviewListFilters {
     author: parseText(params.get(FILTER_PARAMS.author), MAX_AUTHOR),
     activity: parseActivity(params.get(FILTER_PARAMS.active)),
     statuses: unique(params.getAll(FILTER_PARAMS.status)).filter(isKnownStatus),
-    repositoryIds: unique(params.getAll(FILTER_PARAMS.repository).filter(Boolean)).slice(
-      0,
-      MAX_REPOSITORIES,
-    ),
+    repositoryIds: unique(params.getAll(FILTER_PARAMS.repository))
+      .filter((id) => UUID.test(id))
+      .slice(0, MAX_REPOSITORIES),
     from: validPeriod ? from : null,
     to: validPeriod ? to : null,
   }
@@ -144,7 +146,9 @@ export function writeFilters(
     set(FILTER_PARAMS.active, [value])
   }
   if (patch.statuses !== undefined) set(FILTER_PARAMS.status, patch.statuses)
-  if (patch.repositoryIds !== undefined) set(FILTER_PARAMS.repository, patch.repositoryIds)
+  if (patch.repositoryIds !== undefined) {
+    set(FILTER_PARAMS.repository, patch.repositoryIds.slice(0, MAX_REPOSITORIES))
+  }
   if (patch.from !== undefined) set(FILTER_PARAMS.from, [patch.from ?? ''])
   if (patch.to !== undefined) set(FILTER_PARAMS.to, [patch.to ?? ''])
   next.delete(PAGE_PARAM)

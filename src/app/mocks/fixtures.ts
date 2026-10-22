@@ -9,6 +9,7 @@ import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
 import type { ReviewRunStep } from '../../entities/review-run-step'
 import type { ReviewRunResponse } from '../../pages/review-run'
+import { mockRepositoryId } from './repositories'
 
 /**
  * Mock-данные одного прогона в форме контракта бэкенда: прогон (`ReviewRunResponse`), дифф
@@ -31,7 +32,7 @@ export const run: ReviewRun = {
     state: 'open',
     url: 'https://github.com/larchanka-training/platform-api/pull/42',
     repository: {
-      id: 'repo-1',
+      id: mockRepositoryId(1),
       provider: 'github',
       full_name: 'larchanka-training/platform-api',
     },

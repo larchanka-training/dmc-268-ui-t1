@@ -10,6 +10,7 @@ import {
   UNKNOWN_EVENT_TYPE,
 } from './mockEventStream'
 import { createMockServer } from './mockServer'
+import { mockRepositoryId } from './repositories'
 
 const EVENTS = '/api/v1/events'
 
@@ -70,7 +71,7 @@ describe('createScenarioEventStream', () => {
 
     expect(events.map((event) => [event.type, event.data.id])).toEqual([
       ['run.status_changed', FOREIGN_RUN_ID],
-      [UNKNOWN_EVENT_TYPE, 'repo-1'],
+      [UNKNOWN_EVENT_TYPE, mockRepositoryId(1)],
     ])
   })
 

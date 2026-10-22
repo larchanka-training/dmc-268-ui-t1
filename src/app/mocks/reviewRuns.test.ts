@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { ReviewRunListResponseSchema } from '../../entities/review-run'
+import { mockRepositoryId } from './repositories'
 import { createReviewRunStore } from './reviewRuns'
 
 const store = createReviewRunStore()
@@ -18,11 +19,13 @@ describe('createReviewRunStore', () => {
   })
 
   it('фильтры складываются через «и»', () => {
-    const page = list('status=failed&status=completed&active=false&repository_id=repo-2')
+    const page = list(
+      `status=failed&status=completed&active=false&repository_id=${mockRepositoryId(2)}`,
+    )
     expect(page.items.length).toBeGreaterThan(0)
     for (const run of page.items) {
       expect(['failed', 'completed']).toContain(run.status)
-      expect(run.merge_request.repository.id).toBe('repo-2')
+      expect(run.merge_request.repository.id).toBe(mockRepositoryId(2))
     }
     expect(list('active=true&status=completed').total).toBe(0)
   })

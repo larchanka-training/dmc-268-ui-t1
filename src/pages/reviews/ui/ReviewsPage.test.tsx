@@ -14,8 +14,11 @@ import { makeRunListItem } from '@/test/factories'
 
 import { ReviewsPage } from './ReviewsPage'
 
+/** Id репозитория в контракте — uuid; `repoId(1)` — `acme/api`, как у фабрик. */
+const repoId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+
 const repository = (n: number, name: string): Repository => ({
-  id: `repo-${n}`,
+  id: repoId(n),
   provider: 'github',
   provider_id: String(n),
   full_name: name,
@@ -175,13 +178,13 @@ describe('ReviewsPage: таблица и URL', () => {
     backend.rows = makeRuns(25)
     renderPage(
       '/reviews?q=env&author=a.petrova&active=true&status=failed&status=queued' +
-        '&repository_id=repo-1&from=2026-09-01&to=2026-09-30&page=2&page_size=10',
+        `&repository_id=${repoId(1)}&from=2026-09-01&to=2026-09-30&page=2&page_size=10`,
     )
 
     await waitFor(() =>
       expect(lastCall()).toBe(
         '/reviews?q=env&author=a.petrova&active=true&status=failed&status=queued' +
-          '&repository_id=repo-1&created_from=2026-09-01T00%3A00%3A00.000Z' +
+          `&repository_id=${repoId(1)}&created_from=2026-09-01T00%3A00%3A00.000Z` +
           '&created_to=2026-10-01T00%3A00%3A00.000Z&limit=10&offset=10',
       ),
     )
@@ -192,7 +195,8 @@ describe('ReviewsPage: таблица и URL', () => {
 
   it('некорректные параметры URL — значения по умолчанию', async () => {
     renderPage(
-      '/reviews?page=abc&page_size=7&active=maybe&status=bogus&from=2026-13-01&to=2026-09-31',
+      '/reviews?page=abc&page_size=7&active=maybe&status=bogus&from=2026-13-01&to=2026-09-31' +
+        '&repository_id=foo&repository_id=repo-1',
     )
     await waitFor(() => expect(lastCall()).toBe('/reviews?limit=20&offset=0'))
   })
@@ -227,10 +231,10 @@ describe('ReviewsPage: таблица и URL', () => {
     await user.click(await screen.findByTitle('acme/api'))
     await user.click(await screen.findByTitle('acme/web'))
 
-    await waitFor(() => expect(search().getAll('repository_id')).toEqual(['repo-1', 'repo-2']))
+    await waitFor(() => expect(search().getAll('repository_id')).toEqual([repoId(1), repoId(2)]))
     await waitFor(() =>
       expect(lastCall()).toBe(
-        '/reviews?repository_id=repo-1&repository_id=repo-2&limit=20&offset=0',
+        `/reviews?repository_id=${repoId(1)}&repository_id=${repoId(2)}&limit=20&offset=0`,
       ),
     )
   })

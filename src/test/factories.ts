@@ -6,6 +6,9 @@ import type { ReviewRunStep } from '../entities/review-run-step'
 
 export { buildHunk as hunk }
 
+/** Id репозитория `acme/api` фабрик: в контракте id репозитория — uuid. */
+export const TEST_REPOSITORY_ID = '00000000-0000-4000-8000-000000000001'
+
 export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
   return {
     id: 'run-1',
@@ -19,7 +22,7 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
       target_branch: 'develop',
       state: 'open',
       url: null,
-      repository: { id: 'repo-1', provider: 'github', full_name: 'acme/api' },
+      repository: { id: TEST_REPOSITORY_ID, provider: 'github', full_name: 'acme/api' },
     },
     head_sha: 'b3e1f0c9a8d7e6f5',
     base_sha: 'a1c2e3f4b5d6a7c8',

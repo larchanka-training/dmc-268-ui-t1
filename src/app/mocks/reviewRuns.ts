@@ -8,6 +8,7 @@ import {
 import { ApiError } from '../../shared/api'
 import { mockReview } from './fixtures'
 import type { MockServer } from './mockServer'
+import { mockRepositoryId } from './repositories'
 
 /** Чужой прогон в общем потоке: его события экран прогона `run-42` должен пропускать. */
 export const FOREIGN_RUN_ID = 'run-7'
@@ -24,7 +25,11 @@ const FOREIGN = {
     target_branch: 'main',
     state: 'open',
     url: 'https://github.com/larchanka-training/docs/pull/17',
-    repository: { id: 'repo-2', provider: 'github', full_name: 'larchanka-training/docs' },
+    repository: {
+      id: mockRepositoryId(2),
+      provider: 'github',
+      full_name: 'larchanka-training/docs',
+    },
   },
 } satisfies Pick<ReviewRunListItem, 'created_at' | 'merge_request'>
 
@@ -52,8 +57,8 @@ export function scenarioRow(server: MockServer, index: number, id: string): Revi
 }
 
 const REPOSITORIES = [
-  { id: 'repo-1', provider: 'github', full_name: 'larchanka-training/platform-api' },
-  { id: 'repo-2', provider: 'github', full_name: 'larchanka-training/docs' },
+  { id: mockRepositoryId(1), provider: 'github', full_name: 'larchanka-training/platform-api' },
+  { id: mockRepositoryId(2), provider: 'github', full_name: 'larchanka-training/docs' },
 ] as const
 
 const AUTHORS = ['a.petrova', 'i.sidorov', 'm.kuznetsova', 'd.orlov']
