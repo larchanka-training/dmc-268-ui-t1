@@ -1,4 +1,5 @@
-import { useLocation, useSearchParams } from 'react-router-dom'
+import { useCallback, useEffect } from 'react'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 
 /** Query-параметр с номером страницы, с единицы. */
 export const PAGE_PARAM = 'page'
@@ -18,51 +19,66 @@ export function pageCountOf(total: number, pageSize: number): number {
   return Math.max(1, Math.ceil(total / pageSize))
 }
 
-export interface UrlPaginationOptions {
-  /** Размер страницы: фиксированный, в URL не попадает. */
-  pageSize: number
-  /**
-   * Сколько всего записей. Для клиентской нарезки — длина списка, для серверной — `total`
-   * из ответа. Пока неизвестно (первый запрос ещё идёт), не передаётся: тогда страница
-   * берётся из URL как есть, без ограничения сверху.
-   */
-  total?: number
+/** Страница, ограниченная сверху числом страниц; пока оно неизвестно — как есть. */
+export function clampPage(page: number, pageCount: number | undefined): number {
+  return pageCount === undefined ? page : Math.min(page, pageCount)
 }
 
-export interface UrlPagination {
-  /** Текущая страница с единицы: из URL, проверенная и не больше числа страниц. */
+/** Записи одной страницы — для таблиц, у которых список целиком на клиенте. */
+export function pageSlice<T>(items: readonly T[], page: number, pageSize: number): T[] {
+  return items.slice((page - 1) * pageSize, page * pageSize)
+}
+
+export interface UrlPage {
+  /** Страница с единицы из `page`: проверенная, но сверху не ограниченная — число страниц хук не знает. */
   page: number
+  /** Размер страницы: фиксированный, в URL не попадает. */
   pageSize: number
   /** Сдвиг первой записи страницы — `offset` для серверной пагинации, `limit` = `pageSize`. */
   offset: number
-  /** Число страниц; `undefined`, пока `total` неизвестен. */
-  pageCount: number | undefined
-  /** Ссылка на ту же страницу приложения с другим `page`; прочие query-параметры сохраняются. */
+  /** Адрес той же страницы приложения с другим `page`; прочие query-параметры сохраняются. */
   toPage: (page: number) => string
 }
 
 /**
- * Пагинация, у которой источник правды — query-параметр `page`: ссылку на страницу можно
- * отправить, «назад» и «вперёд» браузера листают таблицу. Некорректный `page` даёт первую
- * страницу, слишком большой — последнюю. Сам ничего не нарезает: подходит и для клиентской
- * таблицы, и для запроса `limit/offset`.
+ * Страница из query-параметра `page`: ссылку на страницу можно отправить, «назад» и «вперёд»
+ * браузера листают список. Некорректный `page` — первая страница. Хук не знает, сколько всего
+ * записей, поэтому годится и для клиентской нарезки, и для запроса `limit/offset`: ключ
+ * запроса зависит только от `offset`, а `total` из ответа передаётся в `useNormalizeUrlPage`.
  */
-export function useUrlPagination({ pageSize, total }: UrlPaginationOptions): UrlPagination {
+export function useUrlPage({ pageSize }: { pageSize: number }): UrlPage {
   const { pathname } = useLocation()
   const [searchParams] = useSearchParams()
+  const page = parsePage(searchParams.get(PAGE_PARAM)) ?? 1
 
-  const requested = parsePage(searchParams.get(PAGE_PARAM)) ?? 1
-  const pageCount = total === undefined ? undefined : pageCountOf(total, pageSize)
-  const page = pageCount === undefined ? requested : Math.min(requested, pageCount)
+  const toPage = useCallback(
+    (target: number) => {
+      const params = new URLSearchParams(searchParams)
+      // Первая страница — адрес без `page`: тот же, что и «по умолчанию».
+      if (target <= 1) params.delete(PAGE_PARAM)
+      else params.set(PAGE_PARAM, String(target))
+      const search = params.toString()
+      return search ? `${pathname}?${search}` : pathname
+    },
+    [pathname, searchParams],
+  )
 
-  const toPage = (target: number) => {
-    const params = new URLSearchParams(searchParams)
-    // Первая страница — адрес без `page`: тот же, что и «по умолчанию».
-    if (target <= 1) params.delete(PAGE_PARAM)
-    else params.set(PAGE_PARAM, String(target))
-    const search = params.toString()
-    return search ? `${pathname}?${search}` : pathname
-  }
+  return { page, pageSize, offset: (page - 1) * pageSize, toPage }
+}
 
-  return { page, pageSize, offset: (page - 1) * pageSize, pageCount, toPage }
+/**
+ * Когда число страниц стало известно, а `page` в URL больше него, заменяет адрес на последнюю
+ * страницу (`replace`, без новой записи в истории). Ссылка на «уехавшую» страницу — после
+ * удаления записей или сужения поиска — ведёт к ближайшей существующей, а URL не врёт.
+ */
+export function useNormalizeUrlPage(
+  { page, toPage }: Pick<UrlPage, 'page' | 'toPage'>,
+  pageCount: number | undefined,
+): void {
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (pageCount !== undefined && page > pageCount) {
+      void navigate(toPage(pageCount), { replace: true })
+    }
+  }, [navigate, page, pageCount, toPage])
 }

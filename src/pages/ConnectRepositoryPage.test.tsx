@@ -217,19 +217,57 @@ describe('ConnectRepositoryPage — страница и поиск в URL', () =
     expect((await visibleNames())[0]).toBe('front-01')
   })
 
-  it('«назад» в браузере возвращает страницу и текст поиска', async () => {
+  it('«назад» после поиска возвращает прежнюю страницу и пустое поле', async () => {
+    const router = renderConnectAt('/repositories/connect?page=3')
+    expect(await visibleNames()).toEqual(['back-07', 'back-08', 'back-09', 'back-10'])
+
+    // Серия правок поиска — одна запись в истории.
+    for (const value of ['f', 'fr', 'front']) {
+      fireEvent.change(search(), { target: { value } })
+      await waitFor(() => expect(router.state.location.search).toBe(`?q=${value}`))
+    }
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?page=3')
+    expect(search()).toHaveValue('')
+    expect(await visibleNames()).toEqual(['back-07', 'back-08', 'back-09', 'back-10'])
+  })
+
+  it('«назад» после листания возвращает страницу, а поиск остаётся', async () => {
     const router = renderConnectAt('/repositories/connect?q=front')
     await visibleNames()
 
     fireEvent.click(screen.getByRole('link', { name: '2' }))
     expect(await visibleNames()).toEqual(['front-09', 'front-10'])
 
-    fireEvent.change(search(), { target: { value: 'back' } })
-    await waitFor(() => expect(router.state.location.search).toBe('?q=back'))
-
     await act(() => router.navigate(-1))
     expect(router.state.location.search).toBe('?q=front')
     expect(search()).toHaveValue('front')
     expect((await visibleNames())[0]).toBe('front-01')
+  })
+
+  it('переход на тот же маршрут без q (меню) очищает поле и фильтр', async () => {
+    const router = renderConnectAt('/repositories/connect?q=front')
+    expect(await visibleNames()).toHaveLength(8)
+    expect(search()).toHaveValue('front')
+
+    // Как пункт бокового меню: navigate — PUSH на тот же маршрут, без перемонтирования.
+    await act(() => router.navigate('/repositories/connect'))
+
+    expect(search()).toHaveValue('')
+    expect((await visibleNames()).slice(0, 2)).toEqual(['front-01', 'front-02'])
+    expect(screen.getByRole('link', { name: '3' })).toHaveAttribute(
+      'href',
+      '/repositories/connect?page=3',
+    )
+  })
+
+  it('страница больше числа страниц после поиска — URL заменяется на последнюю', async () => {
+    const router = renderConnectAt('/repositories/connect?q=front&page=5')
+
+    expect(await visibleNames()).toEqual(['front-09', 'front-10'])
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front&page=2'))
+    expect(router.state.historyAction).toBe('REPLACE')
+    expect(screen.getByRole('link', { name: '2' })).toHaveAttribute('aria-current', 'page')
   })
 })

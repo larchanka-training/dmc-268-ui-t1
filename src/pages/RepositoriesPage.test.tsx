@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { act, fireEvent, screen } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import type { Repository } from '@/entities/repository'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
@@ -106,10 +107,27 @@ describe('RepositoriesPage — страница в URL', () => {
     expect(await visibleRepos()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
   })
 
-  it('страница больше числа страниц — последняя', async () => {
-    renderPaginatedAt('/repositories?page=99')
+  it('страница больше числа страниц — последняя, URL заменяется', async () => {
+    const router = renderPaginatedAt('/repositories?page=99')
 
     expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
+    await waitFor(() => expect(router.state.location.search).toBe('?page=3'))
+    expect(router.state.historyAction).toBe('REPLACE')
+    expect(screen.getByRole('link', { name: '3' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it('с клавиатуры: Tab до номера и Enter листают', async () => {
+    const user = userEvent.setup()
+    const router = renderPaginatedAt('/repositories')
+    await visibleRepos()
+
+    const two = screen.getByRole('link', { name: '2' })
+    for (let i = 0; i < 20 && document.activeElement !== two; i += 1) await user.tab()
+    expect(two).toHaveFocus()
+    await user.keyboard('{Enter}')
+
+    expect(router.state.location.search).toBe('?page=2')
+    expect(await visibleRepos()).toEqual([11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
   })
 
   it('«вперёд», «назад» и номера — ссылки на тот же путь с другим page и прежними параметрами', async () => {

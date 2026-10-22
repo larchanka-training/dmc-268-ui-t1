@@ -3,9 +3,11 @@ export { stripCodeMarks } from './codeMarks'
 export { navigation, redirectToLogin } from './navigation'
 export {
   PAGE_PARAM,
+  clampPage,
   pageCountOf,
+  pageSlice,
   parsePage,
-  useUrlPagination,
-  type UrlPagination,
-  type UrlPaginationOptions,
+  useNormalizeUrlPage,
+  useUrlPage,
+  type UrlPage,
 } from './urlPagination'
