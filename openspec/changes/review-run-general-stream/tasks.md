@@ -22,4 +22,4 @@
 ## 4. Проверки
 
 - [x] 4.1 `typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`, `spec:validate`
-- [ ] 4.2 Перед мёржем — `pnpm api:sync` на коммит из `develop` бэкенда
+- [x] 4.2 Перед мёржем — `pnpm api:sync` на коммит из `develop` бэкенда (233381f, #115)
