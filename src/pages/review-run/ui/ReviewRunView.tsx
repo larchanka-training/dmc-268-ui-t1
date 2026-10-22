@@ -2,9 +2,9 @@ import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 
 import {
-  applyStatusEvent,
+  applyRunEvent,
   isTerminalStatus,
-  type RunStatusEvent,
+  type ReviewRunListItem,
 } from '../../../entities/review-run'
 import { ConnectionNotice, useRunLiveStatus } from '../../../features/live-run-status'
 import { ApiError } from '../../../shared/api'
@@ -23,9 +23,9 @@ import {
 import { runVerdict } from '../model/verdict'
 import { toWorkspace } from '../model/workspace'
 
-/** Событие статуса патчит прогон в кэше; замечания и публикации остаются как есть. */
-function patchRun(data: ReviewRunResponse, event: RunStatusEvent): ReviewRunResponse {
-  return { ...data, ...applyStatusEvent(data, event) }
+/** Событие прогона патчит его статус в кэше; замечания и публикации остаются как есть. */
+function patchRun(data: ReviewRunResponse, event: ReviewRunListItem): ReviewRunResponse {
+  return applyRunEvent(data, event)
 }
 
 /**

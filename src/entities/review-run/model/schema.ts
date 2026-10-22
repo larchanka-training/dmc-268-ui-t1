@@ -91,27 +91,56 @@ export function isKnownStatus(status: string): status is KnownRunStatus {
 }
 
 /**
- * Событие `status` из `GET /api/v1/reviews/{id}/events` (контракт — в design.md change
- * `review-run-live-status`). `status` — любая строка, как в `ReviewRunSchema`.
+ * Прогон строкой списка (`ReviewRunListItem` контракта): те же данные приходят в событиях `run.*`
+ * общего потока `GET /api/v1/events`. `status` — любая строка, как в `ReviewRunSchema`.
  */
-export const RunStatusEventSchema = z.object({
-  review_run_id: z.string(),
+export const ReviewRunListItemSchema = z.object({
+  id: z.string(),
   status: z.string(),
+  trigger: z.enum(['webhook', 'manual', 'mention']),
+  head_sha: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
   last_progress_at: z.string(),
+  duration_seconds: z.number().nullable(),
   failed_stage: z.enum(RUN_STAGES).nullable(),
-  failure_reason: z.string().nullable(),
+  findings_count: z.number().int(),
+  merge_request: MergeRequestSummarySchema,
 })
 
-export type RunStatusEvent = z.infer<typeof RunStatusEventSchema>
+export type ReviewRunListItem = z.infer<typeof ReviewRunListItemSchema>
 
-/** Накладывает событие на прогон: обновляются только поля статуса, остальное не трогаем. */
-export function applyStatusEvent(run: ReviewRun, event: RunStatusEvent): ReviewRun {
+/** События прогона в общем потоке; данные у всех — `ReviewRunListItem`. */
+export const RUN_EVENT_TYPES = ['run.created', 'run.status_changed', 'run.finished'] as const
+
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number]
+
+export function isRunEventType(type: string): type is RunEventType {
+  return (RUN_EVENT_TYPES as readonly string[]).includes(type)
+}
+
+/**
+ * Из двух версий строки новее та, у которой `updated_at` больше, при равном — пришедшая позже
+ * (правило контракта `GET /api/v1/events`). Сравниваем моменты времени, а не строки: дробная
+ * часть секунд у бэкенда переменной длины.
+ */
+export function isSameOrNewer(incoming: string, current: string): boolean {
+  return Date.parse(incoming) >= Date.parse(current)
+}
+
+/**
+ * Накладывает событие прогона на прогон: обновляются поля статуса и прогресса, остальное не
+ * трогаем. Событие старше данных в кэше проигрывает: прогон возвращается как есть.
+ */
+export function applyRunEvent<T extends ReviewRun>(run: T, event: ReviewRunListItem): T {
+  if (!isSameOrNewer(event.updated_at, run.updated_at)) return run
   return {
     ...run,
     status: event.status,
     last_progress_at: event.last_progress_at,
     failed_stage: event.failed_stage,
-    failure_reason: event.failure_reason,
+    duration_seconds: event.duration_seconds,
+    updated_at: event.updated_at,
   }
 }
 
@@ -123,6 +152,7 @@ const contractCheck: [
     WithoutStatus<ReviewRun>,
     WithoutStatus<Omit<ApiSchemas['ReviewRunResponse'], 'findings' | 'published_comments'>>
   >,
-  MatchesContract<WithoutStatus<RunStatusEvent>, WithoutStatus<ApiSchemas['ReviewRunStatusEvent']>>,
-] = [true, true]
+  MatchesContract<WithoutStatus<ReviewRunListItem>, WithoutStatus<ApiSchemas['ReviewRunListItem']>>,
+  MatchesContract<RunEventType, Exclude<ApiSchemas['StreamEventType'], 'ping'>>,
+] = [true, true, true]
 void contractCheck

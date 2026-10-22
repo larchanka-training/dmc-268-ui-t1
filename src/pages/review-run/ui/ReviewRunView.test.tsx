@@ -410,12 +410,28 @@ describe('ReviewRunView', () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
       await screen.findByText('Анализ')
 
-      act(() => stream.emitStatus({ status: 'publishing' }))
+      act(() => stream.emitRun({ status: 'publishing' }))
 
       await waitFor(() =>
         expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
       )
       expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('завершён')
+    })
+
+    it('INT-23: события чужого прогона и незнакомого типа экран не меняют', async () => {
+      renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
+      await screen.findByText('Анализ')
+
+      act(() => stream.emitRun({ id: 'run-2', status: 'publishing' }))
+      act(() => stream.emit('repository.synced', { id: 'run-1', status: 'publishing' }))
+
+      expect(within(progress()).getByText('Публикация')).not.toHaveTextContent('выполняется')
+      expect(stream.active()).toBe(1)
+
+      act(() => stream.emitRun({ status: 'publishing' }))
+      await waitFor(() =>
+        expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
+      )
     })
 
     it('INT-10: прогон доходит до completed, замечания и вердикт появляются сами', async () => {
@@ -429,7 +445,7 @@ describe('ReviewRunView', () => {
 
       // К завершению сервер отдаёт замечания и вердикт; событие только сообщает о статусе.
       backend = { run: makeReviewRun({ status: 'completed' }) }
-      act(() => stream.emitStatus({ status: 'completed' }))
+      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
 
       expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
@@ -451,13 +467,8 @@ describe('ReviewRunView', () => {
           failure_reason: 'LLM не ответила',
         }),
       }
-      act(() =>
-        stream.emitStatus({
-          status: 'failed',
-          failed_stage: 'analysing',
-          failure_reason: 'LLM не ответила',
-        }),
-      )
+      // Причины сбоя в событии нет: она приходит перезапросом прогона после `run.finished`.
+      act(() => stream.emitRun({ status: 'failed', failed_stage: 'analysing' }, 'run.finished'))
 
       expect(await screen.findByText('Ошибка')).toBeInTheDocument()
       expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('ошибка')
@@ -498,7 +509,7 @@ describe('ReviewRunView', () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
       await screen.findByRole('article', { name: /Токен печатается/ })
 
-      act(() => stream.emitStatus({ status: 'publishing' }))
+      act(() => stream.emitRun({ status: 'publishing' }))
       await waitFor(() =>
         expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
       )

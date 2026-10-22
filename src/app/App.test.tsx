@@ -140,7 +140,8 @@ describe('App на mock adapter и mock-потоке', () => {
     const { calls } = setup()
 
     expect(await screen.findByText('В очереди', { selector: 'span' })).toBeInTheDocument()
-    expect(calls).toEqual({ get: 1, subscribe: 1 })
+    // Первая загрузка и снимок после open потока: истории у потока нет.
+    await waitFor(() => expect(calls).toEqual({ get: 2, subscribe: 1 }))
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 3))
@@ -156,17 +157,18 @@ describe('App на mock adapter и mock-потоке', () => {
         /Публикация.*выполняется/,
       ),
     )
-    expect(calls.get).toBe(1)
+    // События чужого прогона и незнакомого типа экран пропустил: перезапросов не было.
+    expect(calls.get).toBe(2)
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS))
 
     // Замечания и вердикт приходят перезапросом, который вызвало терминальное событие.
     expect(await screen.findByLabelText(/^Вердикт:/)).toBeInTheDocument()
     expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
   })
 
   it('сценарий сбоя заканчивается failed с этапом и причиной, без новых подписок', async () => {
@@ -180,6 +182,6 @@ describe('App на mock adapter и mock-потоке', () => {
     expect(within(progress()).getByText('LLM не ответила за отведённое время')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
   })
 })

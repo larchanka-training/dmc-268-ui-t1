@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyStatusEvent, isTerminalStatus, ReviewRunSchema, RunStatusEventSchema } from './schema'
-import { makeReviewRun } from '../../../test/factories'
+import {
+  applyRunEvent,
+  isRunEventType,
+  isTerminalStatus,
+  ReviewRunListItemSchema,
+  ReviewRunSchema,
+} from './schema'
+import { makeReviewRun, makeRunListItem } from '../../../test/factories'
 
 describe('ReviewRunSchema', () => {
   it('принимает прогон по контракту', () => {
@@ -51,37 +57,60 @@ describe('last_progress_at', () => {
   })
 })
 
-describe('RunStatusEventSchema', () => {
-  const event = {
-    review_run_id: 'run-1',
-    status: 'analysing',
-    last_progress_at: '2026-10-11T10:00:00Z',
-    failed_stage: null,
-    failure_reason: null,
-  }
-
-  it('принимает событие по контракту и незнакомый статус', () => {
-    expect(RunStatusEventSchema.safeParse(event).success).toBe(true)
-    expect(RunStatusEventSchema.safeParse({ ...event, status: 'waiting_for_quota' }).success).toBe(
-      true,
-    )
+describe('ReviewRunListItemSchema', () => {
+  it('принимает строку прогона по контракту и незнакомый статус', () => {
+    expect(ReviewRunListItemSchema.safeParse(makeRunListItem()).success).toBe(true)
+    expect(
+      ReviewRunListItemSchema.safeParse(makeRunListItem({ status: 'waiting_for_quota' })).success,
+    ).toBe(true)
   })
 
-  it('отвергает событие без status', () => {
-    const { status, ...broken } = event
+  it('отвергает строку без status', () => {
+    const { status, ...broken } = makeRunListItem()
     expect(status).toBe('analysing')
-    expect(RunStatusEventSchema.safeParse(broken).success).toBe(false)
+    expect(ReviewRunListItemSchema.safeParse(broken).success).toBe(false)
+  })
+})
+
+describe('isRunEventType', () => {
+  it.each(['run.created', 'run.status_changed', 'run.finished'])('%s — событие прогона', (type) => {
+    expect(isRunEventType(type)).toBe(true)
   })
 
-  it('applyStatusEvent меняет только поля статуса', () => {
-    const run = makeReviewRun({ status: 'analysing', tokens_used: 5 })
+  it.each(['ping', 'status', 'repository.synced'])('%s — не событие прогона', (type) => {
+    expect(isRunEventType(type)).toBe(false)
+  })
+})
 
-    const next = applyStatusEvent(
+describe('applyRunEvent', () => {
+  it('меняет только поля статуса и прогресса', () => {
+    const run = makeReviewRun({ status: 'analysing', tokens_used: 5, failure_reason: null })
+
+    const next = applyRunEvent(
       run,
-      RunStatusEventSchema.parse({ ...event, status: 'failed', failed_stage: 'analysing' }),
+      makeRunListItem({ status: 'publishing', last_progress_at: '2026-09-20T14:09:00Z' }),
     )
 
-    expect(next).toMatchObject({ status: 'failed', failed_stage: 'analysing', tokens_used: 5 })
+    expect(next).toMatchObject({
+      status: 'publishing',
+      last_progress_at: '2026-09-20T14:09:00Z',
+      updated_at: '2026-09-20T14:10:00Z',
+      tokens_used: 5,
+    })
     expect(next.id).toBe(run.id)
+  })
+
+  it('событие старше прогона проигрывает, равное по updated_at — применяется', () => {
+    const run = makeReviewRun({ status: 'analysing', updated_at: '2026-09-20T14:07:14.5Z' })
+
+    expect(
+      applyRunEvent(run, makeRunListItem({ status: 'queued', updated_at: '2026-09-20T14:07:14Z' })),
+    ).toBe(run)
+    expect(
+      applyRunEvent(
+        run,
+        makeRunListItem({ status: 'publishing', updated_at: '2026-09-20T14:07:14.500000Z' }),
+      ).status,
+    ).toBe('publishing')
   })
 })

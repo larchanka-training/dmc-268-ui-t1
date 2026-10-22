@@ -22,8 +22,11 @@ export type EventStream = {
 }
 
 type EventSourceStreamOptions = {
-  /** Типы событий, которые слушаем: `EventSource` не умеет «все события сразу». */
-  eventTypes?: readonly string[]
+  /**
+   * Типы событий, которые слушаем: `EventSource` не умеет «все события сразу». Остальные типы
+   * до подписчика не доходят — так незнакомые серверу клиенту события и пропускаются.
+   */
+  eventTypes: readonly string[]
   baseUrl?: string
 }
 
@@ -36,9 +39,9 @@ export const SILENCE_LIMIT = 45_000
 
 /** Реализация на браузерном `EventSource`: авторизация — cookie сессии, заголовки не нужны. */
 export function createEventSourceStream({
-  eventTypes = ['status'],
+  eventTypes,
   baseUrl = '',
-}: EventSourceStreamOptions = {}): EventStream {
+}: EventSourceStreamOptions): EventStream {
   return {
     subscribe(path, { onEvent, onStateChange }) {
       let source: EventSource | null = null
@@ -56,6 +59,8 @@ export function createEventSourceStream({
         source = current
         restartHeartbeatTimeout()
 
+        // `open` приходит на каждое соединение, в том числе после переподключения браузера:
+        // по нему подписчик перезапрашивает снимок, истории у потока нет.
         current.onopen = () => onStateChange('open')
         current.onerror = () => {
           if (current !== source) return
@@ -85,7 +90,7 @@ export function createEventSourceStream({
         }
       }
 
-      // Тишина: закрываем мёртвое соединение и открываем новое, его первое событие — снимок.
+      // Тишина: закрываем мёртвое соединение и открываем новое; по его `open` подписчик возьмёт снимок.
       const reopen = () => {
         if (stopped) return
         source?.close()

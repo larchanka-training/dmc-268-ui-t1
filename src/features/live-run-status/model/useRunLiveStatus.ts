@@ -2,11 +2,12 @@ import { useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useCallback, useEffect, useState } from 'react'
 
 import {
+  isRunEventType,
   isRunStage,
   isTerminalStatus,
-  RunStatusEventSchema,
+  ReviewRunListItemSchema,
+  type ReviewRunListItem,
   type RunStage,
-  type RunStatusEvent,
 } from '../../../entities/review-run'
 import { fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
@@ -18,8 +19,11 @@ type Options<TData> = {
   status: string
   /** Ключ запроса, в кэше которого живёт прогон; должен быть стабильным между рендерами. */
   queryKey: QueryKey
-  /** Накладывает событие на данные кэша; чистая функция, стабильная между рендерами. */
-  patchCache: (data: TData, event: RunStatusEvent) => TData
+  /**
+   * Накладывает событие прогона на данные кэша; чистая функция, стабильная между рендерами.
+   * Событие старше данных в кэше (`updated_at`) она должна отбросить.
+   */
+  patchCache: (data: TData, event: ReviewRunListItem) => TData
 }
 
 export type RunLiveStatus = {
@@ -30,15 +34,18 @@ export type RunLiveStatus = {
   refresh: () => Promise<void>
 }
 
-/** Путь потока событий прогона; база API — из `API_V1_BASE_URL`, как у остальных запросов. */
-export function eventsPath(runId: string): string {
-  return `${API_V1_BASE_URL}/reviews/${runId}/events`
-}
+/**
+ * Путь общего потока событий кабинета: один на все прогоны, без параметров. База API — из
+ * `API_V1_BASE_URL`, как у остальных запросов.
+ */
+export const EVENTS_PATH = `${API_V1_BASE_URL}/events`
 
 /**
  * Держит статус прогона на экране свежим через SSE, пока прогон не завершён. Источник правды —
- * кэш запроса прогона: события только патчат его, второго состояния нет. Опроса по таймеру нет:
- * каждое подключение начинается со снимка статуса, так что пропущенное при обрыве не теряется.
+ * кэш запроса прогона: события только патчат его, второго состояния нет. Поток общий: экран
+ * берёт из него события `run.*` своего прогона, остальное пропускает. Истории у потока нет, поэтому
+ * на каждое открытие соединения, первое и после обрыва, прогон перезапрашивается снимком REST;
+ * опроса по таймеру нет.
  */
 export function useRunLiveStatus<TData>({
   runId,
@@ -73,32 +80,47 @@ export function useRunLiveStatus<TData>({
     // Завершённому прогону события не нужны, скрытой вкладке — тоже: при возврате придёт снимок.
     if (terminal || !visible) return
 
-    const path = eventsPath(runId)
     let finished = false
-    return stream.subscribe(path, {
-      onStateChange: setStreamState,
+    let unsubscribe: (() => void) | null = null
+    const close = () => {
+      finished = true
+      unsubscribe?.()
+      unsubscribe = null
+    }
+    unsubscribe = stream.subscribe(EVENTS_PATH, {
+      onStateChange: (state) => {
+        setStreamState(state)
+        // Пропущенное до открытия и за время обрыва поток не повторит: берём снимок прогона.
+        // Событие, пришедшее раньше снимка, не потеряется, а более старая версия проиграет по
+        // `updated_at` в `patchCache`.
+        if (state === 'open' && !finished) void queryClient.invalidateQueries({ queryKey })
+      },
       onEvent: (type, data) => {
-        if (finished || type !== 'status') return
-        const parsed = RunStatusEventSchema.safeParse(data)
+        // Незнакомые типы — не ошибка: контракт разрешает серверу добавлять новые.
+        if (finished || !isRunEventType(type)) return
+        const parsed = ReviewRunListItemSchema.safeParse(data)
         if (!parsed.success) {
           // Событие вне схемы не меняет экран и не рвёт подписку.
-          console.error(new ContractError(path, parsed.error.message))
+          console.error(new ContractError(`${EVENTS_PATH} ${type}`, parsed.error.message))
           return
         }
         const event = parsed.data
+        if (event.id !== runId) return
         // Этап запоминаем по самому событию: два быстрых события подряд могут слиться в один рендер.
         if (isRunStage(event.status)) setSeen({ runId, stage: event.status })
         queryClient.setQueryData<TData>(queryKey, (old) =>
           old === undefined ? old : patchCache(old, event),
         )
-        if (isTerminalStatus(event.status)) {
-          // Замечания, вердикт и метаданные приходят только в самом прогоне: берём их одним
-          // запросом, а подписку закроет эффект, когда кэш покажет терминальный статус.
-          finished = true
+        if (type === 'run.finished') {
+          // Замечания, вердикт и причина сбоя приходят только в самом прогоне: берём их одним
+          // запросом, а поток прогону больше не нужен.
+          close()
           void queryClient.invalidateQueries({ queryKey })
         }
       },
     })
+    if (finished) unsubscribe()
+    return close
   }, [stream, queryClient, queryKey, patchCache, runId, terminal, visible, attempt])
 
   useEffect(() => {

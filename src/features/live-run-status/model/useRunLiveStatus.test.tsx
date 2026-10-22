@@ -3,7 +3,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { applyStatusEvent, type ReviewRun, type RunStatusEvent } from '../../../entities/review-run'
+import { applyRunEvent, type ReviewRun, type ReviewRunListItem } from '../../../entities/review-run'
 import { EventStreamContext } from '../../../shared/api'
 import { navigation } from '../../../shared/lib'
 import { ME, stubFetch } from '../../../test/api'
@@ -15,8 +15,8 @@ import { useRunLiveStatus } from './useRunLiveStatus'
 type CacheData = { run: ReviewRun }
 
 const queryKey = ['live-test'] as const
-const patchCache = (data: CacheData, event: RunStatusEvent): CacheData => ({
-  run: applyStatusEvent(data.run, event),
+const patchCache = (data: CacheData, event: ReviewRunListItem): CacheData => ({
+  run: applyRunEvent(data.run, event),
 })
 
 let stream: FakeEventStream
@@ -43,7 +43,7 @@ function Harness() {
   return (
     <div>
       <p>Статус: {run?.status}</p>
-      <p>Замечание: {run?.failure_reason ?? 'нет'}</p>
+      <p>Прогресс: {run?.last_progress_at}</p>
       <p>Виденный этап: {live.seenStage ?? 'нет'}</p>
       <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
     </div>
@@ -85,14 +85,68 @@ describe('useRunLiveStatus', () => {
     setVisibility('visible')
   })
 
-  it('смена статуса по событию показывается без перезагрузки', async () => {
+  it('событие своего прогона обновляет статус и прогресс без перезагрузки', async () => {
     renderHarness()
 
-    act(() => stream.emitStatus({ status: 'publishing' }))
+    act(() => stream.emitRun({ status: 'publishing', last_progress_at: '2026-09-20T14:09:00Z' }))
 
     expect(await screen.findByText('Статус: publishing')).toBeInTheDocument()
+    expect(screen.getByText('Прогресс: 2026-09-20T14:09:00Z')).toBeInTheDocument()
     expect(fetches).toBe(0)
-    expect(stream.opened).toEqual(['/api/v1/reviews/run-1/events'])
+    expect(stream.opened).toEqual(['/api/v1/events'])
+  })
+
+  it('событие чужого прогона экран не меняет', async () => {
+    renderHarness()
+
+    act(() => stream.emitRun({ id: 'run-2', status: 'publishing' }))
+    act(() => stream.emitRun({ id: 'run-2', status: 'completed' }, 'run.finished'))
+
+    expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
+    expect(fetches).toBe(0)
+    expect(stream.active()).toBe(1)
+
+    act(() => stream.emitRun({ status: 'publishing' }))
+    expect(await screen.findByText('Статус: publishing')).toBeInTheDocument()
+  })
+
+  it('незнакомый тип события пропускается молча, подписка жива', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    renderHarness()
+
+    act(() => stream.emit('repository.synced', { id: 'run-1', status: 'publishing' }))
+    act(() => stream.emit('ping', {}))
+
+    expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
+    expect(error).not.toHaveBeenCalled()
+    expect(stream.active()).toBe(1)
+
+    act(() => stream.emitRun({ status: 'publishing' }))
+    expect(await screen.findByText('Статус: publishing')).toBeInTheDocument()
+  })
+
+  it('событие старше прогона в кэше не затирает его', () => {
+    renderHarness()
+
+    act(() => stream.emitRun({ status: 'building_context', updated_at: '2026-09-20T14:06:00Z' }))
+
+    expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
+  })
+
+  it('на open и на каждое переподключение прогон перезапрашивается снимком', async () => {
+    renderHarness({ status: 'building_context' })
+
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(fetches).toBe(1))
+
+    // Пока обрыв, прогон ушёл вперёд, а событие перехода потеряно: поток истории не хранит.
+    act(() => stream.setState('reconnecting'))
+    serverRun = makeReviewRun({ status: 'analysing' })
+    act(() => stream.setState('open'))
+
+    expect(await screen.findByText('Статус: analysing')).toBeInTheDocument()
+    expect(fetches).toBe(2)
+    expect(stream.opened).toHaveLength(1)
   })
 
   it.each(['completed', 'failed', 'cancelled'])(
@@ -104,27 +158,27 @@ describe('useRunLiveStatus', () => {
     },
   )
 
-  it('терминальный статус: один перезапрос прогона и закрытая подписка', async () => {
+  it('run.finished: один перезапрос прогона и закрытая подписка', async () => {
     renderHarness()
-    serverRun = makeReviewRun({ status: 'completed' })
+    serverRun = makeReviewRun({ status: 'completed', failure_reason: null })
 
-    act(() => stream.emitStatus({ status: 'completed' }))
+    act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
 
     await waitFor(() => expect(fetches).toBe(1))
     expect(screen.getByText('Статус: completed')).toBeInTheDocument()
     expect(stream.active()).toBe(0)
     // Запоздавшие события после завершения запросов не плодят.
-    act(() => stream.emitStatus({ status: 'completed' }))
+    act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
     expect(fetches).toBe(1)
   })
 
-  it('два терминальных события подряд перезапрашивают прогон один раз', async () => {
+  it('два run.finished подряд перезапрашивают прогон один раз', async () => {
     renderHarness()
     serverRun = makeReviewRun({ status: 'completed' })
 
     act(() => {
-      stream.emitStatus({ status: 'completed' })
-      stream.emitStatus({ status: 'completed' })
+      stream.emitRun({ status: 'completed' }, 'run.finished')
+      stream.emitRun({ status: 'completed' }, 'run.finished')
     })
 
     expect(await screen.findByText('Статус: completed')).toBeInTheDocument()
@@ -142,41 +196,24 @@ describe('useRunLiveStatus', () => {
     expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
   })
 
-  it('переход, пропущенный во время обрыва, наверстывается снимком нового потока', async () => {
-    renderHarness({ status: 'building_context' })
-
-    act(() => stream.setState('reconnecting'))
-    expect(screen.getByText('Статус: building_context')).toBeInTheDocument()
-    // Пока обрыв, прогон ушёл вперёд; сервер начинает новый поток со снимка.
-    act(() => stream.setState('connecting'))
-    act(() => stream.setState('open'))
-    act(() => stream.emitStatus({ status: 'analysing' }))
-
-    expect(await screen.findByText('Статус: analysing')).toBeInTheDocument()
-    expect(screen.getByText('Виденный этап: analysing')).toBeInTheDocument()
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(stream.opened).toHaveLength(1)
-    expect(fetches).toBe(0)
-  })
-
   it('событие вне схемы отбрасывается: экран не меняется, подписка жива', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     renderHarness()
 
-    act(() => stream.emit('status', { review_run_id: 'run-1', last_progress_at: null }))
+    act(() => stream.emit('run.status_changed', { id: 'run-1', last_progress_at: null }))
 
     expect(screen.getByText('Статус: analysing')).toBeInTheDocument()
     expect(error).toHaveBeenCalledWith(expect.objectContaining({ name: 'ContractError' }))
     expect(stream.active()).toBe(1)
 
-    act(() => stream.emitStatus({ status: 'publishing' }))
+    act(() => stream.emitRun({ status: 'publishing' }))
     expect(await screen.findByText('Статус: publishing')).toBeInTheDocument()
   })
 
   it('незнакомый статус показывается как есть, а прогон считается идущим', async () => {
     renderHarness()
 
-    act(() => stream.emitStatus({ status: 'waiting_for_quota' }))
+    act(() => stream.emitRun({ status: 'waiting_for_quota' }))
 
     expect(await screen.findByText('Статус: waiting_for_quota')).toBeInTheDocument()
     expect(stream.active()).toBe(1)
@@ -189,10 +226,11 @@ describe('useRunLiveStatus', () => {
     setVisibility('hidden')
     expect(stream.active()).toBe(0)
 
+    // Пока вкладка была скрыта, прогон перешёл в publishing: снимок после open это покажет.
+    serverRun = makeReviewRun({ status: 'publishing' })
     setVisibility('visible')
     expect(stream.active()).toBe(1)
-    // Пока вкладка была скрыта, прогон перешёл в publishing: первое событие — снимок.
-    act(() => stream.emitStatus({ status: 'publishing' }))
+    act(() => stream.setState('open'))
     expect(await screen.findByText('Статус: publishing')).toBeInTheDocument()
   })
 
@@ -304,9 +342,9 @@ describe('useRunLiveStatus', () => {
     renderHarness({ status: 'building_context' })
     expect(screen.getByText('Виденный этап: building_context')).toBeInTheDocument()
 
-    act(() => stream.emitStatus({ status: 'analysing' }))
-    serverRun = makeReviewRun({ status: 'failed' })
-    act(() => stream.emitStatus({ status: 'failed', failure_reason: 'сбой' }))
+    act(() => stream.emitRun({ status: 'analysing' }))
+    serverRun = makeReviewRun({ status: 'failed', failure_reason: 'сбой' })
+    act(() => stream.emitRun({ status: 'failed' }, 'run.finished'))
 
     expect(await screen.findByText('Статус: failed')).toBeInTheDocument()
     expect(screen.getByText('Виденный этап: analysing')).toBeInTheDocument()

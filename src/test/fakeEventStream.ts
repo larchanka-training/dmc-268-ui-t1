@@ -1,4 +1,6 @@
+import type { ReviewRunListItem } from '../entities/review-run'
 import type { EventStream, EventStreamHandlers, StreamState } from '../shared/api'
+import { makeRunListItem } from './factories'
 
 /**
  * Источник событий, которым тест управляет вручную: ничего не приходит само, пока тест не
@@ -10,8 +12,11 @@ export type FakeEventStream = EventStream & {
   /** Сколько подписок открыто сейчас. */
   active: () => number
   emit: (type: string, data: unknown) => void
-  /** Отдаёт событие `status` в форме контракта; незаданные поля — `null`. */
-  emitStatus: (event: Record<string, unknown> & { status: string }) => void
+  /**
+   * Отдаёт событие прогона `run-1` в форме `ReviewRunListItem`; по умолчанию —
+   * `run.status_changed`, незаданные поля — как у `makeRunListItem`.
+   */
+  emitRun: (event: Partial<ReviewRunListItem> & { status: string }, type?: string) => void
   setState: (state: StreamState) => void
 }
 
@@ -30,16 +35,8 @@ export function createFakeEventStream(): FakeEventStream {
     },
     active: () => handlers.size,
     emit: (type, data) => handlers.forEach((subscriber) => subscriber.onEvent(type, data)),
-    emitStatus: (event) =>
-      handlers.forEach((subscriber) =>
-        subscriber.onEvent('status', {
-          review_run_id: 'run-1',
-          last_progress_at: '2026-09-20T14:05:00Z',
-          failed_stage: null,
-          failure_reason: null,
-          ...event,
-        }),
-      ),
+    emitRun: (event, type = 'run.status_changed') =>
+      handlers.forEach((subscriber) => subscriber.onEvent(type, makeRunListItem(event))),
     setState: (state) => handlers.forEach((subscriber) => subscriber.onStateChange(state)),
   }
 }

@@ -1,19 +1,22 @@
 export {
-  applyStatusEvent,
+  applyRunEvent,
+  isRunEventType,
   isRunStage,
   isTerminalStatus,
   KNOWN_STATUSES,
   ReviewRunSchema,
+  ReviewRunListItemSchema,
+  RUN_EVENT_TYPES,
   RUN_STAGES,
-  RunStatusEventSchema,
   VERDICTS,
 } from './model/schema'
 export type {
   KnownRunStatus,
   MergeRequestSummary,
   ReviewRun,
+  ReviewRunListItem,
+  RunEventType,
   RunStage,
-  RunStatusEvent,
   RunTrigger,
   Verdict,
 } from './model/schema'
