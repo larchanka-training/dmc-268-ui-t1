@@ -65,7 +65,11 @@ export function ConnectRepositoryPage() {
     // Первая правка серии — новая запись в истории, чтобы «назад» вернул прежний поиск и
     // страницу; следующие её заменяют. Серия — пока текущая запись создана поиском или URL
     // ещё не догнал поле.
-    const continuesSeries = isSearchEdit(location.state) || searchText !== search
+    // Запись поиска, на которую вернулись «назад»/«вперёд» (или после перезагрузки —
+    // `history.state` её переживает), серию не продолжает: иначе правка затёрла бы её, а
+    // «вперёд» вёл бы на устаревший `q`.
+    const continuesSeries =
+      (isSearchEdit(location.state) && navigationType !== 'POP') || searchText !== search
     setSearchText(value)
     setSearchParams(
       (prev) => {

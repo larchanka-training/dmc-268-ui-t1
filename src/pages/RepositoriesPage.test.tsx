@@ -149,8 +149,10 @@ describe('RepositoriesPage — страница в URL', () => {
 
     expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
     expect(router.state.location.search).toBe('?page=3&sort=name')
-    // На последней странице «вперёд» — не ссылка.
-    expect(screen.queryByRole('link', { name: 'Следующая страница' })).not.toBeInTheDocument()
+    // На последней странице «вперёд» недоступно: без адреса, перехода нет.
+    const disabledNext = screen.getByRole('link', { name: 'Следующая страница' })
+    expect(disabledNext).toHaveAttribute('aria-disabled', 'true')
+    expect(disabledNext).not.toHaveAttribute('href')
   })
 
   it('смена URL и «назад» в браузере меняют страницу', async () => {

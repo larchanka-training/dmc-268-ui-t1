@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { act, fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import { useUrlPage } from '@/shared/lib'
@@ -45,7 +45,11 @@ describe('PageNav', () => {
     const router = renderAt('/list')
 
     await user.click(screen.getByRole('button', { name: 'до навигации' }))
-    // «Назад» на первой странице недоступно и не фокусируется: первая остановка — «1».
+    // Первая остановка — недоступное «назад»: объявляется как недоступная ссылка.
+    await user.tab()
+    expect(within(nav()).getByRole('link', { name: 'Предыдущая страница' })).toHaveFocus()
+    await user.keyboard('{Enter}')
+    expect(router.state.location.search).toBe('')
     await user.tab()
     expect(within(nav()).getByRole('link', { name: '1' })).toHaveFocus()
     await user.tab()
@@ -64,6 +68,41 @@ describe('PageNav', () => {
     await user.keyboard(' ')
 
     expect(router.state.location.search).toBe('?page=2')
+  })
+
+  it('Space на текущей странице — без новой записи; удержание и Shift+Space не листают', async () => {
+    const user = userEvent.setup()
+    const router = renderAt('/list?page=2')
+
+    within(nav()).getByRole('link', { name: '2' }).focus()
+    await user.keyboard(' ')
+    expect(router.state.location.search).toBe('?page=2')
+    expect(router.state.historyAction).not.toBe('PUSH')
+
+    within(nav()).getByRole('link', { name: 'Следующая страница' }).focus()
+    await user.keyboard('{Shift>} {/Shift}')
+    expect(router.state.location.search).toBe('?page=2')
+
+    // Удержание: первое нажатие листает, автоповтор — нет.
+    fireEvent.keyDown(document.activeElement as Element, { key: ' ' })
+    fireEvent.keyDown(document.activeElement as Element, { key: ' ', repeat: true })
+    fireEvent.keyDown(document.activeElement as Element, { key: ' ', repeat: true })
+    await waitFor(() => expect(router.state.location.search).toBe('?page=3'))
+  })
+
+  it('«вперёд» с клавиатуры на последнюю страницу — фокус остаётся на недоступном «вперёд»', async () => {
+    const user = userEvent.setup()
+    const router = renderAt('/list?page=4')
+
+    const next = within(nav()).getByRole('link', { name: 'Следующая страница' })
+    next.focus()
+    await user.keyboard('{Enter}')
+
+    expect(router.state.location.search).toBe('?page=5')
+    const disabledNext = within(nav()).getByRole('link', { name: 'Следующая страница' })
+    expect(disabledNext).toHaveAttribute('aria-disabled', 'true')
+    expect(disabledNext).not.toHaveAttribute('href')
+    expect(disabledNext).toHaveFocus()
   })
 
   it('клик — одна запись в истории; клик с Ctrl оставлен браузеру', async () => {

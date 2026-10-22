@@ -69,6 +69,7 @@ export function applyThemeCssVariables(mode: ThemeMode): void {
   root.style.setProperty('--app-text', p.text)
   root.style.setProperty('--app-muted', p.muted)
   root.style.setProperty('--app-accent-subtle', p.accentSubtle)
+  root.style.setProperty('--app-accent', p.colorPrimary)
 }
 
 export function buildAntdThemeConfig(mode: ThemeMode): ThemeConfig {

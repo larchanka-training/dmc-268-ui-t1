@@ -270,4 +270,41 @@ describe('ConnectRepositoryPage — страница и поиск в URL', () =
     expect(router.state.historyAction).toBe('REPLACE')
     expect(screen.getByRole('link', { name: '2' })).toHaveAttribute('aria-current', 'page')
   })
+
+  it('быстрый набор: URL не успевает за полем, а в истории одна запись серии', async () => {
+    const router = createMemoryRouter(
+      [{ path: '/repositories/connect', element: <ConnectRepositoryPage /> }],
+      { initialEntries: ['/repositories/connect?page=3'] },
+    )
+    renderWithTransport(<RouterProvider router={router} />, manyAvailable())
+    await visibleNames()
+
+    // Правки в одном act: поле обновляется сразу, а переход роутера (transition) — только в
+    // конце, так что вторая и третья правки видят ещё старый URL.
+    act(() => {
+      for (const value of ['f', 'fr', 'front']) fireEvent.change(search(), { target: { value } })
+    })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front'))
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?page=3')
+  })
+
+  it('правка после возврата на запись поиска — новая запись, а не замена', async () => {
+    const router = renderConnectAt('/repositories/connect?page=3')
+    await visibleNames()
+
+    fireEvent.change(search(), { target: { value: 'front' } })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front'))
+    await act(() => router.navigate(-1))
+    await act(() => router.navigate(1))
+    expect(search()).toHaveValue('front')
+
+    fireEvent.change(search(), { target: { value: 'back' } })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=back'))
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?q=front')
+    expect(search()).toHaveValue('front')
+  })
 })

@@ -70,6 +70,10 @@ export function useUrlPage({ pageSize }: { pageSize: number }): UrlPage {
  * Когда число страниц стало известно, а `page` в URL больше него, заменяет адрес на последнюю
  * страницу (`replace`, без новой записи в истории). Ссылка на «уехавшую» страницу — после
  * удаления записей или сужения поиска — ведёт к ближайшей существующей, а URL не врёт.
+ *
+ * `pageCount` — только из ответа для текущей страницы. С `placeholderData: keepPreviousData`
+ * его передают лишь при `!isPlaceholderData`, иначе `undefined`: `total` предыдущей страницы
+ * устарел, и по нему страница схлопнулась бы до прихода ответа.
  */
 export function useNormalizeUrlPage(
   { page, toPage }: Pick<UrlPage, 'page' | 'toPage'>,
