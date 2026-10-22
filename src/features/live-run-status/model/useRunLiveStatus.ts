@@ -92,8 +92,11 @@ export function useRunLiveStatus<TData>({
         setStreamState(state)
         // Пропущенное до открытия и за время обрыва поток не повторит: берём снимок прогона.
         // Событие, пришедшее раньше снимка, не потеряется, а более старая версия проиграет по
-        // `updated_at` в `patchCache`.
-        if (state === 'open' && !finished) void queryClient.invalidateQueries({ queryKey })
+        // `updated_at` в `patchCache`. Только сам прогон (`exact`): ключи диффа и шагов
+        // начинаются с его ключа, а перекачивать дифф на каждое переподключение незачем.
+        if (state === 'open' && !finished) {
+          void queryClient.invalidateQueries({ queryKey, exact: true })
+        }
       },
       onEvent: (type, data) => {
         // Незнакомые типы — не ошибка: контракт разрешает серверу добавлять новые.
