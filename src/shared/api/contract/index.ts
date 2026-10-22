@@ -1,7 +1,13 @@
-import type { components } from './schema'
+import type { components, operations } from './schema'
 
 /** Схемы ответов из контракта бэкенда (`schema.d.ts` генерирует `pnpm api:sync`). */
 export type ApiSchemas = components['schemas']
+
+/**
+ * Операции контракта по `operationId`: параметры запроса и ответы ручки. Например, параметры
+ * списка прогонов — `ApiOperations['listReviews']['parameters']['query']`.
+ */
+export type ApiOperations = operations
 
 type Equals<A, B> =
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false

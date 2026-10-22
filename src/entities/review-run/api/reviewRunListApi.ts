@@ -1,8 +1,7 @@
 import { z } from 'zod'
 
 import { parseResponse, type ApiTransport } from '@/shared/api'
-import type { ApiSchemas, MatchesContract } from '@/shared/api/contract'
-import type { operations } from '@/shared/api/contract/schema'
+import type { ApiOperations, ApiSchemas, MatchesContract } from '@/shared/api/contract'
 
 import { ReviewRunListItemSchema } from '../model/schema'
 
@@ -18,7 +17,7 @@ export const ReviewRunListResponseSchema = z.object({
 export type ReviewRunListPage = z.infer<typeof ReviewRunListResponseSchema>
 
 /** Параметры запроса списка — ровно те, что описаны в контракте у `listReviews`. */
-export type ReviewRunListQuery = NonNullable<operations['listReviews']['parameters']['query']>
+export type ReviewRunListQuery = NonNullable<ApiOperations['listReviews']['parameters']['query']>
 
 /**
  * Адрес страницы списка. Массивы — повторяющимся параметром (`?status=a&status=b`), как требует
