@@ -3,10 +3,12 @@ import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Repository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
-import { formatDateTime } from '@/shared/lib'
+import { formatDateTime, useUrlPagination } from '@/shared/lib'
+import { linkPagination } from '@/shared/ui'
 
 export function RepositoriesPage() {
   const { data: repos = [], isLoading, isError } = useConnectedRepositories()
+  const pagination = useUrlPagination({ pageSize: 10, total: repos.length })
 
   const columns: ColumnsType<Repository> = [
     {
@@ -69,7 +71,7 @@ export function RepositoriesPage() {
           loading={isLoading}
           columns={columns}
           dataSource={repos}
-          pagination={{ pageSize: 10 }}
+          pagination={linkPagination(pagination)}
         />
       </div>
     </div>

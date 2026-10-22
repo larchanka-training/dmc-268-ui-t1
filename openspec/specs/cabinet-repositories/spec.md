@@ -24,13 +24,24 @@
 
 ### Requirement: Filter available repositories
 
-The connect page SHALL allow filtering available repositories by name (client-side filter on query data).
+Страница подключения SHALL фильтровать доступные репозитории по имени (на клиенте, по данным запроса). Текст поиска SHALL храниться в query-параметре `q`: ссылка с `q` открывает страницу уже с поиском, «назад» в браузере возвращает прежний поиск. Смена поиска SHALL сбрасывать страницу таблицы на первую и SHALL NOT добавлять записи в историю браузера на каждый символ.
 
 #### Scenario: Filter by part of the name
 
-- **WHEN** the user types `Front` in the search field on `/repositories/connect`
-- **THEN** the list SHALL show only repositories whose full name contains `front`, case-insensitive
-- **AND** clearing the field SHALL show all available repositories again
+- **WHEN** пользователь вводит `Front` в поле поиска на `/repositories/connect`
+- **THEN** список SHALL показать только репозитории, в полном имени которых есть `front`, без учёта регистра
+- **AND** очистка поля SHALL снова показать все доступные репозитории
+
+#### Scenario: Поиск из URL
+
+- **WHEN** пользователь открывает `/repositories/connect?q=back`
+- **THEN** в поле поиска SHALL стоять `back`, а список SHALL быть отфильтрован по нему
+
+#### Scenario: Смена поиска сбрасывает страницу
+
+- **WHEN** пользователь на `/repositories/connect?page=3` вводит текст в поле поиска
+- **THEN** адрес SHALL смениться на `/repositories/connect?q=<текст>` без `page`
+- **AND** таблица SHALL показать первую страницу результатов
 
 ### Requirement: Подключение, которое бэкенд ещё не реализовал
 
@@ -40,3 +51,38 @@ The connect page SHALL allow filtering available repositories by name (client-si
 
 - **WHEN** `GET /api/v1/repositories/available` отвечает `501` с `code = NOT_IMPLEMENTED`
 - **THEN** экран показывает, что подключение репозиториев пока недоступно
+
+### Requirement: Страница таблицы в URL
+
+Таблицы репозиториев на `/repositories` и `/repositories/connect` SHALL брать номер страницы из query-параметра `page` (с единицы) и SHALL перерисовываться при смене URL, в том числе по «назад» и «вперёд» браузера. Размер страницы фиксирован и в URL не выносится. Нет параметра или он не целое число с единицы — SHALL показываться первая страница; номер больше числа страниц — последняя.
+
+#### Scenario: Открытие по ссылке на страницу
+
+- **WHEN** пользователь открывает `/repositories?page=2`, а репозиториев больше, чем помещается на одной странице
+- **THEN** таблица SHALL показать вторую страницу
+
+#### Scenario: «Назад» в браузере
+
+- **WHEN** пользователь перешёл с первой страницы на третью, а потом нажал «назад» в браузере
+- **THEN** таблица SHALL снова показать первую страницу
+
+#### Scenario: Нет параметра или он некорректный
+
+- **WHEN** пользователь открывает таблицу без `page` или с `page=abc`, `page=0`, `page=-1`
+- **THEN** таблица SHALL показать первую страницу, а не ошибку
+
+#### Scenario: Номер больше числа страниц
+
+- **WHEN** пользователь открывает `/repositories?page=99`, а страниц три
+- **THEN** таблица SHALL показать третью, последнюю, страницу
+
+### Requirement: Ссылки пагинации
+
+Номера страниц, «назад» и «вперёд» в пагинации таблиц репозиториев SHALL быть ссылками (`<a href>`) на тот же путь с другим `page` и прежними остальными query-параметрами, чтобы работали средний клик и «открыть в новой вкладке». Ссылка на первую страницу SHALL вести на адрес без `page`.
+
+#### Scenario: Ссылки «назад» и «вперёд»
+
+- **WHEN** пользователь на `/repositories?page=2&sort=name`, и третья страница есть
+- **THEN** «вперёд» SHALL быть ссылкой на `/repositories?page=3&sort=name`
+- **AND** «назад» SHALL быть ссылкой на `/repositories?sort=name`
+- **AND** переход по «вперёд» SHALL показать третью страницу

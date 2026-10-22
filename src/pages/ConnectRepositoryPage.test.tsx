@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { MemoryRouter, Route, RouterProvider, Routes, createMemoryRouter } from 'react-router-dom'
 import type {
   AvailableRepository,
   ConnectRepositoryRequest,
@@ -126,5 +126,110 @@ describe('ConnectRepositoryPage', () => {
     renderConnectPage(fakeTransport({ get: notImplemented, post: notImplemented }))
 
     expect(await screen.findByText(/Подключение репозиториев пока недоступно/)).toBeInTheDocument()
+  })
+})
+
+/** 20 доступных репозиториев: `front-01…10` и `back-01…10` — три страницы по 8. */
+function manyAvailable(): ApiTransport {
+  const names = [
+    ...Array.from({ length: 10 }, (_, i) => `front-${String(i + 1).padStart(2, '0')}`),
+    ...Array.from({ length: 10 }, (_, i) => `back-${String(i + 1).padStart(2, '0')}`),
+  ]
+  return fakeTransport({
+    get: async () => ({
+      items: names.map((name, i) => ({
+        ...available(String(i + 1), name),
+        already_connected: false,
+      })),
+    }),
+  })
+}
+
+function renderConnectAt(url: string) {
+  const router = createMemoryRouter(
+    [{ path: '/repositories/connect', element: <ConnectRepositoryPage /> }],
+    { initialEntries: [url] },
+  )
+  renderWithTransport(<RouterProvider router={router} />, manyAvailable())
+  return router
+}
+
+/** Имена репозиториев на видимой странице таблицы, без префикса организации. */
+async function visibleNames() {
+  await screen.findAllByText(/larchanka-training\//)
+  return screen
+    .getAllByText(/larchanka-training\//)
+    .map((el) => el.textContent?.replace('larchanka-training/', ''))
+}
+
+const search = () => screen.getByPlaceholderText('Поиск по имени…')
+
+describe('ConnectRepositoryPage — страница и поиск в URL', () => {
+  it('открытие с ?page=2 показывает вторую страницу', async () => {
+    renderConnectAt('/repositories/connect?page=2')
+
+    expect(await visibleNames()).toEqual([
+      'front-09',
+      'front-10',
+      'back-01',
+      'back-02',
+      'back-03',
+      'back-04',
+      'back-05',
+      'back-06',
+    ])
+  })
+
+  it.each(['', '?page=abc', '?page=0', '?page=-1'])('%j — первая страница', async (query) => {
+    renderConnectAt(`/repositories/connect${query}`)
+
+    expect((await visibleNames())[0]).toBe('front-01')
+  })
+
+  it('поиск из ?q= фильтрует список и стоит в поле', async () => {
+    renderConnectAt('/repositories/connect?q=back')
+
+    expect(await visibleNames()).toHaveLength(8)
+    expect((await visibleNames()).every((name) => name?.startsWith('back-'))).toBe(true)
+    expect(search()).toHaveValue('back')
+  })
+
+  it('ссылка «вперёд» ведёт на page+1 и сохраняет поиск', async () => {
+    const router = renderConnectAt('/repositories/connect?q=0&page=1')
+    await visibleNames()
+
+    const next = screen.getByRole('link', { name: 'Следующая страница' })
+    expect(next).toHaveAttribute('href', '/repositories/connect?q=0&page=2')
+    fireEvent.click(next)
+
+    // `0` есть во всех 20 именах: вторая страница — с 9-го.
+    expect((await visibleNames())[0]).toBe('front-09')
+    expect(router.state.location.search).toBe('?q=0&page=2')
+  })
+
+  it('смена поиска сбрасывает страницу на первую', async () => {
+    const router = renderConnectAt('/repositories/connect?page=3')
+    expect(await visibleNames()).toEqual(['back-07', 'back-08', 'back-09', 'back-10'])
+
+    fireEvent.change(search(), { target: { value: 'front' } })
+
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front'))
+    expect((await visibleNames())[0]).toBe('front-01')
+  })
+
+  it('«назад» в браузере возвращает страницу и текст поиска', async () => {
+    const router = renderConnectAt('/repositories/connect?q=front')
+    await visibleNames()
+
+    fireEvent.click(screen.getByRole('link', { name: '2' }))
+    expect(await visibleNames()).toEqual(['front-09', 'front-10'])
+
+    fireEvent.change(search(), { target: { value: 'back' } })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=back'))
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?q=front')
+    expect(search()).toHaveValue('front')
+    expect((await visibleNames())[0]).toBe('front-01')
   })
 })

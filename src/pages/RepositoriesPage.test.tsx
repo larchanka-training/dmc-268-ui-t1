@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { act, fireEvent, screen } from '@testing-library/react'
+import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import type { Repository } from '@/entities/repository'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { fakeTransport, renderWithTransport } from '@/test/api'
@@ -59,5 +59,93 @@ describe('RepositoriesPage', () => {
     renderRepositoriesPage(async () => [repository(1, 'larchanka-training/docs', true)])
 
     expect(await screen.findByText('Не удалось загрузить репозитории')).toBeInTheDocument()
+  })
+})
+
+/** 25 подключённых репозиториев — три страницы по 10. */
+const many = Array.from({ length: 25 }, (_, i) =>
+  repository(i + 1, `larchanka-training/repo-${String(i + 1).padStart(2, '0')}`, true),
+)
+
+/** Роутер в памяти, чтобы тест мог менять URL и листать историю, как браузер. */
+function renderPaginatedAt(url: string) {
+  const router = createMemoryRouter([{ path: '/repositories', element: <RepositoriesPage /> }], {
+    initialEntries: [url],
+  })
+  renderWithTransport(
+    <RouterProvider router={router} />,
+    fakeTransport({ get: async () => ({ items: many }) }),
+  )
+  return router
+}
+
+/** Номера репозиториев на видимой странице таблицы. */
+async function visibleRepos() {
+  await screen.findAllByText(/larchanka-training\/repo-/)
+  return screen
+    .getAllByText(/larchanka-training\/repo-/)
+    .map((el) => Number(el.textContent?.slice(-2)))
+}
+
+describe('RepositoriesPage — страница в URL', () => {
+  it('открытие с ?page=2 показывает вторую страницу', async () => {
+    renderPaginatedAt('/repositories?page=2')
+
+    expect(await visibleRepos()).toEqual([11, 12, 13, 14, 15, 16, 17, 18, 19, 20])
+    expect(screen.getByRole('link', { name: '2' })).toHaveAttribute('aria-current', 'page')
+  })
+
+  it.each([
+    '/repositories',
+    '/repositories?page=abc',
+    '/repositories?page=0',
+    '/repositories?page=-1',
+  ])('%s — первая страница', async (url) => {
+    renderPaginatedAt(url)
+
+    expect(await visibleRepos()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+  })
+
+  it('страница больше числа страниц — последняя', async () => {
+    renderPaginatedAt('/repositories?page=99')
+
+    expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
+  })
+
+  it('«вперёд», «назад» и номера — ссылки на тот же путь с другим page и прежними параметрами', async () => {
+    const router = renderPaginatedAt('/repositories?page=2&sort=name')
+    await visibleRepos()
+
+    const next = screen.getByRole('link', { name: 'Следующая страница' })
+    expect(next).toHaveAttribute('href', '/repositories?page=3&sort=name')
+    expect(screen.getByRole('link', { name: 'Предыдущая страница' })).toHaveAttribute(
+      'href',
+      '/repositories?sort=name',
+    )
+    expect(screen.getByRole('link', { name: '3' })).toHaveAttribute(
+      'href',
+      '/repositories?page=3&sort=name',
+    )
+
+    fireEvent.click(next)
+
+    expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
+    expect(router.state.location.search).toBe('?page=3&sort=name')
+    // На последней странице «вперёд» — не ссылка.
+    expect(screen.queryByRole('link', { name: 'Следующая страница' })).not.toBeInTheDocument()
+  })
+
+  it('смена URL и «назад» в браузере меняют страницу', async () => {
+    const router = renderPaginatedAt('/repositories')
+    expect(await visibleRepos()).toContain(1)
+
+    await act(() => router.navigate('/repositories?page=3'))
+    expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
+
+    await act(() => router.navigate(-1))
+    expect(await visibleRepos()).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+
+    await act(() => router.navigate(1))
+    expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
   })
 })
