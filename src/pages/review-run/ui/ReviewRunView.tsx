@@ -87,7 +87,7 @@ export function ReviewRunView() {
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
       <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
       {!isTerminalStatus(run.status) && (
-        <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
+        <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />
       )}
       <RunProgress run={run} seenStage={live.seenStage} />
       <ReviewSummary run={run} findings={findings} publishedComments={published_comments} />

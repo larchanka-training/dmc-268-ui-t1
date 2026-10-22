@@ -4,7 +4,8 @@ import { makeRunListItem } from './factories'
 
 /**
  * Источник событий, которым тест управляет вручную: ничего не приходит само, пока тест не
- * вызвал `emit` или `setState`. Заменяет `EventSource` за интерфейсом `EventStream`.
+ * вызвал `emit` или `setState`. С `autoOpen` каждая новая подписка сразу получает `open`, как
+ * настоящий поток после подключения. Заменяет `EventSource` за интерфейсом `EventStream`.
  */
 export type FakeEventStream = EventStream & {
   /** Пути всех подписок по порядку открытия. */
@@ -20,7 +21,7 @@ export type FakeEventStream = EventStream & {
   setState: (state: StreamState) => void
 }
 
-export function createFakeEventStream(): FakeEventStream {
+export function createFakeEventStream({ autoOpen = false } = {}): FakeEventStream {
   const handlers = new Set<EventStreamHandlers>()
   const opened: string[] = []
 
@@ -29,6 +30,7 @@ export function createFakeEventStream(): FakeEventStream {
     subscribe(path, subscriber) {
       opened.push(path)
       handlers.add(subscriber)
+      if (autoOpen) subscriber.onStateChange('open')
       return () => {
         handlers.delete(subscriber)
       }

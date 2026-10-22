@@ -5,6 +5,7 @@ export {
   isRunStage,
   isTerminalStatus,
   KNOWN_STATUSES,
+  mergeRunSnapshot,
   ReviewRunSchema,
   ReviewRunListItemSchema,
   RUN_EVENT_TYPES,
