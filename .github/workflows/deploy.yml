@@ -72,6 +72,7 @@ jobs:
       packages: write
     outputs:
       image: ${{ steps.meta.outputs.image }}
+      image_ref: ${{ steps.ref.outputs.image_ref }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -81,10 +82,15 @@ jobs:
         id: meta
         env:
           SHA: ${{ needs.gate.outputs.sha }}
+          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
         run: |
           set -euo pipefail
-          # Тег по commit sha: так видно, какой коммит сейчас на стенде.
-          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z'):${SHA}"
+          # Тег по commit sha и источнику данных кабинета: так видно, что сейчас
+          # на стенде. Пересоздание контейнера от тега не зависит — его
+          # гарантирует digest (шаг «Ссылка на образ по digest»).
+          if [ "$USE_MOCK_API" = false ]; then source=api; else source=mock; fi
+          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z'):${SHA}-${source}"
+          echo "use_mock_api=$USE_MOCK_API" >> "$GITHUB_OUTPUT"
           echo "image=$image" >> "$GITHUB_OUTPUT"
           echo "$image"
 
@@ -99,6 +105,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: docker/build-push-action@v7
+        id: build
         with:
           context: .
           push: true
@@ -108,7 +115,7 @@ jobs:
           # кабинета — переменная репозитория VITE_USE_MOCK_API, по умолчанию моки.
           build-args: |
             PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
-            VITE_USE_MOCK_API=${{ vars.VITE_USE_MOCK_API || 'true' }}
+            VITE_USE_MOCK_API=${{ steps.meta.outputs.use_mock_api }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -117,6 +124,24 @@ jobs:
           set -euo pipefail
           docker manifest inspect "${{ steps.meta.outputs.image }}" > /dev/null
           echo "образ доступен по тегу"
+
+      # tofu сравнивает имя образа. Пересборка того же коммита с другими
+      # build-args (VITE_USE_MOCK_API, PUBLIC_ORIGIN) пушит образ под тем же
+      # тегом, и по тегу tofu не увидел бы разницы. Digest меняется с
+      # содержимым, поэтому новый образ всегда пересоздаёт контейнер.
+      - name: Ссылка на образ по digest
+        id: ref
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          if [ -z "$DIGEST" ]; then
+            echo "::error::build-push-action не вернул digest образа"
+            exit 1
+          fi
+          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z')"
+          echo "image_ref=${image}@${DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "${image}@${DIGEST}"
 
   deploy:
     needs: [gate, image]
@@ -195,7 +220,7 @@ jobs:
           AWS_DEFAULT_REGION: us-east-1
           SSH_USER: ${{ secrets.VPS_DMC268_U }}
           HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-          TF_VAR_ui_image: ${{ needs.image.outputs.image }}
+          TF_VAR_ui_image: ${{ needs.image.outputs.image_ref }}
           TF_VAR_registry_username: ${{ github.actor }}
           TF_VAR_registry_password: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -351,5 +376,6 @@ jobs:
             echo "| | |"
             echo "| --- | --- |"
             echo "| Образ | \`${{ needs.image.outputs.image }}\` |"
+            echo "| Digest | \`${{ needs.image.outputs.image_ref }}\` |"
             echo "| Адрес | ${{ steps.apply.outputs.ui_url || 'не получен' }} |"
           } >> "$GITHUB_STEP_SUMMARY"

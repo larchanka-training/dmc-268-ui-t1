@@ -41,7 +41,7 @@ variable "acme_directory" {
 
 variable "ui_image" {
   type        = string
-  description = "Полная ссылка на образ интерфейса в реестре, с тегом по commit sha."
+  description = "Полная ссылка на образ интерфейса в реестре: в CI — по digest (@sha256:…), локально можно по тегу."
 }
 
 variable "registry_username" {
