@@ -81,10 +81,15 @@ jobs:
         id: meta
         env:
           SHA: ${{ needs.gate.outputs.sha }}
+          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
         run: |
           set -euo pipefail
           # Тег по commit sha: так видно, какой коммит сейчас на стенде.
-          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z'):${SHA}"
+          # Источник данных печатается в бандл, поэтому он тоже в теге: иначе
+          # смена VITE_USE_MOCK_API пересобрала бы образ под старым тегом, а
+          # tofu, сравнивая имя образа, не пересоздал бы контейнер.
+          if [ "$USE_MOCK_API" = false ]; then source=api; else source=mock; fi
+          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z'):${SHA}-${source}"
           echo "image=$image" >> "$GITHUB_OUTPUT"
           echo "$image"
 
