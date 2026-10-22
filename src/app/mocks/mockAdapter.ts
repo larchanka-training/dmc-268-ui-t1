@@ -9,6 +9,7 @@ import {
 import { mockDiff, mockReview, mockSteps } from './fixtures'
 import type { MockServer } from './mockServer'
 import { createRepositoryStore } from './repositories'
+import { createReviewRunStore } from './reviewRuns'
 
 /**
  * Mock adapter с той же границей, что и HTTP-клиент: пути и формы ответов — как в контракте
@@ -18,13 +19,15 @@ import { createRepositoryStore } from './repositories'
  * mock-поток событий. Пока прогон не завершён, замечаний, публикаций и шагов нет; к
  * завершению они приходят из фикстуры. Дифф есть сразу: его получают до анализа. Без `server` отдаётся готовый завершённый прогон.
  *
- * Прогон в фикстуре один, `/reviews/run-42`; любой другой путь — 404, как у бэкенда.
+ * Экран прогона есть у одного прогона, `/reviews/run-42`; список `/reviews` — он, чужой прогон
+ * потока и сгенерированные прогоны (`reviewRuns.ts`). Любой другой путь — 404, как у бэкенда.
  */
 export function createMockAdapter({
   latencyMs = 250,
   server,
 }: { latencyMs?: number; server?: MockServer } = {}): ApiTransport {
   const repositories = createRepositoryStore()
+  const reviewRuns = createReviewRunStore(server)
 
   const runNow = (): ReviewRunResponse => {
     // Копия, как после сети: UI не должен мутировать фикстуры.
@@ -65,7 +68,8 @@ export function createMockAdapter({
   }
 
   const get = (path: string): unknown => {
-    const route = path.split('?')[0]
+    const [route, search = ''] = path.split('?')
+    if (route === '/reviews') return reviewRuns.list(search)
     if (route === '/repositories') return repositories.list()
     if (route === '/repositories/available') return repositories.available()
     if (route === reviewPath(mockReview.id)) return runNow()

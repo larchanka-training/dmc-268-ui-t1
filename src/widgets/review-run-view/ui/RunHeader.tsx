@@ -2,10 +2,10 @@ import type { ReactNode } from 'react'
 
 import {
   isTerminalStatus,
+  RUN_TRIGGER_LABELS,
   RunStatusBadge,
   VerdictBadge,
   type ReviewRun,
-  type RunTrigger,
   type Verdict,
 } from '../../../entities/review-run'
 import {
@@ -15,12 +15,6 @@ import {
   safeExternalUrl,
   shortSha,
 } from '../../../shared/lib'
-
-const TRIGGER_LABEL: Record<RunTrigger, string> = {
-  webhook: 'Вебхук',
-  manual: 'Вручную',
-  mention: 'Упоминание',
-}
 
 function Meta({ term, wide, children }: { term: string; wide?: boolean; children: ReactNode }) {
   return (
@@ -73,7 +67,7 @@ export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict |
             {shortSha(run.head_sha)}
           </code>
         </Meta>
-        <Meta term="Запуск">{TRIGGER_LABEL[run.trigger]}</Meta>
+        <Meta term="Запуск">{RUN_TRIGGER_LABELS[run.trigger]}</Meta>
         <Meta term="Поставлен">{formatDateTime(run.created_at)}</Meta>
         <Meta term="Длительность">
           {run.duration_seconds === null ? '—' : formatDuration(run.duration_seconds)}

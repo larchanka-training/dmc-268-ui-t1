@@ -5,6 +5,16 @@ import type {
 } from '../../entities/repository'
 import { ApiError } from '../../shared/api'
 
+/**
+ * Id подключённого репозитория `n` (с единицы, по порядку подключения). В контракте id
+ * репозитория — uuid, и фильтр `repository_id` вкладки «Ревью» другие значения отбрасывает,
+ * поэтому моки отдают uuid. Им же ссылаются на репозиторий прогоны из `fixtures.ts` и
+ * `reviewRuns.ts`: 1 — `platform-api`, 2 — `docs`.
+ */
+export function mockRepositoryId(n: number): string {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+}
+
 /** Репозиторий установки GitHub App, ещё не обязательно подключённый. */
 type InstallationRepository = Omit<AvailableRepository, 'already_connected'>
 
@@ -21,7 +31,7 @@ const installation: InstallationRepository[] = [
 }))
 
 const registered = (repo: InstallationRepository, n: number, at: string): Repository => ({
-  id: `repo-${n}`,
+  id: mockRepositoryId(n),
   provider: repo.provider,
   provider_id: repo.provider_id,
   full_name: repo.full_name,
