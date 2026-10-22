@@ -1,10 +1,11 @@
-import { useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { hashKey, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 import {
   isRunEventType,
   ReviewRunListItemSchema,
   upsertRunListItem,
+  type ReviewRunListItem,
   type ReviewRunListPage,
 } from '../../../entities/review-run'
 import { fetchCurrentUser } from '../../../entities/session'
@@ -35,12 +36,22 @@ export type RunListLiveUpdates = {
   refresh: () => Promise<void>
 }
 
+/** События, пришедшие, пока страница в режиме upsert грузилась: их накладывают на её снимок. */
+type PendingEvents = { queryKey: QueryKey; pageSize: number; events: ReviewRunListItem[] }
+
 /**
  * Держит список прогонов свежим по общему потоку `GET /api/v1/events`. Источник правды — кэш
  * запроса страницы: событие `run.*` либо накладывается на него (`upsertRunListItem`), либо
  * вызывает перезапрос страницы с троттлингом. Истории у потока нет: на каждое `open`, первое и
  * после обрыва, страница перезапрашивается. Незнакомые типы событий пропускаются, событие вне
  * схемы пишется в консоль и подписку не рвёт.
+ *
+ * Гонка снимка и события в режиме upsert: ответ запроса, прочитанный сервером до события, не
+ * должен его отменить. Строку, которая есть и в кэше, и в снимке, защищает `structuralSharing`
+ * запроса (побеждает больший `updated_at`). Событие, пришедшее, пока страница в полёте или ещё
+ * не загружена, кроме того, запоминается и после успешного ответа накладывается на снимок
+ * заново: так не пропадают `run.created`, которого в снимке нет, и событие, пришедшее, когда
+ * под ключом страницы данных ещё не было.
  */
 export function useRunListLiveUpdates({
   enabled,
@@ -66,6 +77,36 @@ export function useRunListLiveUpdates({
     let finished = false
     let timer: ReturnType<typeof setTimeout> | undefined
     let lastRefetch = -Infinity
+    const pending = new Map<string, PendingEvents>()
+
+    // Снимок страницы пришёл — накладываем на него события, пришедшие за время загрузки.
+    // `manual` — это запись `setQueryData`, а не ответ сервера: её пропускаем.
+    const unsubscribeCache = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== 'updated') return
+      const entry = pending.get(event.query.queryHash)
+      if (entry === undefined) return
+      const { action } = event
+      if (action.type === 'error') {
+        pending.delete(event.query.queryHash)
+        return
+      }
+      if (action.type !== 'success' || action.manual) return
+      pending.delete(event.query.queryHash)
+      queryClient.setQueryData<ReviewRunListPage>(entry.queryKey, (page) =>
+        page === undefined
+          ? page
+          : entry.events.reduce((acc, run) => upsertRunListItem(acc, run, entry.pageSize), page),
+      )
+    })
+
+    const remember = (key: QueryKey, size: number, run: ReviewRunListItem) => {
+      const state = queryClient.getQueryState(key)
+      if (state?.data !== undefined && state.fetchStatus !== 'fetching') return
+      const hash = hashKey(key)
+      const entry = pending.get(hash) ?? { queryKey: key, pageSize: size, events: [] }
+      entry.events.push(run)
+      pending.set(hash, entry)
+    }
 
     const refetchNow = () => {
       lastRefetch = Date.now()
@@ -104,6 +145,7 @@ export function useRunListLiveUpdates({
         // Другие страницы и фильтры из кэша устарели: при возврате к ним — перезапрос.
         void queryClient.invalidateQueries({ queryKey: root, refetchType: 'none' })
         if (upsert) {
+          remember(key, size, parsed.data)
           queryClient.setQueryData<ReviewRunListPage>(key, (old) =>
             old === undefined ? old : upsertRunListItem(old, parsed.data, size),
           )
@@ -117,6 +159,7 @@ export function useRunListLiveUpdates({
       finished = true
       clearTimeout(timer)
       unsubscribe()
+      unsubscribeCache()
     }
   }, [stream, queryClient, enabled, attempt])
 

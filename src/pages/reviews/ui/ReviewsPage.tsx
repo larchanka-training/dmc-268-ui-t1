@@ -128,7 +128,8 @@ export function ReviewsPage() {
     enabled: list.data !== undefined,
     queryKey,
     listKey: REVIEW_LIST_KEY,
-    canUpsert: !filtered && page === 1,
+    // По фактическому ключу запроса: первая страница — это `offset` 0, а не номер после `clampPage`.
+    canUpsert: !filtered && query.offset === 0,
     pageSize,
   })
 

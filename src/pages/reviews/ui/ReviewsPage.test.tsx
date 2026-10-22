@@ -49,6 +49,11 @@ type Backend = {
   calls: string[]
   rows: ReviewRunListItem[]
   error?: unknown
+  /**
+   * Задержка ответа: снимок строк берётся в момент запроса, а отдаётся, когда промис разрешится.
+   * Так воспроизводится гонка «событие пришло, пока страница в полёте».
+   */
+  hold?: Promise<void>
 }
 
 let backend: Backend
@@ -64,7 +69,12 @@ function createTransport() {
         const params = new URLSearchParams(path.split('?')[1])
         const limit = Number(params.get('limit') ?? 50)
         const offset = Number(params.get('offset') ?? 0)
-        return { items: backend.rows.slice(offset, offset + limit), total: backend.rows.length }
+        const snapshot = {
+          items: backend.rows.slice(offset, offset + limit),
+          total: backend.rows.length,
+        }
+        if (backend.hold) await backend.hold
+        return snapshot
       }
       throw new ApiError(404, path, 'ROUTE_NOT_FOUND')
     },
@@ -85,7 +95,7 @@ function renderPage(url = '/reviews') {
     { initialEntries: [url] },
   )
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  render(
+  const { unmount } = render(
     <QueryClientProvider client={client}>
       <TransportContext value={createTransport()}>
         <EventStreamContext value={stream}>
@@ -95,7 +105,19 @@ function renderPage(url = '/reviews') {
     </QueryClientProvider>,
   )
   const search = () => new URLSearchParams(router.state.location.search)
-  return { router, search }
+  return { router, search, unmount }
+}
+
+/** Следующие ответы списка ждут `release()`: снимок прочитан сейчас, а придёт позже. */
+function holdResponses() {
+  let release = () => {}
+  backend.hold = new Promise<void>((resolve) => {
+    release = () => {
+      backend.hold = undefined
+      resolve()
+    }
+  })
+  return () => act(() => release())
 }
 
 /** Кэш Query оповещает подписчиков через `setTimeout(0)`: даём ему отработать. */
@@ -321,6 +343,101 @@ describe('ReviewsPage: обновления из потока', () => {
     act(() => stream.setState('open'))
 
     await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+  })
+
+  const freshRun = (): ReviewRunListItem => ({
+    ...makeRuns(1)[0],
+    id: 'run-new',
+    status: 'queued',
+    created_at: '2026-09-20T13:00:00Z',
+    updated_at: '2026-09-20T13:00:00Z',
+    merge_request: { ...makeRuns(1)[0].merge_request, number: 200, title: 'Свежий PR' },
+  })
+
+  it('снимок, прочитанный до события, не откатывает строку', async () => {
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    const calls = backend.calls.length
+
+    // `open` → перезапрос; сервер прочитал строки до смены статуса, ответ задержался.
+    const release = holdResponses()
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+    act(() => {
+      stream.emitRun({
+        ...makeRuns(1)[0],
+        status: 'publishing',
+        updated_at: '2026-09-20T12:05:00Z',
+      })
+    })
+    await waitFor(() =>
+      expect(within(rowOf('#100 Изменение 1')).getByText('Публикация')).toBeInTheDocument(),
+    )
+
+    release()
+    await flush()
+
+    expect(within(rowOf('#100 Изменение 1')).getByText('Публикация')).toBeInTheDocument()
+  })
+
+  it('run.created во время перезапроса не пропадает, когда приходит снимок без него', async () => {
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    const calls = backend.calls.length
+
+    const release = holdResponses()
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+    act(() => stream.emitRun(freshRun(), 'run.created'))
+    await screen.findByText('#200 Свежий PR')
+
+    release()
+    await flush()
+
+    expect(screen.getByText('#200 Свежий PR')).toBeInTheDocument()
+    expect(screen.getByText('Найдено прогонов: 4')).toBeInTheDocument()
+  })
+
+  it('событие, пришедшее до первого ответа первой страницы, накладывается на снимок', async () => {
+    backend.rows = makeRuns(25)
+    const user = userEvent.setup()
+    renderPage('/reviews?page=2')
+    await screen.findByText('Найдено прогонов: 25')
+    const calls = backend.calls.length
+
+    // Под ключом первой страницы данных ещё нет: событие нужно сохранить до ответа.
+    const release = holdResponses()
+    await user.click(screen.getByRole('link', { name: '1' }))
+    await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+    expect(lastCall()).toBe('/reviews?limit=20&offset=0')
+    act(() => stream.emitRun(freshRun(), 'run.created'))
+
+    release()
+
+    expect(await screen.findByText('#200 Свежий PR')).toBeInTheDocument()
+    expect(screen.getByText('Найдено прогонов: 26')).toBeInTheDocument()
+    const rows = screen.getAllByRole('row').slice(1)
+    expect(within(rows[0]).getByText('#200 Свежий PR')).toBeInTheDocument()
+  })
+
+  it('подписка одна при смене фильтра и страницы и закрывается при уходе', async () => {
+    backend.rows = makeRuns(45)
+    const user = userEvent.setup()
+    const { unmount } = renderPage()
+    await screen.findByText('Найдено прогонов: 45')
+    expect(stream.active()).toBe(1)
+
+    await user.click(screen.getByText('Завершённые'))
+    await waitFor(() => expect(lastCall()).toBe('/reviews?active=false&limit=20&offset=0'))
+    await user.click(await screen.findByRole('link', { name: '2' }))
+    await waitFor(() => expect(lastCall()).toBe('/reviews?active=false&limit=20&offset=20'))
+    await flush()
+
+    expect(stream.opened).toEqual(['/api/v1/events'])
+    expect(stream.active()).toBe(1)
+
+    unmount()
+    expect(stream.active()).toBe(0)
   })
 
   it('незнакомый тип и событие вне схемы не ломают страницу', async () => {

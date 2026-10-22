@@ -30,6 +30,6 @@ export {
   reviewRunListPath,
 } from './api/reviewRunListApi'
 export type { ReviewRunListPage, ReviewRunListQuery } from './api/reviewRunListApi'
-export { upsertRunListItem } from './lib/upsertRunListItem'
+export { mergeRunListSnapshot, upsertRunListItem } from './lib/upsertRunListItem'
 export { RunStatusBadge } from './ui/RunStatusBadge'
 export { VerdictBadge } from './ui/VerdictBadge'

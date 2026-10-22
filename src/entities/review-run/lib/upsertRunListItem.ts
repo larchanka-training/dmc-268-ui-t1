@@ -40,3 +40,26 @@ export function upsertRunListItem(
   const items = [...page.items.slice(0, at), event, ...page.items.slice(at)].slice(0, pageSize)
   return { items, total: page.total + 1 }
 }
+
+/**
+ * Сводит снимок страницы из REST с тем, что уже лежит в кэше под тем же ключом. Снимок могли
+ * прочитать до события, которое пришло раньше ответа и уже наложено на кэш: строка кэша, у
+ * которой `updated_at` больше, побеждает строку снимка. При равном `updated_at` побеждает снимок,
+ * пришедший позже. Порядок, состав страницы и `total` — из снимка: строки, которых в снимке нет
+ * (`run.created` после чтения), возвращает буфер событий подписки, а не эта функция.
+ */
+export function mergeRunListSnapshot(
+  cached: ReviewRunListPage | undefined,
+  snapshot: ReviewRunListPage,
+): ReviewRunListPage {
+  if (cached === undefined) return snapshot
+  const known = new Map(cached.items.map((item) => [item.id, item]))
+  let changed = false
+  const items = snapshot.items.map((item) => {
+    const current = known.get(item.id)
+    if (current === undefined || isSameOrNewer(item.updated_at, current.updated_at)) return item
+    changed = true
+    return current
+  })
+  return changed ? { ...snapshot, items } : snapshot
+}
