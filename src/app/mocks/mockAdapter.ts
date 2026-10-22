@@ -37,6 +37,8 @@ export function createMockAdapter({
       ...review,
       status: step.status,
       last_progress_at: new Date(server.enteredAt(index)).toISOString(),
+      // Строка меняется ровно на переходах сценария: так событие и снимок сравнимы по `updated_at`.
+      updated_at: new Date(server.enteredAt(index)).toISOString(),
       failed_stage: step.failed_stage ?? null,
       failure_reason: step.failure_reason ?? null,
       findings: finished ? review.findings : [],

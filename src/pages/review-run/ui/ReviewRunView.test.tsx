@@ -410,12 +410,28 @@ describe('ReviewRunView', () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
       await screen.findByText('Анализ')
 
-      act(() => stream.emitStatus({ status: 'publishing' }))
+      act(() => stream.emitRun({ status: 'publishing' }))
 
       await waitFor(() =>
         expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
       )
       expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('завершён')
+    })
+
+    it('INT-23: события чужого прогона и незнакомого типа экран не меняют', async () => {
+      renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
+      await screen.findByText('Анализ')
+
+      act(() => stream.emitRun({ id: 'run-2', status: 'publishing' }))
+      act(() => stream.emit('repository.synced', { id: 'run-1', status: 'publishing' }))
+
+      expect(within(progress()).getByText('Публикация')).not.toHaveTextContent('выполняется')
+      expect(stream.active()).toBe(1)
+
+      act(() => stream.emitRun({ status: 'publishing' }))
+      await waitFor(() =>
+        expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
+      )
     })
 
     it('INT-10: прогон доходит до completed, замечания и вердикт появляются сами', async () => {
@@ -429,7 +445,7 @@ describe('ReviewRunView', () => {
 
       // К завершению сервер отдаёт замечания и вердикт; событие только сообщает о статусе.
       backend = { run: makeReviewRun({ status: 'completed' }) }
-      act(() => stream.emitStatus({ status: 'completed' }))
+      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
 
       expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
@@ -451,13 +467,8 @@ describe('ReviewRunView', () => {
           failure_reason: 'LLM не ответила',
         }),
       }
-      act(() =>
-        stream.emitStatus({
-          status: 'failed',
-          failed_stage: 'analysing',
-          failure_reason: 'LLM не ответила',
-        }),
-      )
+      // Причины сбоя в событии нет: она приходит перезапросом прогона после `run.finished`.
+      act(() => stream.emitRun({ status: 'failed', failed_stage: 'analysing' }, 'run.finished'))
 
       expect(await screen.findByText('Ошибка')).toBeInTheDocument()
       expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('ошибка')
@@ -480,6 +491,7 @@ describe('ReviewRunView', () => {
 
     it('INT-20: идущий прогон без событий не опрашивается по таймеру', async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true })
+      stream = createFakeEventStream({ autoOpen: true })
       const inner = fakeAdapter({
         run: makeReviewRun({ status: 'analysing' }),
       })
@@ -489,16 +501,53 @@ describe('ReviewRunView', () => {
 
       await act(() => vi.advanceTimersByTimeAsync(10 * 60 * 1000))
 
-      const runRequests = get.mock.calls.filter(([path]) => path === reviewPath('run-1'))
-      expect(runRequests).toHaveLength(1)
+      // Первая загрузка и снимок после `open`; дифф — только первая загрузка.
+      const requests = (path: string) => get.mock.calls.filter(([called]) => called === path)
+      expect(requests(reviewPath('run-1'))).toHaveLength(2)
+      expect(requests(reviewDiffPath('run-1'))).toHaveLength(1)
       expect(screen.getByText('Анализ')).toBeInTheDocument()
+    })
+
+    it('снимок, прочитанный до события, не откатывает этап, замечания из него появляются', async () => {
+      let backend: Backend = { run: makeReviewRun({ status: 'building_context' }), findings: [] }
+      let gate: Promise<void> | null = null
+      const inner = fakeAdapter(() => backend)
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            // Сервер прочитал прогон сейчас, ответ задерживается до `gate`.
+            const answer = inner.get(path)
+            if (gate && path === reviewPath('run-1')) await gate
+            return answer
+          },
+        }),
+      )
+      await waitFor(() =>
+        expect(within(progress()).getByText('Сбор контекста')).toHaveTextContent('выполняется'),
+      )
+
+      let respond = () => {}
+      gate = new Promise((resolve) => {
+        respond = resolve
+      })
+      backend = { run: makeReviewRun({ status: 'building_context' }) }
+      act(() => stream.setState('open'))
+      act(() => stream.emitRun({ status: 'analysing' }))
+      await waitFor(() =>
+        expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('выполняется'),
+      )
+
+      await act(async () => respond())
+
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('выполняется')
     })
 
     it('INT-21: при обрыве соединения замечания и данные прогона остаются на экране', async () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
       await screen.findByRole('article', { name: /Токен печатается/ })
 
-      act(() => stream.emitStatus({ status: 'publishing' }))
+      act(() => stream.emitRun({ status: 'publishing' }))
       await waitFor(() =>
         expect(within(progress()).getByText('Публикация')).toHaveTextContent('выполняется'),
       )

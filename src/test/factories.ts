@@ -1,7 +1,7 @@
 import { buildHunk, withLineIds, type DiffFile, type DiffFileSummary } from '../entities/diff'
 import type { PublishedComment } from '../entities/published-comment'
 import type { ReviewFinding } from '../entities/review-finding'
-import type { ReviewRun } from '../entities/review-run'
+import type { ReviewRun, ReviewRunListItem } from '../entities/review-run'
 import type { ReviewRunStep } from '../entities/review-run-step'
 
 export { buildHunk as hunk }
@@ -36,6 +36,28 @@ export function makeReviewRun(overrides: Partial<ReviewRun> = {}): ReviewRun {
     last_progress_at: '2026-09-20T14:07:14Z',
     created_at: '2026-09-20T14:05:00Z',
     updated_at: '2026-09-20T14:07:14Z',
+    ...overrides,
+  }
+}
+
+/**
+ * Строка прогона из события `run.*`: тот же прогон, что `makeReviewRun`, но `updated_at` позже,
+ * чтобы событие по умолчанию было новее прогона в кэше.
+ */
+export function makeRunListItem(overrides: Partial<ReviewRunListItem> = {}): ReviewRunListItem {
+  const run = makeReviewRun()
+  return {
+    id: run.id,
+    status: 'analysing',
+    trigger: run.trigger,
+    head_sha: run.head_sha,
+    created_at: run.created_at,
+    updated_at: '2026-09-20T14:10:00Z',
+    last_progress_at: '2026-09-20T14:10:00Z',
+    duration_seconds: null,
+    failed_stage: null,
+    findings_count: 0,
+    merge_request: run.merge_request,
     ...overrides,
   }
 }

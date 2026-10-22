@@ -1,10 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { replaceEqualDeep, useQuery } from '@tanstack/react-query'
 import { z } from 'zod'
 
 import { ReviewDiffSchema } from '../../../entities/diff'
 import { PublishedCommentSchema } from '../../../entities/published-comment'
 import { ReviewFindingSchema } from '../../../entities/review-finding'
-import { ReviewRunSchema } from '../../../entities/review-run'
+import { mergeRunSnapshot, ReviewRunSchema } from '../../../entities/review-run'
 import { ReviewRunStepListSchema } from '../../../entities/review-run-step'
 import { ApiError, parseResponse, useTransport } from '../../../shared/api'
 import type { ApiSchemas, MatchesContract } from '../../../shared/api/contract'
@@ -44,12 +44,23 @@ export function reviewKey(reviewId: string) {
   return ['review', reviewId] as const
 }
 
+/**
+ * Каждая запись в кэш прогона — ответ запроса и патч события — проходит через
+ * `mergeRunSnapshot`: снимок, прочитанный сервером до уже применённого события, не откатывает
+ * статус. Затем — обычное структурное разделение TanStack Query.
+ */
+function keepNewerStatus(old: unknown, next: unknown): unknown {
+  const merged = mergeRunSnapshot(old as ReviewRunResponse | undefined, next as ReviewRunResponse)
+  return replaceEqualDeep(old, merged)
+}
+
 export function useReviewRun(reviewId: string) {
   const transport = useTransport()
   const path = reviewPath(reviewId)
   return useQuery({
     queryKey: reviewKey(reviewId),
     queryFn: async () => parseResponse(ReviewRunResponseSchema, path, await transport.get(path)),
+    structuralSharing: keepNewerStatus,
   })
 }
 

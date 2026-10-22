@@ -2,9 +2,9 @@ import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 
 import {
-  applyStatusEvent,
+  applyRunEvent,
   isTerminalStatus,
-  type RunStatusEvent,
+  type ReviewRunListItem,
 } from '../../../entities/review-run'
 import { ConnectionNotice, useRunLiveStatus } from '../../../features/live-run-status'
 import { ApiError } from '../../../shared/api'
@@ -23,9 +23,9 @@ import {
 import { runVerdict } from '../model/verdict'
 import { toWorkspace } from '../model/workspace'
 
-/** Событие статуса патчит прогон в кэше; замечания и публикации остаются как есть. */
-function patchRun(data: ReviewRunResponse, event: RunStatusEvent): ReviewRunResponse {
-  return { ...data, ...applyStatusEvent(data, event) }
+/** Событие прогона патчит его статус в кэше; замечания и публикации остаются как есть. */
+function patchRun(data: ReviewRunResponse, event: ReviewRunListItem): ReviewRunResponse {
+  return applyRunEvent(data, event)
 }
 
 /**
@@ -87,7 +87,7 @@ export function ReviewRunView() {
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
       <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
       {!isTerminalStatus(run.status) && (
-        <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
+        <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />
       )}
       <RunProgress run={run} seenStage={live.seenStage} />
       <ReviewSummary run={run} findings={findings} publishedComments={published_comments} />
