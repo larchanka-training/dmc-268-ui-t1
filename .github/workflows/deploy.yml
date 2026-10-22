@@ -135,6 +135,10 @@ jobs:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
+          if [ -z "$DIGEST" ]; then
+            echo "::error::build-push-action не вернул digest образа"
+            exit 1
+          fi
           image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z')"
           echo "image_ref=${image}@${DIGEST}" >> "$GITHUB_OUTPUT"
           echo "${image}@${DIGEST}"
