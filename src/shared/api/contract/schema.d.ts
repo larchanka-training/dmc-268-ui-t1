@@ -95,7 +95,7 @@ export interface paths {
         put?: never;
         /**
          * Выйти
-         * @description Удаляет сессию текущей cookie: следующий запрос с ней из любой вкладки получает 401. Идемпотентен: без cookie и с cookie неизвестной сессии тоже 204, cookie session удаляется. Сессия не нужна, проверяется только Origin.
+         * @description Удаляет сессию текущей cookie вместе с сохранённым токеном GitHub: следующий запрос с ней из любой вкладки получает 401. Токен после ответа отзывается у GitHub (best-effort: сбой отзыва выходу не мешает). Идемпотентен: без cookie и с cookie неизвестной сессии тоже 204, cookie session удаляется. Сессия не нужна, проверяется только Origin.
          */
         post: operations["endSession"];
         delete?: never;
@@ -113,7 +113,7 @@ export interface paths {
         };
         /**
          * Репозитории, доступные для подключения
-         * @description Требует сессию. Репозитории установок GitHub App, к которым у вошедшего пользователя есть доступ в GitHub (любая роль, в том числе read), с отметкой `already_connected` — зарегистрирован ли репозиторий в сервисе. Пользователь видит только то, что и так видит в GitHub; остальные репозитории установок в ответ не попадают, это не ошибка. Подключить из списка можно только с ролью admin или maintain, иначе подключение ответит `403 REPOSITORY_MANAGE_REQUIRED`. Роль проверяется запросом к GitHub на каждый репозиторий установок. Если GitHub не ответил или ответил ошибкой, в том числе на запрос роли, — `502 SCM_UNAVAILABLE`.
+         * @description Требует сессию. Репозитории установок GitHub App, доступные вошедшему пользователю, с отметкой `already_connected` — зарегистрирован ли репозиторий в сервисе. Список отдаёт GitHub по токену пользователя, сохранённому при входе (`GET /user/installations` и `GET /user/installations/{id}/repositories`): это пересечение «доступно приложению» и «доступно пользователю», остальные репозитории установок в ответ не попадают, это не ошибка. Публичный репозиторий, на котором у пользователя нет роли, тоже не попадает. Подключить из списка можно только с правом admin или maintain: с push или triage подключение ответит `403 REPOSITORY_MANAGE_REQUIRED`, как и на приватном только с правом чтения; на публичном только с правом чтения — `404 REPOSITORY_NOT_IN_INSTALLATION`. Токен пользователя отозван, истёк без возможности обновления или его нет (сессия открыта до хранения токенов) — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется: нужен новый вход. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
          */
         get: operations["listAvailableRepositories"];
         put?: never;
@@ -139,7 +139,7 @@ export interface paths {
         put?: never;
         /**
          * Подключить репозиторий
-         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App с `auto_review_enabled = true`; `full_name` и `default_branch` — из данных установки. Проверки по порядку: провайдер не `github` или репозитория нет среди репозиториев установок — `404 REPOSITORY_NOT_IN_INSTALLATION`; у пользователя нет роли admin или maintain на репозитории в GitHub — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён — `409 REPOSITORY_ALREADY_CONNECTED`. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App с `auto_review_enabled = true`; `full_name` и `default_branch` — из ответа GitHub. Два запроса к GitHub: репозиторий по id токеном пользователя (`GET /repositories/{id}`), затем установка приложения на нём (`GET /repos/{owner}/{repo}/installation`). Проверки по порядку: провайдер не `github`, репозиторий не виден пользователю или публичный виден только с правом чтения (так GitHub отдаёт любой публичный репозиторий), приложение на нём не установлено или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, один ответ без различия; у пользователя нет права admin или maintain на репозиторий в GitHub, в том числе роль read на приватном — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён — `409 REPOSITORY_ALREADY_CONNECTED`. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
          */
         post: operations["connectRepository"];
         delete?: never;
@@ -201,7 +201,7 @@ export interface paths {
         };
         /**
          * Статус правил ревью репозитория
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #113). Требует сессию; id репозитория проверяется до ответа 501. Когда ручка заработает: чем закончилась загрузка `.review/rules.md` с ветки по умолчанию репозитория — те же исходы, что у загрузки правил для прогона: loaded — файл разобран, в ответе принятые правила и отклонённые разделы; absent — файла нет; too_large — файл больше лимита и не разбирался; unavailable — провайдер не ответил. Кроме loaded, ревью идёт по стандартным критериям. 404 REPOSITORY_NOT_FOUND, если репозитория нет.
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #113). Требует сессию; id репозитория проверяется до ответа 501. Когда ручка заработает: чем закончилась загрузка `.review/rules.md` с ветки по умолчанию репозитория — те же исходы, что у загрузки правил для прогона: loaded — файл разобран, в ответе принятые правила и отклонённые разделы; empty — файл разобран, но ни один раздел не стал правилом, в ответе отклонённые разделы; absent — файла нет; too_large — файл больше лимита и не разбирался; unavailable — провайдер не ответил. Кроме loaded, ревью идёт по стандартным критериям. 404 REPOSITORY_NOT_FOUND, если репозитория нет.
          */
         get: operations["getRepositoryRules"];
         put?: never;
@@ -241,7 +241,7 @@ export interface paths {
         };
         /**
          * Список прогонов ревью
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #103). Требует сессию; параметры запроса проверяются до ответа 501. Когда ручка заработает: снимок списка прогонов ревью, сначала новые — по created_at по убыванию, при равном created_at — по id по убыванию. Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль), — то же правило, что у GET /repositories/available. Фильтры складываются через «и»: status — один или несколько статусов (параметр повторяется); active=true — только активные (queued, building_context, analysing, publishing), active=false — только завершённые (completed, failed, cancelled), вместе со status — пересечение; repository_id — прогоны одного или нескольких репозиториев (параметр повторяется), невидимый или несуществующий репозиторий не даёт 404, его прогонов просто нет в списке; author — точное совпадение логина автора запроса на изменение; q — подстрока без учёта регистра в заголовке, авторе или исходной ветке запроса на изменение либо точное совпадение номера (42 или #42). У q и author пустая строка — без фильтра. created_from (включительно) и created_to (исключительно) — диапазон по created_at прогона, время с зоной (в ответах — UTC с Z); created_from позже created_to — 422 VALIDATION_ERROR в query.created_to. Постранично: limit выше 200 не отклоняется, а приводится к 200. total — сколько прогонов подходит под фильтры без учёта limit и offset. findings_count — то же, что число элементов findings в GET /reviews/{review_run_id}: находки, оставшиеся после отсева и верификатора, а не опубликованные комментарии. Самих находок и комментариев в строке нет. Изменения после снимка приходят потоком GET /events; поток фильтры не учитывает, поэтому при активных фильтрах или не на первой странице клиент на событие перезапрашивает страницу, а без фильтров на первой странице — делает upsert строки.
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #103). Требует сессию; параметры запроса проверяются до ответа 501. Когда ручка заработает: снимок списка прогонов ревью, сначала новые — по created_at по убыванию, при равном created_at — по id по убыванию. Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories/available. Фильтры складываются через «и»: status — один или несколько статусов (параметр повторяется); active=true — только активные (queued, building_context, analysing, publishing), active=false — только завершённые (completed, failed, cancelled), вместе со status — пересечение; repository_id — прогоны одного или нескольких репозиториев (параметр повторяется), невидимый или несуществующий репозиторий не даёт 404, его прогонов просто нет в списке; author — точное совпадение логина автора запроса на изменение; q — подстрока без учёта регистра в заголовке, авторе или исходной ветке запроса на изменение либо точное совпадение номера (42 или #42). У q и author пустая строка — без фильтра. created_from (включительно) и created_to (исключительно) — диапазон по created_at прогона, время с зоной (в ответах — UTC с Z); created_from позже created_to — 422 VALIDATION_ERROR в query.created_to. Постранично: limit выше 200 не отклоняется, а приводится к 200. total — сколько прогонов подходит под фильтры без учёта limit и offset. findings_count — то же, что число элементов findings в GET /reviews/{review_run_id}: находки, оставшиеся после отсева и верификатора, а не опубликованные комментарии. Самих находок и комментариев в строке нет. Изменения после снимка приходят потоком GET /events; поток фильтры не учитывает, поэтому при активных фильтрах или не на первой странице клиент на событие перезапрашивает страницу, а без фильтров на первой странице — делает upsert строки.
          */
         get: operations["listReviews"];
         put?: never;
@@ -316,26 +316,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/reviews/{review_run_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Поток событий статуса прогона (Server-Sent Events)
-         * @description Первое событие после подключения — `status` со снимком текущего состояния, дальше — по событию `status` на каждую смену статуса и `ping` в тишине, не реже раза в 15 секунд. После терминального статуса сервер закрывает поток. Поток начинается со строки `retry: 3000`. Поток отражает состояние, а не журнал: несколько переходов между проверками приходят одним событием. Требует сессию: она проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
-         */
-        get: operations["streamReviewEvents"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -345,7 +325,7 @@ export interface paths {
         };
         /**
          * Поток событий кабинета (Server-Sent Events)
-         * @description Требует сессию. Один поток Server-Sent Events на весь кабинет, без параметров: сейчас для прогонов ревью, дальше и для других ресурсов. Заменит поток одного прогона GET /reviews/{review_run_id}/events. Имя события — `<ресурс>.<действие>` в поле `event:`, значения — StreamEventType; данные — JSON модели своего типа в `data:` одной строкой, какая модель у какого типа — в `x-sse-events` ответа. Сейчас типы такие: `run.created` — прогон, созданный после подключения, при первом его событии в этом соединении; `run.status_changed` — прогон изменился, но не в итоговом статусе (в том числе только прогресс без смены статуса — клиент всё равно делает upsert по id); `run.finished` — прогон в итоговом статусе (completed, failed или cancelled), при переходе в итоговый статус приходит только `run.finished`, даже у прогона, созданного после подключения. Данные `run.*` — ReviewRunListItem, полная строка списка GET /reviews. `ping` с `data: {}` — в тишине, не реже раза в 15 секунд. Клиент игнорирует незнакомые типы событий: новые типы добавляются без правки клиентов. Фильтров у потока нет: клиент получает все видимые ему события и отбирает нужные сам. Видимость задаёт правило типа события, пользователь получает только видимые ему события. Для `run.*`: Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль), — то же правило, что у GET /repositories/available. Набор видимых репозиториев считается при подключении тем же расчётом, что ответ GET /repositories/available, и до переподключения не пересчитывается: доступ, отобранный у провайдера, учитывается при переподключении. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, поток не открывается. Клиент применяет любое событие прогона одинаково: upsert по id, из двух версий побеждает та, у которой updated_at больше, при равном — пришедшая позже. Источник событий — опрос базы раз в секунду: событие приходит не позже чем через пару секунд после записи прогона, несколько изменений прогона между опросами приходят одним событием с последней версией. Позже источником станет PostgreSQL NOTIFY, контракт при этом не меняется. Истории поток не отдаёт: при подключении и после каждого переподключения клиент перезапрашивает снимок REST (GET /reviews/{review_run_id} или GET /reviews) после события `open` у EventSource; событие, пришедшее раньше снимка, не потеряется, а более старая версия строки проиграет по updated_at. Поток начинается со строки `retry: 3000`. Сессия проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
+         * @description Требует сессию. Один поток Server-Sent Events на весь кабинет, без параметров: сейчас для прогонов ревью, дальше и для других ресурсов. Заменил поток одного прогона: экран прогона берёт его события отсюда, отбирая их по id. Имя события — `<ресурс>.<действие>` в поле `event:`, значения — StreamEventType; данные — JSON модели своего типа в `data:` одной строкой, какая модель у какого типа — в `x-sse-events` ответа. Сейчас типы такие: `run.created` — прогон, созданный после подключения, при первом его событии в этом соединении; `run.status_changed` — прогон изменился, но не в итоговом статусе (в том числе только прогресс без смены статуса — клиент всё равно делает upsert по id); `run.finished` — прогон в итоговом статусе (completed, failed или cancelled), при переходе в итоговый статус приходит только `run.finished`, даже у прогона, созданного после подключения. Данные `run.*` — ReviewRunListItem, полная строка списка GET /reviews. `ping` с `data: {}` — в тишине, не реже раза в 15 секунд. Клиент игнорирует незнакомые типы событий: новые типы добавляются без правки клиентов. Фильтров у потока нет: клиент получает все видимые ему события и отбирает нужные сам. Видимость задаёт правило типа события, пользователь получает только видимые ему события. Для `run.*`: Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories/available. Набор видимых репозиториев считается при подключении тем же расчётом, что ответ GET /repositories/available, и до переподключения не пересчитывается: доступ, отобранный у провайдера, учитывается при переподключении. Набор считается по токену пользователя, сохранённому при входе, с теми же исходами, что у GET /repositories/available: токен отозван, истёк без возможности обновления или его нет — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется; GitHub не ответил или ответил ошибкой, в том числе при обновлении токена, — `502 SCM_UNAVAILABLE`. В обоих случаях поток не открывается. Клиент применяет любое событие прогона одинаково: upsert по id, из двух версий побеждает та, у которой updated_at больше, при равном — пришедшая позже. Источник событий — опрос базы раз в секунду: событие приходит не позже чем через пару секунд после записи прогона, несколько изменений прогона между опросами приходят одним событием с последней версией. Позже источником станет PostgreSQL NOTIFY, контракт при этом не меняется. Истории поток не отдаёт: при подключении и после каждого переподключения клиент перезапрашивает снимок REST (GET /reviews/{review_run_id} или GET /reviews) после события `open` у EventSource; событие, пришедшее раньше снимка, не потеряется, а более старая версия строки проиграет по updated_at. Поток начинается со строки `retry: 3000`. Сессия проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -376,7 +356,7 @@ export interface components {
         AvailableRepositoryListResponse: {
             /**
              * Items
-             * @description Репозитории установки GitHub App.
+             * @description Репозитории установок GitHub App, доступные пользователю.
              */
             items: components["schemas"]["AvailableRepositoryResponse"][];
         };
@@ -1292,7 +1272,7 @@ export interface components {
          * @description `403 REPOSITORY_MANAGE_REQUIRED`: у пользователя нет прав admin или maintain на репозиторий у провайдера.
          * @example {
          *       "code": "REPOSITORY_MANAGE_REQUIRED",
-         *       "detail": "Подключать репозиторий может только пользователь с правами admin или maintain на него.",
+         *       "detail": "Подключать репозиторий может только пользователь с правом admin или maintain на него.",
          *       "instance": "/api/v1/repositories",
          *       "status": 403,
          *       "title": "Нужны права admin или maintain на репозиторий",
@@ -1402,7 +1382,7 @@ export interface components {
          * @description `404 REPOSITORY_NOT_IN_INSTALLATION`: репозитория нет среди репозиториев установок GitHub App.
          * @example {
          *       "code": "REPOSITORY_NOT_IN_INSTALLATION",
-         *       "detail": "Репозитория нет среди репозиториев установок GitHub App.",
+         *       "detail": "Репозитория нет среди репозиториев установок GitHub App, доступных пользователю.",
          *       "instance": "/api/v1/repositories",
          *       "status": 404,
          *       "title": "Репозиторий не из установки приложения",
@@ -2196,6 +2176,41 @@ export interface components {
             status: "absent";
         };
         /**
+         * RulesEmpty
+         * @description Файл правил разобран, но ни один раздел не стал правилом: ревью по стандартным критериям.
+         */
+        RulesEmpty: {
+            /**
+             * Branch
+             * @description Ветка, с которой читался файл, — ветка по умолчанию репозитория.
+             * @example main
+             */
+            branch: string;
+            /**
+             * Path
+             * @description Путь к файлу правил в репозитории.
+             * @example .review/rules.md
+             */
+            path: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            status: "empty";
+            /**
+             * Rejected
+             * @description Разделы, не ставшие правилами.
+             */
+            rejected: components["schemas"]["RejectedRule"][];
+            /**
+             * Fetched At
+             * Format: date-time
+             * @description Когда файл получен от провайдера.
+             * @example 2026-10-11T10:00:00Z
+             */
+            fetched_at: string;
+        };
+        /**
          * RulesLoaded
          * @description Файл правил найден и разобран.
          */
@@ -2239,7 +2254,7 @@ export interface components {
          * RulesStatusResponse
          * @description Чем закончилась загрузка `.review/rules.md`; вариант — по `status`.
          */
-        RulesStatusResponse: components["schemas"]["RulesLoaded"] | components["schemas"]["RulesAbsent"] | components["schemas"]["RulesTooLarge"] | components["schemas"]["RulesUnavailable"];
+        RulesStatusResponse: components["schemas"]["RulesLoaded"] | components["schemas"]["RulesEmpty"] | components["schemas"]["RulesAbsent"] | components["schemas"]["RulesTooLarge"] | components["schemas"]["RulesUnavailable"];
         /**
          * RulesTooLarge
          * @description Файл правил больше лимита и не разбирался: ревью по стандартным критериям.
@@ -2603,43 +2618,6 @@ export interface components {
             trace_id: string;
         };
         /**
-         * ReviewRunStatusEvent
-         * @description Данные события `status` потока: `event: status`, `data: <JSON в одну строку>`.
-         *
-         *     Событие `ping` приходит с `data: {}`. Тело ответа — текст SSE, а не этот JSON; в схему
-         *     модель попадает отдельным компонентом (`app/api/openapi.py`, `extra_models`).
-         */
-        ReviewRunStatusEvent: {
-            /**
-             * Review Run Id
-             * Format: uuid
-             * @description Прогон, о котором событие.
-             */
-            review_run_id: string;
-            /**
-             * @description Статус прогона на момент события.
-             * @example analysing
-             */
-            status: components["schemas"]["ReviewRunStatus"];
-            /**
-             * Last Progress At
-             * Format: date-time
-             * @description Время последнего перехода состояния.
-             * @example 2026-10-11T10:00:00Z
-             */
-            last_progress_at: string;
-            /**
-             * Failed Stage
-             * @description Этап, на котором прогон упал; null, если прогон не падал.
-             */
-            failed_stage: ("building_context" | "analysing" | "publishing") | null;
-            /**
-             * Failure Reason
-             * @description Почему прогон упал; null, если не падал.
-             */
-            failure_reason: string | null;
-        };
-        /**
          * StreamEventType
          * @description Имя события потока GET /events — значение поля `event:` в тексте SSE, `<ресурс>.<действие>`.
          *
@@ -2922,7 +2900,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Репозитории установок GitHub App, к которым у пользователя есть доступ. */
+            /** @description Репозитории установок GitHub App, доступные пользователю. */
             200: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3063,7 +3041,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RepositoryManageRequiredProblem"];
                 };
             };
-            /** @description Репозитория нет среди репозиториев установок GitHub App, или провайдер не `github`. */
+            /** @description Репозиторий не виден пользователю, приложение на нём не установлено или установка приостановлена — без различия; или провайдер не `github`. */
             404: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3851,73 +3829,6 @@ export interface operations {
             };
         };
     };
-    streamReviewEvents: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description Идентификатор прогона ревью. */
-                review_run_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Поток событий; данные события `status` — ReviewRunStatusEvent. */
-            200: {
-                headers: {
-                    "Cache-Control"?: "no-cache";
-                    /** @description Отключает буферизацию ответа в nginx. */
-                    "X-Accel-Buffering"?: "no";
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/event-stream": string;
-                };
-            };
-            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
-            401: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
-                };
-            };
-            /** @description Прогона ревью с таким id нет. */
-            404: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ReviewNotFoundProblem"];
-                };
-            };
-            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
-            422: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ValidationProblem"];
-                };
-            };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
-            default: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["AnyProblem"];
-                };
-            };
-        };
-    };
     streamEvents: {
         parameters: {
             query?: never;
@@ -3950,7 +3861,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев; поток не открыт. */
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя; поток не открыт. */
             502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
