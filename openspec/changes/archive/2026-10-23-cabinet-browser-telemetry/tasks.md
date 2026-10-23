@@ -23,4 +23,4 @@
 
 - [x] 4.1 `Dockerfile` и `deploy.yml`: `VITE_APP_VERSION` (sha), `VITE_OTEL_ENVIRONMENT=production` (стенд — прод, api#97), `VITE_OTEL_EXPORTER_URL` из переменной репозитория
 - [x] 4.2 README: переменные телеметрии; `.agents/rules/frontend.md`: телеметрию подключает только `main.tsx`, остальные слои о ней не знают
-- [ ] 4.3 В api#108 — комментарий: прокси `/otlp/` на коллектор, без `Cookie`, лимиты; CORS не нужен
+- [x] 4.3 В api#108 — комментарий: прокси `/otlp/` на коллектор, без `Cookie`, лимиты; CORS не нужен
