@@ -113,9 +113,15 @@ jobs:
           # Абсолютный адрес стенда попадает в canonical, Open Graph,
           # sitemap.xml и robots.txt лендинга при сборке. Источник данных
           # кабинета — переменная репозитория VITE_USE_MOCK_API, по умолчанию моки.
+          # Адрес коллектора — переменная репозитория VITE_OTEL_EXPORTER_URL:
+          # пока её нет, телеметрия кабинета выключена (прокси /otlp/ — api#108).
+          # Окружение — production: стенд и есть прод, staging нет (api#97).
           build-args: |
             PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
             VITE_USE_MOCK_API=${{ steps.meta.outputs.use_mock_api }}
+            VITE_OTEL_EXPORTER_URL=${{ vars.VITE_OTEL_EXPORTER_URL }}
+            VITE_OTEL_ENVIRONMENT=production
+            VITE_APP_VERSION=${{ needs.gate.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
