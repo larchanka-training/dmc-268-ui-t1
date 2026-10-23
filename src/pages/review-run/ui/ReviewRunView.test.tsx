@@ -201,6 +201,43 @@ describe('ReviewRunView', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
   })
 
+  it('GitHub недоступен при проверке видимости (502) — ошибка с повтором, повтор показывает прогон', async () => {
+    const backend = fakeAdapter()
+    let githubDown = true
+    renderView(
+      fakeTransport({
+        get: async (path) => {
+          if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          return backend.get(path)
+        },
+      }),
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить прогон')
+    githubDown = false
+    await userEvent.click(within(alert).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+  })
+
+  it('шаги не загрузились из-за GitHub (502) — прогон всё равно на экране', async () => {
+    const backend = fakeAdapter()
+    renderView(
+      fakeTransport({
+        get: async (path) => {
+          if (path === reviewStepsPath(makeReviewRun().id)) {
+            throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          }
+          return backend.get(path)
+        },
+      }),
+    )
+
+    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+    expect(screen.queryByText('Не удалось загрузить прогон')).not.toBeInTheDocument()
+  })
+
   it('бинарный файл не притворяется диффом', async () => {
     const user = userEvent.setup()
     renderView(fakeAdapter({ files: [api, logo], findings: [] }))

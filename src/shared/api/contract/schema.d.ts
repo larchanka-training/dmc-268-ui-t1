@@ -265,7 +265,7 @@ export interface paths {
         };
         /**
          * Прогон ревью вместе с находками
-         * @description Требует сессию. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings. Опубликованные комментарии — по времени публикации, затем по id; пока прогон ничего не опубликовал — пустой published_comments.
+         * @description Требует сессию. 404 REVIEW_NOT_FOUND, если прогона нет или он не виден пользователю. Находки — в стабильном порядке: по времени создания, затем по id. Прогон без находок — 200 с пустым findings. Опубликованные комментарии — по времени публикации, затем по id; пока прогон ничего не опубликовал — пустой published_comments.
          */
         get: operations["getReview"];
         put?: never;
@@ -285,7 +285,7 @@ export interface paths {
         };
         /**
          * Дифф прогона
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #82). Когда ручка заработает: полный дифф запроса на изменение у провайдера между base_sha и head_sha прогона; 404 REVIEW_NOT_FOUND, если прогона нет. Требует сессию.
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #82). Требует сессию; прогон проверяется до ответа 501 — 404 REVIEW_NOT_FOUND, если его нет или он не виден пользователю. Когда ручка заработает: полный дифф запроса на изменение у провайдера между base_sha и head_sha прогона.
          */
         get: operations["getReviewDiff"];
         put?: never;
@@ -305,7 +305,7 @@ export interface paths {
         };
         /**
          * Шаги прогона
-         * @description Требует сессию. Шаги воркера по порядку начала (при равном начале — по id): этап, статус, начало, длительность, токены, код ошибки; без запросов и ответов модели. Повтор этапа (новая попытка вызова модели) — отдельный шаг того же этапа. Прогон, у которого шагов ещё нет, — 200 с пустым items; 404 REVIEW_NOT_FOUND, если прогона нет.
+         * @description Требует сессию. Шаги воркера по порядку начала (при равном начале — по id): этап, статус, начало, длительность, токены, код ошибки; без запросов и ответов модели. Повтор этапа (новая попытка вызова модели) — отдельный шаг того же этапа. Прогон, у которого шагов ещё нет, — 200 с пустым items; 404 REVIEW_NOT_FOUND, если прогона нет или он не виден пользователю.
          */
         get: operations["getReviewSteps"];
         put?: never;
@@ -3679,6 +3679,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
@@ -3753,6 +3763,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
@@ -3815,6 +3835,16 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
