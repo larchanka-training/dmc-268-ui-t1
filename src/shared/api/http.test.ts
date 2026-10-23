@@ -102,6 +102,27 @@ describe('ApiError.code', () => {
     expect(navigation.assign).toHaveBeenCalledWith('/login?redirect=%2Fapp%2F')
   })
 
+  it('traceId — из X-Trace-ID, без заголовка — из trace_id тела', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(problem(500, 'INTERNAL', 'Сбой.')), {
+            status: 500,
+            headers: { 'X-Trace-ID': '0af7651916cd43dd8448eb211c80319c' },
+          }),
+      ),
+    )
+    await expect(apiFetch('/x')).rejects.toMatchObject({
+      traceId: '0af7651916cd43dd8448eb211c80319c',
+    })
+
+    stubFetch({ 'GET /api/v1/x': { status: 500, body: problem(500, 'INTERNAL', 'Сбой.') } })
+    await expect(apiFetch('/x')).rejects.toMatchObject({
+      traceId: '4bf92f3577b34da6a3ce929d0e0e4736',
+    })
+  })
+
   it('тело не по форме — code пустой, текст общий', async () => {
     stubFetch({ 'GET /api/v1/x': { status: 500 } })
 

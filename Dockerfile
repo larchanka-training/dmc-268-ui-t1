@@ -14,6 +14,14 @@ ENV PUBLIC_ORIGIN=$PUBLIC_ORIGIN
 # Флаг печатается в бандл, поэтому меняется только пересборкой.
 ARG VITE_USE_MOCK_API
 ENV VITE_USE_MOCK_API=$VITE_USE_MOCK_API
+# Телеметрия кабинета (change cabinet-browser-telemetry): без адреса коллектора
+# экспорт выключен. Версия — sha коммита, окружение — deployment.environment.name.
+ARG VITE_OTEL_EXPORTER_URL
+ENV VITE_OTEL_EXPORTER_URL=$VITE_OTEL_EXPORTER_URL
+ARG VITE_OTEL_ENVIRONMENT
+ENV VITE_OTEL_ENVIRONMENT=$VITE_OTEL_ENVIRONMENT
+ARG VITE_APP_VERSION
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
 RUN pnpm run build
 # Готовые .gz рядом с файлами — их отдаёт gzip_static в nginx/site.conf.
 RUN find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.xml' -o -name '*.txt' \) \
