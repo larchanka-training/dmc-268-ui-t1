@@ -16,7 +16,7 @@ import { EVENTS_PATH } from './useRunLiveStatus'
 export const LIST_REFETCH_THROTTLE = 1_000
 
 type Options = {
-  /** Подписка нужна, только когда список загрузился: при `501` и до первого ответа потока нет. */
+  /** Подписка нужна, только когда список загрузился: при ошибке и до первого ответа потока нет. */
   enabled: boolean
   /** Ключ текущей страницы списка. */
   queryKey: QueryKey

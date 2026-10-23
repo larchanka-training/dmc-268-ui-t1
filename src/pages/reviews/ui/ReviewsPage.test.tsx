@@ -472,15 +472,12 @@ describe('ReviewsPage: обновления из потока', () => {
 })
 
 describe('ReviewsPage: ошибки', () => {
-  it('501 — «не реализовано», без падения и без подписки на поток', async () => {
-    backend.error = new ApiError(501, 'Не реализовано', 'NOT_IMPLEMENTED')
+  it('GitHub недоступен (502) — сообщение с повтором, без подписки на поток', async () => {
+    backend.error = new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
     renderPage()
 
-    expect(
-      await screen.findByText('Список прогонов ещё не реализован на сервере'),
-    ).toBeInTheDocument()
+    expect(await screen.findByText('Не удалось загрузить прогоны')).toBeInTheDocument()
     expect(stream.opened).toEqual([])
-    expect(backend.calls).toHaveLength(1)
   })
 
   it('прочая ошибка — сообщение с повтором', async () => {
