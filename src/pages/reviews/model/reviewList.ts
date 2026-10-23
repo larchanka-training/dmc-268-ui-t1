@@ -6,7 +6,7 @@ import {
   type ReviewRunListPage,
   type ReviewRunListQuery,
 } from '@/entities/review-run'
-import { ApiError, useTransport } from '@/shared/api'
+import { useTransport } from '@/shared/api'
 
 /** Корень ключей всех страниц списка: по нему событие потока помечает их устаревшими. */
 export const REVIEW_LIST_KEY = ['reviews', 'list'] as const
@@ -41,9 +41,4 @@ export function useReviewRunList(query: ReviewRunListQuery) {
     placeholderData: keepPreviousData,
     structuralSharing: keepNewerRows,
   })
-}
-
-/** Ручка в контракте есть, но бэкенд пока отвечает заглушкой `501 NOT_IMPLEMENTED`. */
-export function isNotImplemented(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'NOT_IMPLEMENTED'
 }

@@ -1,5 +1,5 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Alert, Select, Table, Typography } from 'antd'
+import { Select, Table, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -30,12 +30,7 @@ import {
   writeFilters,
   type ReviewListFilters,
 } from '../model/filters'
-import {
-  isNotImplemented,
-  REVIEW_LIST_KEY,
-  reviewListKey,
-  useReviewRunList,
-} from '../model/reviewList'
+import { REVIEW_LIST_KEY, reviewListKey, useReviewRunList } from '../model/reviewList'
 import { ReviewFilters } from './ReviewFilters'
 
 /** Адрес экрана прогона внутри приложения (`basename` роутера — `/app`). */
@@ -122,7 +117,6 @@ export function ReviewsPage() {
   useNormalizeUrlPage(urlPage, pageCount)
   const page = clampPage(urlPage.page, pageCount)
   const filtered = hasActiveFilters(filters)
-  const notImplemented = isNotImplemented(list.error)
 
   const live = useRunListLiveUpdates({
     enabled: list.data !== undefined,
@@ -165,67 +159,56 @@ export function ReviewsPage() {
           </Typography.Text>
         </div>
       </div>
-      {notImplemented ? (
-        <Alert
-          type="info"
-          showIcon
-          title="Список прогонов ещё не реализован на сервере"
-          description="Бэкенд пока отвечает на GET /api/v1/reviews заглушкой 501. Экран отдельного прогона по ссылке работает."
-        />
-      ) : (
-        <>
-          <ReviewFilters
-            filters={filters}
-            onChange={changeFilters}
-            onReset={filtered ? resetFilters : undefined}
+      <ReviewFilters
+        filters={filters}
+        onChange={changeFilters}
+        onReset={filtered ? resetFilters : undefined}
+      />
+      <div className="mb-3 flex flex-col gap-2">
+        <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
+        {list.isError && (
+          <ErrorState
+            title="Не удалось загрузить прогоны"
+            error={list.error}
+            onRetry={() => void list.refetch()}
           />
-          <div className="mb-3 flex flex-col gap-2">
-            <ConnectionNotice state={live.streamState} onRefresh={() => void live.refresh()} />
-            {list.isError && (
-              <ErrorState
-                title="Не удалось загрузить прогоны"
-                error={list.error}
-                onRetry={() => void list.refetch()}
-              />
-            )}
-          </div>
-          <div className="app-content-card">
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-              <Typography.Text type="secondary" aria-live="polite">
-                {list.data ? `Найдено прогонов: ${formatNumber(list.data.total)}` : ' '}
-              </Typography.Text>
-              <Select<number>
-                aria-label="Строк на странице"
-                size="small"
-                value={pageSize}
-                options={PAGE_SIZES.map((size) => ({ label: `${size} на странице`, value: size }))}
-                onChange={changePageSize}
-              />
-            </div>
-            <Table
-              rowKey="id"
-              loading={list.isLoading}
-              columns={columns}
-              dataSource={list.data?.items ?? []}
-              pagination={false}
-              locale={{
-                emptyText: filtered ? 'Нет прогонов под эти фильтры' : 'Прогонов пока нет',
-              }}
-              onRow={(run) => ({
-                className: 'cursor-pointer',
-                onClick: (event) => {
-                  // Ссылки в строке ведут сами: на экран прогона или к провайдеру.
-                  if ((event.target as HTMLElement).closest('a')) return
-                  void navigate(runScreenPath(run.id))
-                },
-              })}
-            />
-            {pageCount !== undefined && (
-              <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
-            )}
-          </div>
-        </>
-      )}
+        )}
+      </div>
+      <div className="app-content-card">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <Typography.Text type="secondary" aria-live="polite">
+            {list.data ? `Найдено прогонов: ${formatNumber(list.data.total)}` : ' '}
+          </Typography.Text>
+          <Select<number>
+            aria-label="Строк на странице"
+            size="small"
+            value={pageSize}
+            options={PAGE_SIZES.map((size) => ({ label: `${size} на странице`, value: size }))}
+            onChange={changePageSize}
+          />
+        </div>
+        <Table
+          rowKey="id"
+          loading={list.isLoading}
+          columns={columns}
+          dataSource={list.data?.items ?? []}
+          pagination={false}
+          locale={{
+            emptyText: filtered ? 'Нет прогонов под эти фильтры' : 'Прогонов пока нет',
+          }}
+          onRow={(run) => ({
+            className: 'cursor-pointer',
+            onClick: (event) => {
+              // Ссылки в строке ведут сами: на экран прогона или к провайдеру.
+              if ((event.target as HTMLElement).closest('a')) return
+              void navigate(runScreenPath(run.id))
+            },
+          })}
+        />
+        {pageCount !== undefined && (
+          <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
+        )}
+      </div>
     </div>
   )
 }
