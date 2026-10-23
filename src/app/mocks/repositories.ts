@@ -64,6 +64,18 @@ export function createRepositoryStore() {
     }),
     /** Подключённый репозиторий по id — граница блока настроек (#29). */
     find: (repositoryId: string) => connected.find((repo) => repo.id === repositoryId),
+    /** Один репозиторий `GET /repositories/{id}`: как бэкенд, 404 для чужого id. */
+    get: (repositoryId: string): Repository => {
+      const repo = connected.find((item) => item.id === repositoryId)
+      if (!repo) throw new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
+      return { ...repo }
+    },
+    /** Флаг авто-ревью — колонка репозитория: сохранение настроек меняет и её. */
+    setAutoReviewEnabled: (repositoryId: string, enabled: boolean) => {
+      connected = connected.map((repo) =>
+        repo.id === repositoryId ? { ...repo, auto_review_enabled: enabled } : repo,
+      )
+    },
     connect: ({ provider, provider_id }: ConnectRepositoryRequest): Repository => {
       const repo = installation.find(
         (r) => r.provider === provider && r.provider_id === provider_id,

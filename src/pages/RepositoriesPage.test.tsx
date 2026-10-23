@@ -66,14 +66,37 @@ describe('RepositoriesPage', () => {
     expect(await screen.findByText('Не удалось загрузить репозитории')).toBeInTheDocument()
   })
 
+  it('ссылки-кнопки: настоящий `<a>` без кнопки внутри', async () => {
+    renderRepositoriesPage(async () => ({
+      items: [repository(1, 'larchanka-training/platform-api', true)],
+    }))
+
+    // Доступное имя по aria-label различает ссылки настроек разных репозиториев.
+    const settings = await screen.findByRole('link', {
+      name: 'Настройки larchanka-training/platform-api',
+    })
+    expect(settings).toHaveAttribute('href', '/repositories/repo-1/settings')
+    expect(screen.getByRole('link', { name: 'Подключить репозиторий' })).toHaveAttribute(
+      'href',
+      '/repositories/connect',
+    )
+    // Внутри ссылки нет вложенной кнопки — один интерактивный элемент.
+    expect(screen.queryByRole('button', { name: 'Настройки' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Подключить репозиторий' })).not.toBeInTheDocument()
+  })
+
   it('из списка открывает экран настроек репозитория', async () => {
     const user = userEvent.setup()
     renderRepositoriesPage(async (path) => {
       if (path === '/repositories?limit=200') {
         return { items: [repository(1, 'larchanka-training/platform-api', true)] }
       }
+      // Заголовок экрана настроек — отдельная ручка одного репозитория.
+      if (path === '/repositories/repo-1') {
+        return repository(1, 'larchanka-training/platform-api', true)
+      }
       if (path === '/repositories/repo-1/settings') {
-        return { autoReviewEnabled: true, branchFilter: ['feature/**'], minSeverity: 'high' }
+        return { auto_review_enabled: true, branch_filter: ['feature/**'], min_severity: 'high' }
       }
       if (path === '/repositories/repo-1/rules') {
         return {
@@ -82,14 +105,17 @@ describe('RepositoriesPage', () => {
           path: '.review/rules.md',
           rules: [],
           rejected: [],
-          fetchedAt: '2026-10-11T09:40:00.000Z',
+          fetched_at: '2026-10-11T09:40:00.000Z',
         }
       }
-      if (path === '/repositories/repo-1/history') return []
+      // История — первая страница списка прогонов с фильтром репозитория.
+      if (path === '/reviews?repository_id=repo-1&limit=50') return { items: [], total: 0 }
       throw new Error(`неожиданный запрос ${path}`)
     })
 
-    const [settingsLink] = await screen.findAllByRole('link', { name: 'Настройки' })
+    const settingsLink = await screen.findByRole('link', {
+      name: 'Настройки larchanka-training/platform-api',
+    })
     await user.click(settingsLink)
 
     expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()

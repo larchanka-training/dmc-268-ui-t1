@@ -1,5 +1,5 @@
 import { ApiError, type ApiTransport } from '../../shared/api'
-import type { ConnectRepositoryRequest, RepositorySettings } from '../../entities/repository'
+import type { ConnectRepositoryRequest, RepositorySettingsUpdate } from '../../entities/repository'
 import {
   reviewDiffPath,
   reviewPath,
@@ -22,8 +22,9 @@ import { createReviewRunStore } from './reviewRuns'
  *
  * Экран прогона есть у одного прогона, `/reviews/run-42`; список `/reviews` — он, чужой прогон
  * потока и сгенерированные прогоны (`reviewRuns.ts`). Любой другой путь — 404, как у бэкенда.
- * Настройки, статус правил и история живут в своём store и отвечают схемам
- * `model/settings.ts` — ручек в контракте бэкенда для них ещё нет (#28, api#49).
+ * Настройки и статус правил живут в своём store (`repositorySettings.ts`) по ручкам контракта
+ * `GET/PUT /repositories/{id}/settings` и `GET /repositories/{id}/rules`; история репозитория —
+ * `GET /reviews` с фильтром `repository_id`.
  */
 export function createMockAdapter({
   latencyMs = 250,
@@ -32,6 +33,8 @@ export function createMockAdapter({
   const repositories = createRepositoryStore()
   const repositorySettings = createRepositorySettingsStore({
     findRepository: (repositoryId) => repositories.find(repositoryId),
+    onAutoReviewChange: (repositoryId, enabled) =>
+      repositories.setAutoReviewEnabled(repositoryId, enabled),
   })
   const reviewRuns = createReviewRunStore(server)
 
@@ -78,13 +81,15 @@ export function createMockAdapter({
     if (route === '/reviews') return reviewRuns.list(search)
     if (route === '/repositories') return repositories.list()
     if (route === '/repositories/available') return repositories.available()
-    // `/repositories/{id}/settings|rules|history` — блок настроек вне контракта (#29).
-    const blockRoute = /^\/repositories\/([^/?]+)\/(settings|rules|history)$/.exec(route)
+    // Один репозиторий и блок настроек — ручки контракта (api#113).
+    const repositoryRoute = /^\/repositories\/([^/?]+)$/.exec(route)
+    if (repositoryRoute) return repositories.get(repositoryRoute[1])
+    const blockRoute = /^\/repositories\/([^/?]+)\/(settings|rules)$/.exec(route)
     if (blockRoute) {
       const [, repositoryId, part] = blockRoute
-      if (part === 'settings') return repositorySettings.settings(repositoryId)
-      if (part === 'rules') return repositorySettings.rulesStatus(repositoryId)
-      return repositorySettings.history(repositoryId)
+      return part === 'settings'
+        ? repositorySettings.settings(repositoryId)
+        : repositorySettings.rulesStatus(repositoryId)
     }
     if (route === reviewPath(mockReview.id)) return runNow()
     if (route === reviewDiffPath(mockReview.id)) return structuredClone(mockDiff)
@@ -94,9 +99,13 @@ export function createMockAdapter({
 
   const post = (path: string, body: unknown): unknown => {
     if (path === '/repositories') return repositories.connect(body as ConnectRepositoryRequest)
+    throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
+  }
+
+  const put = (path: string, body: unknown): unknown => {
     const settingsRoute = /^\/repositories\/([^/?]+)\/settings$/.exec(path)
     if (settingsRoute) {
-      return repositorySettings.saveSettings(settingsRoute[1], body as RepositorySettings)
+      return repositorySettings.saveSettings(settingsRoute[1], body as RepositorySettingsUpdate)
     }
     throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
   }
@@ -115,5 +124,6 @@ export function createMockAdapter({
   return {
     get: (path) => respond(() => get(path)),
     post: (path, body) => respond(() => post(path, body)),
+    put: (path, body) => respond(() => put(path, body)),
   }
 }

@@ -1,5 +1,4 @@
-import { Link } from 'react-router-dom'
-import { Button, Space, Table, Tag, Typography } from 'antd'
+import { Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Repository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
@@ -11,7 +10,7 @@ import {
   useNormalizeUrlPage,
   useUrlPage,
 } from '@/shared/lib'
-import { PageNav } from '@/shared/ui'
+import { LinkButton, PageNav } from '@/shared/ui'
 
 const PAGE_SIZE = 10
 
@@ -59,9 +58,12 @@ export function RepositoriesPage() {
       title: 'Действия',
       key: 'actions',
       render: (_, record) => (
-        <Link to={`/repositories/${record.id}/settings`}>
-          <Button>Настройки</Button>
-        </Link>
+        <LinkButton
+          to={`/repositories/${record.id}/settings`}
+          aria-label={`Настройки ${record.full_name}`}
+        >
+          Настройки
+        </LinkButton>
       ),
     },
   ]
@@ -77,9 +79,9 @@ export function RepositoriesPage() {
             Репозитории, подключённые к этому рабочему пространству
           </Typography.Text>
         </div>
-        <Link to="/repositories/connect">
-          <Button type="primary">Подключить репозиторий</Button>
-        </Link>
+        <LinkButton to="/repositories/connect" type="primary">
+          Подключить репозиторий
+        </LinkButton>
       </div>
       {isError && (
         <Typography.Text type="danger" className="page-error">

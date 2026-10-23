@@ -1,7 +1,9 @@
 import { z } from 'zod'
 
+import type { ApiSchemas, MatchesContract } from '@/shared/api/contract'
+
 /**
- * Уровни severity порога — ровно `FindingSeverity` модели бэкенда, согласовано в #28:
+ * Уровни severity порога — ровно `FindingSeverity` контракта, согласовано в #28:
  * без пресетов и маппинга, merge gate и вердикт «запрос изменений» читают один порог.
  * Уровни повторяют `SEVERITIES` из `entities/review-finding`, но объявлены здесь: слайсы
  * одного слоя не зависят друг от друга.
@@ -11,23 +13,26 @@ export const SEVERITY_LEVELS = ['low', 'medium', 'high', 'critical'] as const
 export type SeverityLevel = (typeof SEVERITY_LEVELS)[number]
 
 /**
- * Настройки ревью репозитория. По смыслу совпадают с полями бэкенда (`auto_review_enabled`
- * уже приходит в `GET /api/v1/repositories`; `min_severity` — порог из решения #28,
- * дефолт `critical`, пока настроек нет): будущий HTTP-adapter смаппит snake_case в
- * camelCase при парсинге. Содержимое glob-паттернов проверяет бэкенд, UI хранит строки.
+ * Настройки ревью репозитория — `RepositorySettingsResponse` контракта: поля в snake_case,
+ * как отвечает бэкенд, отдельного маппинга нет. `auto_review_enabled` — та же колонка
+ * репозитория, что в `RepositoryResponse`. Содержимое glob-паттернов проверяет бэкенд,
+ * UI хранит строки.
  */
 export const RepositorySettingsSchema = z.object({
-  autoReviewEnabled: z.boolean(),
-  branchFilter: z.array(z.string()),
-  minSeverity: z.enum(SEVERITY_LEVELS),
+  auto_review_enabled: z.boolean(),
+  branch_filter: z.array(z.string()),
+  min_severity: z.enum(SEVERITY_LEVELS),
 })
 
 export type RepositorySettings = z.infer<typeof RepositorySettingsSchema>
 
+/** Тело сохранения — тип контракта как есть: полный набор полей, замена целиком. */
+export type RepositorySettingsUpdate = ApiSchemas['RepositorySettingsUpdate']
+
 /**
- * Правило владельца репозитория из `.review/rules.md` — форма повторяет домен бэкенда
- * (api#49, `RepoRule`): раздел `##` с паттернами области действия и нумерованными
- * проверками. Парсинг markdown остаётся на бэкенде, adapter отдаёт готовые правила.
+ * Правило владельца репозитория из `.review/rules.md` — `RepoRule` контракта: раздел `##`
+ * с паттернами области действия и нумерованными проверками. Парсинг markdown — на бэкенде,
+ * ручка отдаёт готовые правила.
  */
 export const RepoRuleSchema = z.object({
   name: z.string(),
@@ -38,7 +43,7 @@ export const RepoRuleSchema = z.object({
 
 export type RepoRule = z.infer<typeof RepoRuleSchema>
 
-/** Раздел rules.md, не ставший правилом: имя и чего не хватило (api#49, `RejectedRule`). */
+/** Раздел rules.md, не ставший правилом: имя и чего не хватило (`RejectedRule` контракта). */
 export const RejectedRuleSchema = z.object({
   name: z.string(),
   reason: z.string(),
@@ -47,17 +52,23 @@ export const RejectedRuleSchema = z.object({
 export type RejectedRule = z.infer<typeof RejectedRuleSchema>
 
 /**
- * Чем закончилась загрузка `.review/rules.md` — четыре исхода повторяют `RulesStatus`
- * бэкенда (api#49). Всё, кроме `loaded`, — дефолтный фоллбэк: ревью по стандартным
- * критериям.
+ * Чем закончилась загрузка `.review/rules.md` — пять исходов `RulesStatusResponse`
+ * контракта. `empty` — файл разобран, но ни один раздел не стал правилом; всё, кроме
+ * `loaded`, — дефолтный фоллбэк: ревью по стандартным критериям.
  */
-export const RULES_LOAD_STATUSES = ['loaded', 'absent', 'too_large', 'unavailable'] as const
+export const RULES_LOAD_STATUSES = [
+  'loaded',
+  'empty',
+  'absent',
+  'too_large',
+  'unavailable',
+] as const
 
 export type RulesLoadStatus = (typeof RULES_LOAD_STATUSES)[number]
 
 /**
  * Статус `.review/rules.md` в ветке репозитория; варианты различаются дискриминантом
- * `status`. В `loaded` — принятые и отклонённые правила и время выборки; у остальных
+ * `status`. В `loaded` и `empty` — отклонённые разделы и время выборки; у остальных
  * исходов файла для показа нет, ветка и путь остаются для бейджа.
  */
 const rulesFileRef = {
@@ -65,14 +76,15 @@ const rulesFileRef = {
   path: z.string(),
 }
 
+const rulesParsedRef = {
+  ...rulesFileRef,
+  rejected: z.array(RejectedRuleSchema),
+  fetched_at: z.string(),
+}
+
 export const RulesStatusSchema = z.discriminatedUnion('status', [
-  z.object({
-    status: z.literal('loaded'),
-    ...rulesFileRef,
-    rules: z.array(RepoRuleSchema),
-    rejected: z.array(RejectedRuleSchema),
-    fetchedAt: z.string(),
-  }),
+  z.object({ status: z.literal('loaded'), ...rulesParsedRef, rules: z.array(RepoRuleSchema) }),
+  z.object({ status: z.literal('empty'), ...rulesParsedRef }),
   z.object({ status: z.literal('absent'), ...rulesFileRef }),
   z.object({ status: z.literal('too_large'), ...rulesFileRef }),
   z.object({ status: z.literal('unavailable'), ...rulesFileRef }),
@@ -80,27 +92,10 @@ export const RulesStatusSchema = z.discriminatedUnion('status', [
 
 export type RulesStatus = z.infer<typeof RulesStatusSchema>
 
-/**
- * Применимы ли кастомные правила: `loaded` и хотя бы одно правило. Бэкенд (api#49) отдаёт
- * `loaded` и при пустом `rules` — файл пуст или все разделы отклонены, тогда ревью идёт по
- * стандартным критериям, как и у остальных исходов.
- */
-export function isRulesApplied(status: RulesStatus): boolean {
-  return status.status === 'loaded' && status.rules.length > 0
-}
-
-/**
- * Прогон в истории проверок репозитория; `id` ведёт на существующий экран `/reviews/:reviewId`.
- * Статус — открытая строка, как у `ReviewRun.status`: чужой enum будет расти, незнакомое
- * значение показывается как есть и не роняет блок истории.
- */
-export const HistoryRunSchema = z.object({
-  id: z.string(),
-  number: z.number().int(),
-  title: z.string(),
-  sourceBranch: z.string(),
-  status: z.string(),
-  createdAt: z.string(),
-})
-
-export type HistoryRun = z.infer<typeof HistoryRunSchema>
+// Разбор ответов совпадает с контрактом поле в поле; разойдутся — упадёт typecheck.
+const contractCheck: [
+  MatchesContract<SeverityLevel, ApiSchemas['FindingSeverity']>,
+  MatchesContract<RepositorySettings, ApiSchemas['RepositorySettingsResponse']>,
+  MatchesContract<RulesStatus, ApiSchemas['RulesStatusResponse']>,
+] = [true, true, true]
+void contractCheck

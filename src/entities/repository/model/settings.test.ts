@@ -1,15 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  HistoryRunSchema,
   RejectedRuleSchema,
   RepoRuleSchema,
   RepositorySettingsSchema,
   RULES_LOAD_STATUSES,
   RulesStatusSchema,
   SEVERITY_LEVELS,
-  isRulesApplied,
-  type HistoryRun,
   type RepositorySettings,
   type RepoRule,
   type RulesStatus,
@@ -17,9 +14,9 @@ import {
 
 function makeSettings(overrides: Partial<RepositorySettings> = {}): RepositorySettings {
   return {
-    autoReviewEnabled: true,
-    branchFilter: ['feature/**', 'fix/**'],
-    minSeverity: 'low',
+    auto_review_enabled: true,
+    branch_filter: ['feature/**', 'fix/**'],
+    min_severity: 'low',
     ...overrides,
   }
 }
@@ -41,45 +38,44 @@ function makeRulesLoaded(overrides: Partial<Extract<RulesStatus, { status: 'load
     path: '.review/rules.md',
     rules: [makeRule()],
     rejected: [],
-    fetchedAt: '2026-10-11T10:00:00.000Z',
+    fetched_at: '2026-10-11T10:00:00.000Z',
     ...overrides,
   }
 }
 
-function makeHistoryRun(overrides: Partial<HistoryRun> = {}): HistoryRun {
+function makeRulesEmpty(overrides: Partial<Extract<RulesStatus, { status: 'empty' }>> = {}) {
   return {
-    id: 'run-1',
-    number: 42,
-    title: 'Чтение токена из окружения',
-    sourceBranch: 'feat/env-token',
-    status: 'completed',
-    createdAt: '2026-10-05T17:03:26Z',
+    status: 'empty' as const,
+    branch: 'main',
+    path: '.review/rules.md',
+    rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
+    fetched_at: '2026-10-11T10:00:00.000Z',
     ...overrides,
   }
 }
 
 describe('RepositorySettingsSchema', () => {
   it.each(SEVERITY_LEVELS)('принимает уровень severity %s', (level) => {
-    expect(RepositorySettingsSchema.safeParse(makeSettings({ minSeverity: level })).success).toBe(
+    expect(RepositorySettingsSchema.safeParse(makeSettings({ min_severity: level })).success).toBe(
       true,
     )
   })
 
   it('отвергает значение вне уровней severity', () => {
     const dto: unknown = makeSettings({
-      minSeverity: 'warn' as RepositorySettings['minSeverity'],
+      min_severity: 'warn' as RepositorySettings['min_severity'],
     })
     expect(RepositorySettingsSchema.safeParse(dto).success).toBe(false)
   })
 
   it('отвергает настройки без обязательного поля', () => {
     const dto: Partial<RepositorySettings> = makeSettings()
-    delete dto.branchFilter
+    delete dto.branch_filter
     expect(RepositorySettingsSchema.safeParse(dto).success).toBe(false)
   })
 
   it('отвергает поле не того типа', () => {
-    const dto: unknown = { ...makeSettings(), autoReviewEnabled: 'yes' }
+    const dto: unknown = { ...makeSettings(), auto_review_enabled: 'yes' }
     expect(RepositorySettingsSchema.safeParse(dto).success).toBe(false)
   })
 })
@@ -125,7 +121,25 @@ describe('RulesStatusSchema', () => {
     if (result.success && result.data.status === 'loaded') {
       expect(result.data.rules).toHaveLength(1)
       expect(result.data.rejected[0]).toMatchObject({ name: 'Docs' })
+      expect(result.data.fetched_at).toBe(dto.fetched_at)
     }
+  })
+
+  it('принимает исход empty: файл разобран, но ни один раздел не стал правилом', () => {
+    const dto = makeRulesEmpty()
+
+    const result = RulesStatusSchema.safeParse(dto)
+    expect(result.success).toBe(true)
+    if (result.success && result.data.status === 'empty') {
+      expect(result.data).toEqual(dto)
+      // У исхода нет поля rules: применимых правил не существует, а не «пустой список».
+      expect('rules' in result.data).toBe(false)
+    }
+  })
+
+  it('требует отклонённые разделы и время выборки, когда исход empty', () => {
+    const dto: unknown = { status: 'empty', branch: 'main', path: '.review/rules.md' }
+    expect(RulesStatusSchema.safeParse(dto).success).toBe(false)
   })
 
   it.each(['absent', 'too_large', 'unavailable'] as const)(
@@ -156,39 +170,7 @@ describe('RulesStatusSchema', () => {
     expect(RulesStatusSchema.safeParse(dto).success).toBe(false)
   })
 
-  it('набор исходов повторяет RulesStatus бэкенда (api#49)', () => {
-    expect(RULES_LOAD_STATUSES).toEqual(['loaded', 'absent', 'too_large', 'unavailable'])
-  })
-})
-
-describe('isRulesApplied', () => {
-  it('применимы: loaded с хотя бы одним правилом', () => {
-    expect(isRulesApplied(makeRulesLoaded())).toBe(true)
-  })
-
-  it('не применимы: loaded без правил — файл пуст или все разделы отклонены', () => {
-    expect(isRulesApplied(makeRulesLoaded({ rules: [] }))).toBe(false)
-  })
-
-  it.each(['absent', 'too_large', 'unavailable'] as const)('не применимы: исход %s', (status) => {
-    expect(isRulesApplied({ status, branch: 'main', path: '.review/rules.md' })).toBe(false)
-  })
-})
-
-describe('HistoryRunSchema', () => {
-  it('принимает незнакомый статус прогона, а не роняет блок истории', () => {
-    expect(
-      HistoryRunSchema.safeParse(makeHistoryRun({ status: 'waiting_for_quota' })).success,
-    ).toBe(true)
-  })
-
-  it('отвергает прогон без обязательного поля', () => {
-    const dto: Partial<HistoryRun> = makeHistoryRun()
-    delete dto.title
-    expect(HistoryRunSchema.safeParse(dto).success).toBe(false)
-  })
-
-  it('отвергает нецелый номер прогона', () => {
-    expect(HistoryRunSchema.safeParse(makeHistoryRun({ number: 42.5 })).success).toBe(false)
+  it('набор исходов повторяет RulesStatusResponse контракта (api#113)', () => {
+    expect(RULES_LOAD_STATUSES).toEqual(['loaded', 'empty', 'absent', 'too_large', 'unavailable'])
   })
 })

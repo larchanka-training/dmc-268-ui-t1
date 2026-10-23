@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { AvailableRepository } from '@/entities/repository'
 import { useAvailableRepositories, useConnectRepository } from '@/features/repository'
-import { ApiError } from '@/shared/api'
+import { isNotImplemented } from '@/shared/api'
 import {
   PAGE_PARAM,
   clampPage,
@@ -25,11 +25,6 @@ const SEARCH_EDIT = { searchEdit: true }
 
 function isSearchEdit(state: unknown): boolean {
   return typeof state === 'object' && state !== null && 'searchEdit' in state
-}
-
-/** Ручки уже в контракте, но бэкенд отвечает `501`, пока подключение не реализовано (api#41). */
-function isNotImplemented(error: unknown): boolean {
-  return error instanceof ApiError && error.code === 'NOT_IMPLEMENTED'
 }
 
 export function ConnectRepositoryPage() {

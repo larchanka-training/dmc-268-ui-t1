@@ -25,3 +25,41 @@
 
 - [x] 5.1 Прогнать гейты: `pnpm run typecheck`, `pnpm run lint`, `pnpm run stylelint`, `pnpm run format:check`, `pnpm run test` — все зелёные
 - [x] 5.2 Открыть PR из `feat/repository-settings` в `develop`: осмысленные заголовок и описание (первый контекст для ревью-бота), `Closes #28`, запросить ревью у всей команды
+
+## 6. Переработка по ревью PR #29
+
+Ревью PR #29 (треды AndrewKonst): экран работал в обход контракта, артефакты описывали
+архитектуру до него. Ручки блока появились в контракте `b035f3e` (бэкенд-задача api#113, влит
+во фронт PR #56) — часть заглушками `501`, поэтому экран переработан под контракт.
+
+- [x] 6.1 Перевести модели на типы контракта: поля snake_case, `MatchesContract` против
+      `RepositorySettingsResponse`, `RulesStatusResponse`, `FindingSeverity`, тело сохранения —
+      `RepositorySettingsUpdate`; добавить `ApiTransport.put` (`shared/api/transport.ts`,
+      `http.ts`, `fakeTransport`); `HistoryRun` и мок-ручка `/repositories/{id}/history`
+      удалены
+- [x] 6.2 Сохранение — `PUT` полной заменой (`saveRepositorySettings` через `transport.put`);
+      нормализация `branch_filter` при сохранении (`lib/branchFilter.ts`: трим, пустые — мимо,
+      дедуп, лимиты 50/200)
+- [x] 6.3 История — список прогонов `GET /reviews` с фильтром `repository_id` (`limit: 50`,
+      ключ `['reviews', 'list', query]` — общий корень с вкладкой «Ревью»); заголовок экрана —
+      `useRepository` по одной ручке `GET /repositories/{id}` без поиска в первой странице
+      списка
+- [x] 6.4 501 от ручек-заглушек → «пока недоступно» в этом блоке (`NotImplementedNote`,
+      паттерн `ConnectRepositoryPage`/`ReviewsPage`); блоки ошибок — `ErrorState`, «Повторить»
+      только для не-4xx; 404 заголовка — `Result` с инвалидацией `connected`
+- [x] 6.5 Ссылки-кнопки — `shared/ui/LinkButton` (настоящий `<a href>`, без `<button>` внутри
+      `<a>`); `aria-label` у Radio.Group «Порог severity» и у действия «Настройки» в списке
+      репозиториев
+- [x] 6.6 Один источник `auto_review_enabled`: флаг — колонка `RepositoryResponse`; после
+      сохранения `setQueryData` ответа + инвалидация `settings`/`repository`/`connected`;
+      мок-стор синхронизирует флаг через `onAutoReviewChange`, как бэкенд
+- [x] 6.7 Черновик формы не переезжает между репозиториями: блоки с `key={repositoryId}`
+- [x] 6.8 Тесты под новое поведение: модели (пять исходов правил), API-функции (PUT),
+      моки (`repositorySettings.test.ts`), страница (501, 404, черновик, radiogroup,
+      нормализация tags, сценарий упавшего рефетча после сохранения, фоновая ошибка блока);
+      новый `src/app/mocks/mockAdapter.test.ts`; весь `pnpm run test` зелёный
+- [x] 6.9 Дедупликация `isNotImplemented`: локальные копии заменены импортом из
+      `@/shared/api`
+- [x] 6.10 Актуализировать артефакты change: `design.md`, `proposal.md`, `tasks.md` и дельта
+      `specs/cabinet-repository-settings/spec.md` — архитектура после перехода на контракт;
+      `openspec validate repository-settings --strict` зелёный

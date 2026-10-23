@@ -17,17 +17,16 @@ const withFile: RulesStatus = {
     },
   ],
   rejected: [],
-  fetchedAt: '2026-10-11T09:40:00.000Z',
+  fetched_at: '2026-10-11T09:40:00.000Z',
 }
 
-/** api#49 отдаёт `loaded` и при пустом `rules`: файл пуст или все разделы отклонены. */
+/** Контракт различает `empty` и `loaded` без правил: файл разобран, но ни один раздел не стал правилом. */
 const emptyRules: RulesStatus = {
-  status: 'loaded',
+  status: 'empty',
   branch: 'main',
   path: '.review/rules.md',
-  rules: [],
   rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
-  fetchedAt: '2026-10-11T09:40:00.000Z',
+  fetched_at: '2026-10-11T09:40:00.000Z',
 }
 
 describe('RulesStatusBadge', () => {

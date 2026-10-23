@@ -1,32 +1,44 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { HistoryRun, Repository, RepositorySettings, RulesStatus } from '@/entities/repository'
-import { repositoryKeys } from '@/features/repository'
-import type { ApiTransport } from '@/shared/api'
+import type { ReactNode } from 'react'
+import { Link, MemoryRouter, Route, Routes } from 'react-router-dom'
+import type {
+  Repository,
+  RepositorySettings,
+  RepositorySettingsUpdate,
+  RulesStatus,
+} from '@/entities/repository'
+import type { ReviewRunListItem } from '@/entities/review-run'
+import { repositoryHistoryKey, repositoryKeys } from '@/features/repository'
+import { ApiError } from '@/shared/api'
 import { renderWithTransport } from '@/test/api'
 import { RepositorySettingsPage } from './RepositorySettingsPage'
 
 /**
  * Управляемый бэкенд теста: записи можно менять до рендера и между рефетчами, `failures`
  * роняет один блок, `badShape` отвечает данными вне схемы, `beforeSave` держит сохранение,
- * пока тест не отпустит.
+ * пока тест не отпустит. `historyTotal` подменяет счётчик `total` истории: ручка отдаёт
+ * первую страницу, а всего прогонов может быть больше. Ручки — как в контракте:
+ * `GET /repositories/{id}`, `GET/PUT …/settings`, `GET …/rules` и `GET /reviews?repository_id=`.
  */
 type Backend = {
-  repositories: Repository[]
+  repositories: Record<string, Repository>
   settings: Record<string, RepositorySettings>
   rules: Record<string, RulesStatus>
-  history: Record<string, HistoryRun[]>
-  failures: { repositories?: Error; settings?: Error; rules?: Error; history?: Error; save?: Error }
+  history: Record<string, ReviewRunListItem[]>
+  historyTotal?: Record<string, number>
+  failures: { repository?: Error; settings?: Error; rules?: Error; history?: Error; save?: Error }
   badShape: { settings?: unknown; rules?: unknown; history?: unknown }
   beforeSave?: () => Promise<void>
 }
 
+const RULES_PATH = '.review/rules.md'
+
 const DEFAULT_SETTINGS: RepositorySettings = {
-  autoReviewEnabled: true,
-  branchFilter: [],
-  minSeverity: 'critical',
+  auto_review_enabled: true,
+  branch_filter: [],
+  min_severity: 'critical',
 }
 
 function repository(n: number, full_name: string): Repository {
@@ -42,22 +54,65 @@ function repository(n: number, full_name: string): Repository {
   }
 }
 
-const RULES_PATH = '.review/rules.md'
+/** Запрос на изменение прогона истории (`MergeRequestSummary` контракта). */
+function mergeRequest(
+  n: number,
+  overrides: Partial<ReviewRunListItem['merge_request']> = {},
+): ReviewRunListItem['merge_request'] {
+  return {
+    id: `mr-${n}`,
+    number: n,
+    title: 'Чтение токена из окружения',
+    author: 'a.petrova',
+    source_branch: 'feat/env-token',
+    target_branch: 'develop',
+    state: 'merged',
+    url: `https://github.com/larchanka-training/platform-api/pull/${n}`,
+    repository: { id: 'repo-1', provider: 'github', full_name: 'larchanka-training/platform-api' },
+    ...overrides,
+  }
+}
+
+/** Строка истории — полный `ReviewRunListItem` контракта. */
+function runListItem(
+  n: number,
+  mrOverrides: Partial<ReviewRunListItem['merge_request']> = {},
+  runOverrides: Partial<ReviewRunListItem> = {},
+): ReviewRunListItem {
+  return {
+    id: `run-${n}`,
+    status: 'completed',
+    trigger: 'webhook',
+    head_sha: '9f3c2a17e4b8d6c0a5f1',
+    created_at: '2026-10-05T17:03:26Z',
+    updated_at: '2026-10-05T17:05:40Z',
+    last_progress_at: '2026-10-05T17:05:40Z',
+    duration_seconds: 134,
+    failed_stage: null,
+    findings_count: 2,
+    merge_request: mergeRequest(n, mrOverrides),
+    ...runOverrides,
+  }
+}
 
 function createBackend(): Backend {
   return {
-    repositories: [
-      repository(1, 'larchanka-training/platform-api'),
-      repository(2, 'larchanka-training/docs'),
-      repository(3, 'larchanka-training/design-system'),
-    ],
+    repositories: {
+      'repo-1': repository(1, 'larchanka-training/platform-api'),
+      'repo-2': repository(2, 'larchanka-training/docs'),
+      'repo-3': repository(3, 'larchanka-training/design-system'),
+    },
     settings: {
       'repo-1': {
-        autoReviewEnabled: true,
-        branchFilter: ['feature/**', 'fix/**'],
-        minSeverity: 'high',
+        auto_review_enabled: true,
+        branch_filter: ['feature/**', 'fix/**'],
+        min_severity: 'high',
       },
-      'repo-2': { autoReviewEnabled: false, branchFilter: ['docs/**'], minSeverity: 'critical' },
+      'repo-2': {
+        auto_review_enabled: false,
+        branch_filter: ['docs/**'],
+        min_severity: 'critical',
+      },
     },
     rules: {
       'repo-1': {
@@ -91,39 +146,32 @@ function createBackend(): Backend {
           },
         ],
         rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
-        fetchedAt: '2026-10-11T09:40:00.000Z',
+        fetched_at: '2026-10-11T09:40:00.000Z',
       },
       'repo-2': { status: 'absent', branch: 'main', path: RULES_PATH },
+      // Файл разобран, но ни один раздел не стал правилом — исход `empty` контракта.
       'repo-3': {
-        status: 'loaded',
+        status: 'empty',
         branch: 'main',
         path: RULES_PATH,
-        rules: [],
         rejected: [
           { name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' },
           { name: 'A11y', reason: 'нет паттерна (pattern)' },
         ],
-        fetchedAt: '2026-10-11T09:35:00.000Z',
+        fetched_at: '2026-10-11T09:35:00.000Z',
       },
     },
     history: {
       'repo-1': [
-        {
-          id: 'run-42',
-          number: 42,
-          title: 'Чтение токена из окружения',
-          sourceBranch: 'feat/env-token',
-          status: 'completed',
-          createdAt: '2026-10-05T17:03:26Z',
-        },
-        {
-          id: 'run-41',
-          number: 41,
-          title: 'Отмена прогона при деплое соседнего сервиса',
-          sourceBranch: 'feat/bulk-export',
-          status: 'cancelled',
-          createdAt: '2026-10-04T12:10:00Z',
-        },
+        runListItem(42),
+        runListItem(
+          41,
+          {
+            title: 'Отмена прогона при деплое соседнего сервиса',
+            source_branch: 'feat/bulk-export',
+          },
+          { status: 'cancelled', created_at: '2026-10-04T12:10:00Z' },
+        ),
       ],
       'repo-2': [],
     },
@@ -132,53 +180,57 @@ function createBackend(): Backend {
   }
 }
 
-/** Транспорт поверх бэкенда теста: те же пути, что у entity api. */
-function backendTransport(backend: Backend): ApiTransport {
-  const get = async (path: string): Promise<unknown> => {
-    if (path === '/repositories?limit=200') {
-      if (backend.failures.repositories) throw backend.failures.repositories
-      return { items: backend.repositories }
+/** Транспорт поверх бэкенда теста: те же ручки, что в контракте; вызовы — шпионы. */
+function backendTransport(backend: Backend) {
+  const get = vi.fn(async (path: string): Promise<unknown> => {
+    const [route, search = ''] = path.split('?')
+    if (route === '/reviews') {
+      if (backend.failures.history) throw backend.failures.history
+      if (backend.badShape.history !== undefined) return structuredClone(backend.badShape.history)
+      const repositoryId = new URLSearchParams(search).get('repository_id') ?? ''
+      const items = backend.history[repositoryId] ?? []
+      const total = backend.historyTotal?.[repositoryId] ?? items.length
+      return { items: structuredClone(items), total }
     }
-    const settingsRoute = /^\/repositories\/([^/]+)\/settings$/.exec(path)
+    const repositoryRoute = /^\/repositories\/([^/]+)$/.exec(route)
+    if (repositoryRoute) {
+      if (backend.failures.repository) throw backend.failures.repository
+      const repo = backend.repositories[repositoryRoute[1]]
+      if (!repo) throw new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
+      return structuredClone(repo)
+    }
+    const settingsRoute = /^\/repositories\/([^/]+)\/settings$/.exec(route)
     if (settingsRoute) {
       if (backend.failures.settings) throw backend.failures.settings
       if (backend.badShape.settings !== undefined) return structuredClone(backend.badShape.settings)
       return structuredClone(backend.settings[settingsRoute[1]] ?? DEFAULT_SETTINGS)
     }
-    const rulesRoute = /^\/repositories\/([^/]+)\/rules$/.exec(path)
+    const rulesRoute = /^\/repositories\/([^/]+)\/rules$/.exec(route)
     if (rulesRoute) {
       if (backend.failures.rules) throw backend.failures.rules
       if (backend.badShape.rules !== undefined) return structuredClone(backend.badShape.rules)
       return structuredClone(
-        backend.rules[rulesRoute[1]] ?? {
-          status: 'absent',
-          branch: 'main',
-          path: RULES_PATH,
-        },
+        backend.rules[rulesRoute[1]] ?? { status: 'absent', branch: 'main', path: RULES_PATH },
       )
     }
-    const historyRoute = /^\/repositories\/([^/]+)\/history$/.exec(path)
-    if (historyRoute) {
-      if (backend.failures.history) throw backend.failures.history
-      if (backend.badShape.history !== undefined) return structuredClone(backend.badShape.history)
-      return structuredClone(backend.history[historyRoute[1]] ?? [])
-    }
-    throw new Error(`неожиданный запрос ${path}`)
-  }
+    throw new Error(`неожиданный запрос GET ${path}`)
+  })
 
-  const post = async (path: string, body: unknown): Promise<unknown> => {
+  const put = vi.fn(async (path: string, body: unknown): Promise<unknown> => {
     const settingsRoute = /^\/repositories\/([^/]+)\/settings$/.exec(path)
-    if (settingsRoute) {
-      if (backend.failures.save) throw backend.failures.save
-      await backend.beforeSave?.()
-      const draft = structuredClone(body) as RepositorySettings
-      backend.settings[settingsRoute[1]] = draft
-      return structuredClone(draft)
-    }
-    throw new Error(`неожиданный запрос ${path}`)
-  }
+    if (!settingsRoute) throw new Error(`неожиданный запрос PUT ${path}`)
+    if (backend.failures.save) throw backend.failures.save
+    await backend.beforeSave?.()
+    const draft = structuredClone(body) as RepositorySettingsUpdate
+    backend.settings[settingsRoute[1]] = draft
+    return structuredClone(draft)
+  })
 
-  return { get, post }
+  const post = vi.fn(async (path: string): Promise<unknown> => {
+    throw new Error(`неожиданный запрос POST ${path}`)
+  })
+
+  return { get, put, post }
 }
 
 function deferred() {
@@ -189,18 +241,20 @@ function deferred() {
   return { promise, release }
 }
 
-function renderSettingsPage(repositoryId = 'repo-1', backend = createBackend()) {
+function renderSettingsPage(repositoryId = 'repo-1', backend = createBackend(), extra?: ReactNode) {
+  const transport = backendTransport(backend)
   const utils = renderWithTransport(
     <MemoryRouter initialEntries={[`/repositories/${repositoryId}/settings`]}>
+      {extra}
       <Routes>
         <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
         {/* Заглушка экрана прогона: проверяем только переход по ссылке. */}
         <Route path="/reviews/:reviewId" element={<div>Экран прогона</div>} />
       </Routes>
     </MemoryRouter>,
-    backendTransport(backend),
+    transport,
   )
-  return { ...utils, backend }
+  return { ...utils, backend, transport }
 }
 
 describe('RepositorySettingsPage: загрузка', () => {
@@ -211,12 +265,17 @@ describe('RepositorySettingsPage: загрузка', () => {
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     expect(screen.getByText('feature/**')).toBeInTheDocument()
     expect(screen.getByText('fix/**')).toBeInTheDocument()
+    // A11y: группа радиокнопок порога severity имеет имя (замечание ревью).
+    expect(screen.getByRole('radiogroup', { name: 'Порог severity' })).toBeInTheDocument()
   })
 
-  it('репозиторий не найден: сообщение и путь назад, а не пустая страница', async () => {
+  it('репозиторий не найден: Result с путём назад, а не пустая страница', async () => {
     renderSettingsPage('repo-nope')
 
     expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
+    expect(
+      screen.getByText('Репозитория с таким адресом нет среди подключённых.'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'К списку репозиториев' })).toHaveAttribute(
       'href',
       '/repositories',
@@ -225,6 +284,24 @@ describe('RepositorySettingsPage: загрузка', () => {
 })
 
 describe('RepositorySettingsPage: сохранение настроек', () => {
+  it('сохранение уходит PUT-ом с телом настроек, POST не используется', async () => {
+    const user = userEvent.setup()
+    const { transport } = renderSettingsPage()
+
+    await screen.findByRole('switch')
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
+    expect(transport.put).toHaveBeenCalledTimes(1)
+    expect(transport.put).toHaveBeenCalledWith('/repositories/repo-1/settings', {
+      auto_review_enabled: false,
+      branch_filter: ['feature/**', 'fix/**'],
+      min_severity: 'high',
+    })
+    expect(transport.post).not.toHaveBeenCalled()
+  })
+
   it('успех: форма и данные показывают новые значения', async () => {
     const user = userEvent.setup()
     const backend = createBackend()
@@ -235,7 +312,7 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
-    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(false)
+    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(false)
 
     // Новый заход на экран читает уже сохранённые значения.
     unmount()
@@ -255,7 +332,7 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     expect(await screen.findByText('Не удалось сохранить настройки')).toBeInTheDocument()
     expect(screen.getByText('Сеть недоступна')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(true)
+    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(true)
   })
 
   it('поля заблокированы на время сохранения, после успеха форма совпадает с бэкендом', async () => {
@@ -278,7 +355,7 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeDisabled()
     expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(backend.settings['repo-1']?.autoReviewEnabled).toBe(false)
+    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(false)
   })
 
   it('сброс возвращает сохранённые значения', async () => {
@@ -329,6 +406,46 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     expect(screen.getByRole('switch')).toBeChecked()
     expect(screen.queryByText('Не удалось сохранить настройки')).not.toBeInTheDocument()
   })
+
+  it('нормализация фильтра веток: пробелы и повторы не уходят в сохранение', async () => {
+    const user = userEvent.setup()
+    const { transport } = renderSettingsPage()
+
+    const input = await screen.findByRole('combobox', { name: 'Фильтр веток' })
+    await user.click(input)
+    // Токен с пробелами попадает в форму как есть, повтор — отдельным тегом.
+    await user.type(input, ' feature/* ,')
+    await user.type(input, 'feature/*{enter}')
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
+    // Трим и дедуп — на клиенте: грязный ввод не покидает клиент.
+    expect(transport.put).toHaveBeenCalledWith('/repositories/repo-1/settings', {
+      auto_review_enabled: true,
+      branch_filter: ['feature/**', 'fix/**', 'feature/*'],
+      min_severity: 'high',
+    })
+  })
+
+  it('упавший рефетч после сохранения не откатывает форму к прежним значениям', async () => {
+    const user = userEvent.setup()
+    const { backend } = renderSettingsPage()
+    await screen.findByRole('switch')
+
+    // Сохранение пройдёт, а следующий за ним рефетч настроек упадёт.
+    backend.failures.settings = new Error('settings boom')
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Не удалось обновить настройки — показаны сохранённые значения'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('settings boom')).toBeInTheDocument()
+    // Форма остаётся на новых значениях, ошибка — неблокирующая.
+    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+  })
 })
 
 describe('RepositorySettingsPage: статус правил', () => {
@@ -352,7 +469,7 @@ describe('RepositorySettingsPage: статус правил', () => {
     expect(screen.queryByRole('heading', { name: 'Security' })).not.toBeInTheDocument()
   })
 
-  it('repo-3: файл без применимых правил — не кастомные, отклонённые разделы видны', async () => {
+  it('repo-3: исход empty — правила не применяются, отклонённые разделы видны', async () => {
     renderSettingsPage('repo-3')
 
     expect(await screen.findByText('Правила не применяются')).toBeInTheDocument()
@@ -368,7 +485,9 @@ describe('RepositorySettingsPage: история проверок', () => {
     const user = userEvent.setup()
     renderSettingsPage()
 
-    const runLink = await screen.findByRole('link', { name: 'Чтение токена из окружения' })
+    const runLink = await screen.findByRole('link', {
+      name: '#42 Чтение токена из окружения',
+    })
     expect(runLink).toHaveAttribute('href', '/reviews/run-42')
     await user.click(runLink)
 
@@ -379,26 +498,113 @@ describe('RepositorySettingsPage: история проверок', () => {
     renderSettingsPage('repo-2')
 
     expect(await screen.findByText('Проверок ещё не было')).toBeInTheDocument()
+    // Все прогоны уместились в первую страницу — ссылки на «Остальные» нет.
+    expect(
+      screen.queryByRole('link', { name: 'Остальные прогоны — на вкладке «Ревью»' }),
+    ).not.toBeInTheDocument()
+  })
+
+  it('прогонов больше, чем в первой странице: ссылка ведёт на вкладку «Ревью» с фильтром', async () => {
+    const backend = createBackend()
+    backend.historyTotal = { 'repo-1': 61 }
+    renderSettingsPage('repo-1', backend)
+
+    const link = await screen.findByRole('link', {
+      name: 'Остальные прогоны — на вкладке «Ревью»',
+    })
+    expect(link).toHaveAttribute('href', '/reviews?repository_id=repo-1')
   })
 
   it('незнакомый статус прогона показывается как есть и не ломает список', async () => {
     const backend = createBackend()
     backend.history['repo-1'] = [
-      {
-        id: 'run-99',
-        number: 99,
-        title: 'Ребейз поверх develop',
-        sourceBranch: 'feat/rebase',
-        status: 'rebasing',
-        createdAt: '2026-10-10T10:00:00Z',
-      },
+      runListItem(
+        99,
+        { title: 'Ребейз поверх develop', source_branch: 'feat/rebase' },
+        { status: 'rebasing', created_at: '2026-10-10T10:00:00Z' },
+      ),
     ]
     renderSettingsPage('repo-1', backend)
 
     expect(await screen.findByText('rebasing')).toBeInTheDocument()
-    expect(screen.getByText('Ребейз поверх develop')).toBeInTheDocument()
+    expect(screen.getByText('#99 Ребейз поверх develop')).toBeInTheDocument()
     // Время — одним форматтером с экраном прогона: Intl, UTC.
     expect(screen.getByText('10.10.2026, 10:00 UTC')).toBeInTheDocument()
+  })
+})
+
+describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
+  const notImplemented = () => new ApiError(501, 'Не реализовано', 'NOT_IMPLEMENTED')
+
+  it.each([
+    {
+      block: 'настройки',
+      fail: (backend: Backend) => {
+        backend.failures.settings = notImplemented()
+      },
+      note: 'Настройки ревью пока недоступны',
+      alive: async () => {
+        expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
+        expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+      },
+    },
+    {
+      block: 'статус правил',
+      fail: (backend: Backend) => {
+        backend.failures.rules = notImplemented()
+      },
+      note: 'Статус правил пока недоступен',
+      alive: async () => {
+        expect(await screen.findByRole('switch')).toBeChecked()
+        expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+      },
+    },
+    {
+      block: 'история',
+      fail: (backend: Backend) => {
+        backend.failures.history = notImplemented()
+      },
+      note: 'История проверок пока недоступна',
+      alive: async () => {
+        expect(await screen.findByRole('switch')).toBeChecked()
+        expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
+      },
+    },
+  ])(
+    '$block: «пока недоступно», а не ошибка, остальные блоки живы',
+    async ({ fail, note, alive }) => {
+      const backend = createBackend()
+      fail(backend)
+      renderSettingsPage('repo-1', backend)
+
+      expect(await screen.findByText(note)).toBeInTheDocument()
+      expect(screen.getByText(/отвечает заглушкой 501/)).toBeInTheDocument()
+      expect(screen.queryByText(/Не удалось загрузить/)).not.toBeInTheDocument()
+      await alive()
+    },
+  )
+})
+
+describe('RepositorySettingsPage: черновик', () => {
+  it('черновик не переезжает при смене репозитория', async () => {
+    const user = userEvent.setup()
+    const link = <Link to="/repositories/repo-2/settings">Настройки repo-2</Link>
+    renderSettingsPage('repo-1', createBackend(), link)
+
+    expect(await screen.findByRole('switch')).toBeChecked()
+    // Черновик repo-1: авто-ревью выключен, порог занижен.
+    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByText('Low'))
+
+    await user.click(screen.getByRole('link', { name: 'Настройки repo-2' }))
+
+    // Форма repo-2 показывает сохранённые значения repo-2, а не черновик repo-1.
+    expect(await screen.findByText('larchanka-training/docs')).toBeInTheDocument()
+    const switch2 = await screen.findByRole('switch')
+    expect(switch2).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Critical' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Low' })).not.toBeChecked()
+    expect(screen.getByText('docs/**')).toBeInTheDocument()
   })
 })
 
@@ -412,7 +618,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     expect(await screen.findByText('rules boom')).toBeInTheDocument()
     // Настройки и история работают.
     expect(await screen.findByRole('switch')).toBeChecked()
-    expect(await screen.findByText('Чтение токена из окружения')).toBeInTheDocument()
+    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
 
     // Чиним бэкенд и повторяем запрос блока.
     delete backend.failures.rules
@@ -420,12 +626,25 @@ describe('RepositorySettingsPage: состояния данных', () => {
     expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
   })
 
+  it('клиентская ошибка 4xx: блок показывает ошибку без кнопки «Повторить», остальные живы', async () => {
+    const { backend } = renderSettingsPage()
+    backend.failures.rules = new ApiError(404, 'Файл правил не найден', 'REPOSITORY_NOT_FOUND')
+
+    expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
+    expect(await screen.findByText('Файл правил не найден')).toBeInTheDocument()
+    // 4xx повтор не изменит — кнопки повтора в блоке нет.
+    expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
+    // Настройки и история работают.
+    expect(await screen.findByRole('switch')).toBeChecked()
+    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+  })
+
   it('данные вне схемы: каждый блок показывает ошибку контракта, экран не падает', async () => {
     const backend = createBackend()
     backend.badShape = {
-      settings: { autoReviewEnabled: 'yes' },
+      settings: { auto_review_enabled: 'yes' },
       rules: { status: 'half-loaded' },
-      history: [{ nope: true }],
+      history: { items: [{ nope: true }], total: 1 },
     }
     renderSettingsPage('repo-1', backend)
 
@@ -462,13 +681,14 @@ describe('RepositorySettingsPage: состояния данных', () => {
     expect(screen.getByRole('switch')).toBeChecked()
   })
 
-  it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert', async () => {
+  it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert с повтором', async () => {
+    const user = userEvent.setup()
     const { backend, client } = renderSettingsPage()
 
-    expect(await screen.findByText('Чтение токена из окружения')).toBeInTheDocument()
+    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
 
     backend.failures.history = new Error('history boom')
-    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.history('repo-1') }))
+    await act(() => client.invalidateQueries({ queryKey: repositoryHistoryKey('repo-1') }))
 
     expect(
       await screen.findByText(
@@ -477,6 +697,42 @@ describe('RepositorySettingsPage: состояния данных', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('history boom')).toBeInTheDocument()
     // Таблица с данными из кэша не заменена полной ошибкой.
-    expect(screen.getByText('Чтение токена из окружения')).toBeInTheDocument()
+    expect(screen.getByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+
+    // Повтор с починенным бэкендом убирает Alert.
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
+    delete backend.failures.history
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+    await waitFor(() =>
+      expect(screen.queryByText(/Не удалось обновить историю проверок/)).not.toBeInTheDocument(),
+    )
+    expect(screen.getByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+  })
+
+  it('фоновая ошибка правил: панель остаётся на данных из кэша, сверху Alert с повтором', async () => {
+    const user = userEvent.setup()
+    const { backend, client } = renderSettingsPage()
+
+    expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
+
+    backend.failures.rules = new Error('rules boom')
+    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.rules('repo-1') }))
+
+    expect(
+      await screen.findByText('Не удалось обновить статус правил — показан последний загруженный'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('rules boom')).toBeInTheDocument()
+    // Бейдж и превью из кэша на месте.
+    expect(screen.getByText('Кастомные правила')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Security' })).toBeInTheDocument()
+
+    // Повтор с починенным бэкендом убирает Alert.
+    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
+    delete backend.failures.rules
+    await user.click(screen.getByRole('button', { name: 'Повторить' }))
+    await waitFor(() =>
+      expect(screen.queryByText(/Не удалось обновить статус правил/)).not.toBeInTheDocument(),
+    )
+    expect(screen.getByRole('heading', { name: 'Security' })).toBeInTheDocument()
   })
 })

@@ -1,7 +1,7 @@
 import type {
-  HistoryRun,
   Repository,
   RepositorySettings,
+  RepositorySettingsUpdate,
   RulesStatus,
 } from '../../entities/repository'
 import { ApiError } from '../../shared/api'
@@ -10,35 +10,36 @@ import { mockRepositoryId } from './repositories'
 const RULES_PATH = '.review/rules.md'
 
 /**
- * Фикстуры блока настроек. Ручек в контракте бэкенда ещё нет (#28, домен api#49), поэтому
- * форма ответов закреплена схемами `entities/repository/model/settings.ts`. Adapter отдаёт
- * уже распарсенные правила в форме api#49: парсинг markdown — задача бэкенда.
+ * Фикстуры блока настроек. Ручки описаны в контракте (`GET/PUT …/settings`,
+ * `GET …/rules`, заглушки 501, задача api#113), поэтому форма ответов — схема
+ * `entities/repository/model/settings.ts` поле в поле с контрактом. Ручка отдаёт
+ * уже распарсенные правила: парсинг markdown — задача бэкенда.
  */
 
 /** Настройки фикстур различаются, чтобы форма не выглядела константой (design.md). */
 const SETTINGS_BY_REPO: Record<string, RepositorySettings> = {
   [mockRepositoryId(1)]: {
-    autoReviewEnabled: true,
-    branchFilter: ['feature/**', 'fix/**'],
-    minSeverity: 'high',
+    auto_review_enabled: true,
+    branch_filter: ['feature/**', 'fix/**'],
+    min_severity: 'high',
   },
   [mockRepositoryId(2)]: {
-    autoReviewEnabled: false,
-    branchFilter: ['docs/**'],
-    minSeverity: 'critical',
+    auto_review_enabled: false,
+    branch_filter: ['docs/**'],
+    min_severity: 'critical',
   },
 }
 
 /** У репозитория, подключённого после старта сессии, настроек ещё нет — отдаём дефолт. */
 const DEFAULT_SETTINGS: RepositorySettings = {
-  autoReviewEnabled: true,
-  branchFilter: [],
-  minSeverity: 'critical',
+  auto_review_enabled: true,
+  branch_filter: [],
+  min_severity: 'critical',
 }
 
 /**
- * У первого репозитория есть отклонённый раздел — рендерим и его; у третьего файл есть, но
- * применимых правил нет — оба раздела отклонены, сценарий «правила не применяются».
+ * У первого репозитория есть отклонённый раздел — рендерим и его; у третьего файл разобран,
+ * но ни один раздел не стал правилом — исход `empty`, сценарий «правила не применяются».
  */
 const RULES_BY_REPO: Record<string, RulesStatus> = {
   [mockRepositoryId(1)]: {
@@ -69,7 +70,7 @@ const RULES_BY_REPO: Record<string, RulesStatus> = {
       },
     ],
     rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
-    fetchedAt: '2026-10-11T09:40:00.000Z',
+    fetched_at: '2026-10-11T09:40:00.000Z',
   },
   [mockRepositoryId(2)]: {
     status: 'absent',
@@ -77,99 +78,36 @@ const RULES_BY_REPO: Record<string, RulesStatus> = {
     path: RULES_PATH,
   },
   [mockRepositoryId(3)]: {
-    status: 'loaded',
+    status: 'empty',
     branch: 'main',
     path: RULES_PATH,
-    rules: [],
     rejected: [
       { name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' },
       { name: 'A11y', reason: 'нет паттерна (pattern)' },
     ],
-    fetchedAt: '2026-10-11T09:35:00.000Z',
+    fetched_at: '2026-10-11T09:35:00.000Z',
   },
 }
 
 /**
- * История первого репозитория покрывает все статусы прогона, включая незавершённые: mock
- * должен рендерить каждый бейдж. Новые сверху; id свежего completed-прогона совпадает с
- * фикстурой экрана `/reviews/run-42`.
- */
-const HISTORY_BY_REPO: Record<string, HistoryRun[]> = {
-  [mockRepositoryId(1)]: [
-    {
-      id: 'run-42',
-      number: 42,
-      title: 'Чтение токена из окружения',
-      sourceBranch: 'feat/env-token',
-      status: 'completed',
-      createdAt: '2026-10-05T17:03:26Z',
-    },
-    {
-      id: 'run-41',
-      number: 41,
-      title: 'Отмена прогона при деплое соседнего сервиса',
-      sourceBranch: 'feat/bulk-export',
-      status: 'cancelled',
-      createdAt: '2026-10-04T12:10:00Z',
-    },
-    {
-      id: 'run-40',
-      number: 40,
-      title: 'Кэширование ответов ручки /metrics',
-      sourceBranch: 'fix/metrics-cache',
-      status: 'failed',
-      createdAt: '2026-10-03T09:45:00Z',
-    },
-    {
-      id: 'run-39',
-      number: 39,
-      title: 'Индекс для таблицы findings',
-      sourceBranch: 'feat/findings-index',
-      status: 'publishing',
-      createdAt: '2026-10-02T16:20:00Z',
-    },
-    {
-      id: 'run-38',
-      number: 38,
-      title: 'Рефакторинг парсера диффа',
-      sourceBranch: 'refactor/diff-parser',
-      status: 'analysing',
-      createdAt: '2026-10-01T11:05:00Z',
-    },
-    {
-      id: 'run-37',
-      number: 37,
-      title: 'Правки миграции схемы отзывов',
-      sourceBranch: 'fix/review-migration',
-      status: 'building_context',
-      createdAt: '2026-09-30T14:30:00Z',
-    },
-    {
-      id: 'run-36',
-      number: 36,
-      title: 'Экспорт отчётов в CSV',
-      sourceBranch: 'feat/csv-export',
-      status: 'queued',
-      createdAt: '2026-09-29T10:00:00Z',
-    },
-  ],
-  [mockRepositoryId(2)]: [],
-}
-
-/**
- * Хранилище настроек, статуса `.review/rules.md` и истории проверок mock adapter'а.
- * Отвечает только за подключённые репозитории: чужой id — 404, как у бэкенда.
+ * Хранилище настроек и статуса `.review/rules.md` mock adapter'а. Отвечает только за
+ * подключённые репозитории: чужой id — 404 `REPOSITORY_NOT_FOUND`, как у бэкенда.
+ * Истории здесь нет: список прогонов репозитория — та же ручка `GET /reviews` с фильтром
+ * `repository_id`, что и у вкладки «Ревью» (`reviewRuns.ts`).
  */
 export function createRepositorySettingsStore({
   findRepository,
+  onAutoReviewChange,
 }: {
   findRepository: (repositoryId: string) => Repository | undefined
+  /** Флаг авто-ревью — колонка репозитория: бэкенд обновил бы её тем же сохранением. */
+  onAutoReviewChange?: (repositoryId: string, enabled: boolean) => void
 }) {
   const settingsByRepo: Record<string, RepositorySettings> = structuredClone(SETTINGS_BY_REPO)
 
   const requireRepository = (repositoryId: string): Repository => {
     const repo = findRepository(repositoryId)
-    if (!repo) throw new ApiError(404, 'Репозиторий не найден', 'NOT_FOUND')
+    if (!repo) throw new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
     return repo
   }
 
@@ -180,9 +118,10 @@ export function createRepositorySettingsStore({
       return structuredClone(settingsByRepo[repositoryId] ?? DEFAULT_SETTINGS)
     },
 
-    saveSettings(repositoryId: string, draft: RepositorySettings): RepositorySettings {
+    saveSettings(repositoryId: string, draft: RepositorySettingsUpdate): RepositorySettings {
       requireRepository(repositoryId)
       settingsByRepo[repositoryId] = structuredClone(draft)
+      onAutoReviewChange?.(repositoryId, draft.auto_review_enabled)
       return structuredClone(settingsByRepo[repositoryId])
     },
 
@@ -192,11 +131,6 @@ export function createRepositorySettingsStore({
       if (status) return structuredClone(status)
       // У репозитория, подключённого после старта сессии, файла правил ещё нет.
       return { status: 'absent', branch: repo.default_branch, path: RULES_PATH }
-    },
-
-    history(repositoryId: string): HistoryRun[] {
-      requireRepository(repositoryId)
-      return structuredClone(HISTORY_BY_REPO[repositoryId] ?? [])
     },
   }
 }

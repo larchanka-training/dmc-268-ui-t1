@@ -4,10 +4,10 @@ export type {
   Repository,
 } from '@/entities/repository/model/schema'
 export type {
-  HistoryRun,
   RejectedRule,
   RepoRule,
   RepositorySettings,
+  RepositorySettingsUpdate,
   RulesLoadStatus,
   RulesStatus,
   SeverityLevel,
@@ -17,23 +17,20 @@ export {
   connectRepository,
   fetchAvailableRepositories,
   fetchConnectedRepositories,
-  fetchRepositoryHistory,
+  fetchRepository,
   fetchRepositorySettings,
   fetchRulesStatus,
   REPOSITORIES_PATH,
-  repositoryHistoryPath,
+  repositoryPath,
   repositoryRulesPath,
   repositorySettingsPath,
   saveRepositorySettings,
 } from '@/entities/repository/api/repositoryApi'
-export {
-  HistoryRunSchema,
-  RepositorySettingsSchema,
-  RulesStatusSchema,
-} from '@/entities/repository/model/settings'
+export { RepositorySettingsSchema, RulesStatusSchema } from '@/entities/repository/model/settings'
 export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'
 export { RulesPreview } from '@/entities/repository/ui/RulesPreview'
 export {
   SEVERITY_LEVEL_LABEL,
   SEVERITY_LEVEL_OPTIONS,
 } from '@/entities/repository/lib/severityLevelLabels'
+export { branchFilterProblem, normalizeBranchFilter } from '@/entities/repository/lib/branchFilter'

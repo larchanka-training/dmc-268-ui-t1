@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Button,
@@ -15,47 +15,45 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
+import { Link, useParams } from 'react-router-dom'
 import { formatDateTime } from '@/shared/lib'
+import { isNotImplemented, ApiError } from '@/shared/api'
+import { ErrorState, LinkButton } from '@/shared/ui'
 import {
+  branchFilterProblem,
+  normalizeBranchFilter,
   RulesPreview,
   RulesStatusBadge,
   SEVERITY_LEVEL_OPTIONS,
-  type HistoryRun,
   type RepositorySettings,
 } from '@/entities/repository'
-import { RunStatusBadge } from '@/entities/review-run'
+import { RunStatusBadge, type ReviewRunListItem } from '@/entities/review-run'
 import {
-  useConnectedRepositories,
+  repositoryKeys,
+  useRepository,
   useRepositoryHistory,
   useRepositorySettings,
   useRulesStatus,
   useSaveRepositorySettings,
 } from '@/features/repository'
 
-/** Ошибка одного блока: сообщение и повтор, соседние блоки продолжают работать. */
-function BlockError({
-  text,
-  onRetry,
-  error,
-  className,
-}: {
-  text: string
-  onRetry: () => void
-  error?: Error | null
-  className?: string
-}) {
+/** Повтор имеет смысл только после сетевой или серверной ошибки: 4xx повтор не изменит. */
+function isRetryable(error: unknown): boolean {
+  return !(error instanceof ApiError && error.status >= 400 && error.status < 500)
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.status === 404
+}
+
+/** Блок на ручке-заглушке: она описана в контракте, но бэкенд отвечает `501 NOT_IMPLEMENTED`. */
+function NotImplementedNote({ title }: { title: string }) {
   return (
     <Alert
-      className={className}
-      type="error"
+      type="info"
       showIcon
-      message={text}
-      description={error instanceof Error ? error.message : undefined}
-      action={
-        <Button size="small" onClick={onRetry}>
-          Повторить
-        </Button>
-      }
+      title={title}
+      description="Ручка описана в контракте API, но бэкенд ещё не реализовал её и отвечает заглушкой 501. Данные появятся, когда он заработает."
     />
   )
 }
@@ -74,14 +72,14 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
   if (isLoading) {
     return <Skeleton active paragraph={{ rows: 4 }} />
   }
-  // Полная ошибка — только без данных: упавший фоновый рефетч оставляет форму на месте,
-  // сверху — Alert с повтором (в v5 isError=true и при живом data из кэша).
   if (!data) {
+    if (isNotImplemented(error))
+      return <NotImplementedNote title="Настройки ревью пока недоступны" />
     return (
-      <BlockError
-        text="Не удалось загрузить настройки"
+      <ErrorState
+        title="Не удалось загрузить настройки"
         error={error}
-        onRetry={() => void refetch()}
+        onRetry={isRetryable(error) ? () => void refetch() : undefined}
       />
     )
   }
@@ -89,18 +87,27 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
   return (
     <div>
       {isError && (
-        <BlockError
-          className="page-error"
-          text="Не удалось обновить настройки — показаны сохранённые значения"
-          error={error}
-          onRetry={() => void refetch()}
-        />
+        // Упавший фоновый рефетч не заменяет форму (в v5 isError=true и при живом data
+        // из кэша): блок остаётся на сохранённых значениях, сверху — повтор.
+        <div className="page-error">
+          <ErrorState
+            title="Не удалось обновить настройки — показаны сохранённые значения"
+            error={error}
+            onRetry={isRetryable(error) ? () => void refetch() : undefined}
+          />
+        </div>
       )}
       <Form
         form={form}
         layout="vertical"
         onValuesChange={() => setIsDirty(true)}
-        onFinish={(values) => save.mutate(values, { onSuccess: () => setIsDirty(false) })}
+        onFinish={(values) =>
+          save.mutate(
+            // Нормализация под ограничения контракта: пустые и повторы не сохраняются.
+            { ...values, branch_filter: normalizeBranchFilter(values.branch_filter ?? []) },
+            { onSuccess: () => setIsDirty(false) },
+          )
+        }
         // Мутация ждёт invalidateQueries, поэтому isPending длится до прихода свежих данных:
         // поля заблокированы, пока форма и кэш могут расходиться (design.md — refetch не
         // затирает форму).
@@ -108,21 +115,28 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
         className="max-w-xl"
       >
         {save.isError && (
-          <Alert
-            className="page-error"
-            type="error"
-            showIcon
-            message="Не удалось сохранить настройки"
-            description={save.error instanceof Error ? save.error.message : 'Попробуйте позже'}
-          />
+          <div className="page-error">
+            <ErrorState title="Не удалось сохранить настройки" error={save.error} />
+          </div>
         )}
         {save.isSuccess && !isDirty && (
-          <Alert className="page-error" type="success" showIcon message="Настройки сохранены" />
+          <Alert className="page-error" type="success" showIcon title="Настройки сохранены" />
         )}
-        <Form.Item name="autoReviewEnabled" label="Авто-ревью" valuePropName="checked">
+        <Form.Item name="auto_review_enabled" label="Авто-ревью" valuePropName="checked">
           <Switch />
         </Form.Item>
-        <Form.Item name="branchFilter" label="Фильтр веток">
+        <Form.Item
+          name="branch_filter"
+          label="Фильтр веток"
+          rules={[
+            {
+              validator: (_, value: string[] | undefined) => {
+                const problem = branchFilterProblem(value ?? [])
+                return problem ? Promise.reject(new Error(problem)) : Promise.resolve()
+              },
+            },
+          ]}
+        >
           <Select
             mode="tags"
             open={false}
@@ -131,8 +145,13 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
             placeholder="feature/**, fix/**"
           />
         </Form.Item>
-        <Form.Item name="minSeverity" label="Порог severity">
-          <Radio.Group optionType="button" buttonStyle="solid" options={SEVERITY_LEVEL_OPTIONS} />
+        <Form.Item name="min_severity" label="Порог severity">
+          <Radio.Group
+            aria-label="Порог severity"
+            optionType="button"
+            buttonStyle="solid"
+            options={SEVERITY_LEVEL_OPTIONS}
+          />
         </Form.Item>
         <Space>
           <Button type="primary" htmlType="submit" loading={save.isPending}>
@@ -162,11 +181,12 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
     return <Skeleton active paragraph={{ rows: 6 }} />
   }
   if (!data) {
+    if (isNotImplemented(error)) return <NotImplementedNote title="Статус правил пока недоступен" />
     return (
-      <BlockError
-        text="Не удалось загрузить статус правил"
+      <ErrorState
+        title="Не удалось загрузить статус правил"
         error={error}
-        onRetry={() => void refetch()}
+        onRetry={isRetryable(error) ? () => void refetch() : undefined}
       />
     )
   }
@@ -174,10 +194,10 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
   return (
     <div className="flex flex-col gap-3">
       {isError && (
-        <BlockError
-          text="Не удалось обновить статус правил — показан последний загруженный"
+        <ErrorState
+          title="Не удалось обновить статус правил — показан последний загруженный"
           error={error}
-          onRetry={() => void refetch()}
+          onRetry={isRetryable(error) ? () => void refetch() : undefined}
         />
       )}
       <RulesStatusBadge status={data} />
@@ -186,93 +206,121 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
   )
 }
 
+const historyColumns: ColumnsType<ReviewRunListItem> = [
+  {
+    title: 'Запрос на изменение',
+    key: 'merge_request',
+    render: (_, run) => {
+      const mr = run.merge_request
+      return (
+        <Link to={`/reviews/${encodeURIComponent(run.id)}`}>
+          #{mr.number} {mr.title}
+        </Link>
+      )
+    },
+  },
+  {
+    title: 'Ветка',
+    key: 'source_branch',
+    render: (_, run) => run.merge_request.source_branch,
+  },
+  {
+    title: 'Статус',
+    key: 'status',
+    render: (_, run) => <RunStatusBadge status={run.status} />,
+  },
+  {
+    title: 'Время',
+    key: 'created_at',
+    render: (_, run) => formatDateTime(run.created_at),
+  },
+]
+
 function HistoryTable({ repositoryId }: { repositoryId: string }) {
   const { data, isLoading, isError, error, refetch } = useRepositoryHistory(repositoryId)
 
-  const columns: ColumnsType<HistoryRun> = [
-    {
-      title: 'Запрос на изменение',
-      dataIndex: 'title',
-      key: 'title',
-      render: (title: string, record) => <Link to={`/reviews/${record.id}`}>{title}</Link>,
-    },
-    { title: 'Ветка', dataIndex: 'sourceBranch', key: 'sourceBranch' },
-    {
-      title: 'Статус',
-      dataIndex: 'status',
-      key: 'status',
-      render: (status: string) => <RunStatusBadge status={status} />,
-    },
-    {
-      title: 'Время',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      render: (value: string) => formatDateTime(value),
-    },
-  ]
-
-  if (isError && !data) {
+  if (isLoading) {
+    return <Skeleton active paragraph={{ rows: 6 }} />
+  }
+  if (!data) {
+    if (isNotImplemented(error))
+      return <NotImplementedNote title="История проверок пока недоступна" />
     return (
-      <BlockError
-        text="Не удалось загрузить историю проверок"
+      <ErrorState
+        title="Не удалось загрузить историю проверок"
         error={error}
-        onRetry={() => void refetch()}
+        onRetry={isRetryable(error) ? () => void refetch() : undefined}
       />
     )
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {isError && data && (
-        <BlockError
-          text="Не удалось обновить историю проверок — показана последняя загруженная"
+      {isError && (
+        <ErrorState
+          title="Не удалось обновить историю проверок — показана последняя загруженная"
           error={error}
-          onRetry={() => void refetch()}
+          onRetry={isRetryable(error) ? () => void refetch() : undefined}
         />
       )}
       <Table
         rowKey="id"
         loading={isLoading}
-        columns={columns}
-        dataSource={data ?? []}
+        columns={historyColumns}
+        dataSource={data.items}
         pagination={false}
         locale={{ emptyText: 'Проверок ещё не было' }}
       />
+      {/* Первая страница списка прогонов; остальные — на вкладке «Ревью» с фильтром. */}
+      {data.total > data.items.length && (
+        <Link to={`/reviews?repository_id=${encodeURIComponent(repositoryId)}`}>
+          Остальные прогоны — на вкладке «Ревью»
+        </Link>
+      )}
     </div>
   )
 }
 
 export function RepositorySettingsPage() {
   const { repositoryId = '' } = useParams()
-  const reposQuery = useConnectedRepositories()
-  const repo = reposQuery.data?.find((r) => r.id === repositoryId)
+  const repoQuery = useRepository(repositoryId)
+  const queryClient = useQueryClient()
 
-  if (reposQuery.isLoading) {
+  // Репозиторий исчез (отключили, а ссылка осталась): список подключённых устарел.
+  useEffect(() => {
+    if (isNotFound(repoQuery.error)) {
+      void queryClient.invalidateQueries({ queryKey: repositoryKeys.connected })
+    }
+  }, [repoQuery.error, queryClient])
+
+  if (repoQuery.isLoading) {
     return <Skeleton active paragraph={{ rows: 8 }} />
   }
-  if (reposQuery.isError && !reposQuery.data) {
+  if (!repoQuery.data) {
+    if (isNotFound(repoQuery.error)) {
+      return (
+        <Result
+          status="404"
+          title="Репозиторий не найден"
+          subTitle="Репозитория с таким адресом нет среди подключённых."
+          extra={
+            <LinkButton to="/repositories" type="primary">
+              К списку репозиториев
+            </LinkButton>
+          }
+        />
+      )
+    }
     return (
-      <BlockError
-        text="Не удалось загрузить репозитории"
-        error={reposQuery.error}
-        onRetry={() => void reposQuery.refetch()}
+      <ErrorState
+        title="Не удалось загрузить репозиторий"
+        error={repoQuery.error}
+        onRetry={isRetryable(repoQuery.error) ? () => void repoQuery.refetch() : undefined}
       />
     )
   }
-  if (!repo) {
-    return (
-      <Result
-        status="404"
-        title="Репозиторий не найден"
-        subTitle="Репозитория с таким адресом нет среди подключённых."
-        extra={
-          <Link to="/repositories">
-            <Button type="primary">К списку репозиториев</Button>
-          </Link>
-        }
-      />
-    )
-  }
+
+  const repo = repoQuery.data
 
   return (
     <div>
@@ -283,27 +331,25 @@ export function RepositorySettingsPage() {
           </Typography.Title>
           <Typography.Text type="secondary">{repo.full_name}</Typography.Text>
         </div>
-        <Link to="/repositories">
-          <Button>К списку репозиториев</Button>
-        </Link>
+        <LinkButton to="/repositories">К списку репозиториев</LinkButton>
       </div>
-      {reposQuery.isError && reposQuery.data && (
-        <BlockError
-          className="page-error"
-          text="Не удалось обновить список репозиториев — показан последний загруженный"
-          error={reposQuery.error}
-          onRetry={() => void reposQuery.refetch()}
+      {repoQuery.isError && (
+        <ErrorState
+          title="Не удалось обновить репозиторий — показан последний загруженный"
+          error={repoQuery.error}
+          onRetry={isRetryable(repoQuery.error) ? () => void repoQuery.refetch() : undefined}
         />
       )}
+      {/* Ключ перемонтирует блоки при смене репозитория: черновик формы и данные не переезжают. */}
       <div className="flex flex-col gap-4">
         <Card title="Настройки ревью">
-          <SettingsForm repositoryId={repositoryId} />
+          <SettingsForm key={repositoryId} repositoryId={repositoryId} />
         </Card>
         <Card title="Правила ревью">
-          <RulesPanel repositoryId={repositoryId} />
+          <RulesPanel key={repositoryId} repositoryId={repositoryId} />
         </Card>
         <Card title="История проверок">
-          <HistoryTable repositoryId={repositoryId} />
+          <HistoryTable key={repositoryId} repositoryId={repositoryId} />
         </Card>
       </div>
     </div>

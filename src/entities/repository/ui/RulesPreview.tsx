@@ -1,24 +1,17 @@
 import { TextWithCode } from '@/shared/ui'
-import {
-  isRulesApplied,
-  type RepoRule,
-  type RejectedRule,
-  type RulesLoadStatus,
-  type RulesStatus,
-} from '../model/settings'
+import type { RepoRule, RejectedRule, RulesStatus } from '../model/settings'
 
 /**
- * Любой исход без применимых правил — дефолтный фоллбэк (api#49): всё, кроме `loaded` с
- * правилами, включая `loaded` с пустым `rules`. У отсутствующего файла есть предложение
- * создать его.
+ * Любой исход без применимых правил — дефолтный фоллбэк (`RulesStatusResponse` контракта).
+ * У отсутствующего файла есть предложение создать его.
  */
-const FALLBACK_TEXT: Record<Exclude<RulesLoadStatus, 'loaded'>, string> = {
+const FALLBACK_TEXT: Record<Exclude<RulesStatus['status'], 'loaded' | 'empty'>, string> = {
   absent: 'Используются дефолтные правила, создайте `.review/rules.md`',
   too_large: 'Файл `.review/rules.md` больше лимита — ревью идёт по стандартным критериям',
   unavailable: 'Не удалось получить `.review/rules.md` — ревью идёт по стандартным критериям',
 }
 
-/** `loaded` без правил: файл пуст или все разделы отклонены (api#49). */
+/** `empty`: файл разобран, но ни один раздел не стал правилом. */
 const EMPTY_RULES_TEXT =
   'Из `.review/rules.md` не собралось ни одного правила — ревью идёт по стандартным критериям'
 
@@ -82,12 +75,23 @@ function RejectedRules({ rejected }: { rejected: RejectedRule[] }) {
 
 /**
  * Превью распарсенных правил `.review/rules.md` в режиме read-only: правило — имя, паттерны
- * области действия и нумерованные проверки (формат api#49); отклонённые разделы — с
- * причиной. Если файл загружен, но применимых правил нет — сообщение про стандартные
- * критерии, отклонённые разделы остаются видны. Парсинга markdown во фронтенде нет — adapter
- * отдаёт готовые правила. Read-only достигается отсутствием полей ввода.
+ * области действия и нумерованные проверки; отклонённые разделы — с причиной. Если файл
+ * загружен, но применимых правил нет (`empty`), — сообщение про стандартные критерии,
+ * отклонённые разделы остаются видны. Парсинга markdown во фронтенде нет — ручка отдаёт
+ * готовые правила. Read-only достигается отсутствием полей ввода.
  */
 export function RulesPreview({ status }: { status: RulesStatus }) {
+  if (status.status === 'empty') {
+    return (
+      <div className="flex flex-col gap-4">
+        <p role="note" className={NOTE_CLASS}>
+          <TextWithCode text={EMPTY_RULES_TEXT} />
+        </p>
+        <RejectedRules rejected={status.rejected} />
+      </div>
+    )
+  }
+
   if (status.status !== 'loaded') {
     return (
       <p role="note" className={NOTE_CLASS}>
@@ -98,11 +102,6 @@ export function RulesPreview({ status }: { status: RulesStatus }) {
 
   return (
     <div className="flex flex-col gap-4">
-      {!isRulesApplied(status) && (
-        <p role="note" className={NOTE_CLASS}>
-          <TextWithCode text={EMPTY_RULES_TEXT} />
-        </p>
-      )}
       {status.rules.map((rule, index) => (
         <RuleBlock key={index} rule={rule} />
       ))}

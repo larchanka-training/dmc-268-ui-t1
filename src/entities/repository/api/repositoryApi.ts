@@ -7,11 +7,10 @@ import {
   type Repository,
 } from '@/entities/repository/model/schema'
 import {
-  HistoryRunSchema,
   RepositorySettingsSchema,
   RulesStatusSchema,
-  type HistoryRun,
   type RepositorySettings,
+  type RepositorySettingsUpdate,
   type RulesStatus,
 } from '@/entities/repository/model/settings'
 import { parseResponse, type ApiTransport } from '@/shared/api'
@@ -42,20 +41,25 @@ export async function connectRepository(
   return parseResponse(RepositorySchema, path, await transport.post(path, request))
 }
 
-/**
- * Пути блока настроек. Ручек в контракте бэкенда ещё нет (#28, домен api#49): форма ответа
- * закреплена в `model/settings.ts` и станет схемой этих ручек, когда они появятся.
- */
+export async function fetchRepository(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<Repository> {
+  const path = repositoryPath(repositoryId)
+  return parseResponse(RepositorySchema, path, await transport.get(path))
+}
+
+/** Ручки блока настроек — `GET/PUT …/settings` и `GET …/rules` контракта (заглушки 501). */
+export function repositoryPath(repositoryId: string) {
+  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}`
+}
+
 export function repositorySettingsPath(repositoryId: string) {
-  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/settings`
+  return `${repositoryPath(repositoryId)}/settings`
 }
 
 export function repositoryRulesPath(repositoryId: string) {
-  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/rules`
-}
-
-export function repositoryHistoryPath(repositoryId: string) {
-  return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}/history`
+  return `${repositoryPath(repositoryId)}/rules`
 }
 
 export async function fetchRepositorySettings(
@@ -74,19 +78,12 @@ export async function fetchRulesStatus(
   return parseResponse(RulesStatusSchema, path, await transport.get(path))
 }
 
-export async function fetchRepositoryHistory(
-  transport: ApiTransport,
-  repositoryId: string,
-): Promise<HistoryRun[]> {
-  const path = repositoryHistoryPath(repositoryId)
-  return parseResponse(HistoryRunSchema.array(), path, await transport.get(path))
-}
-
+/** Сохранение — `PUT` полной заменой, как в контракте. */
 export async function saveRepositorySettings(
   transport: ApiTransport,
   repositoryId: string,
-  settings: RepositorySettings,
+  settings: RepositorySettingsUpdate,
 ): Promise<RepositorySettings> {
   const path = repositorySettingsPath(repositoryId)
-  return parseResponse(RepositorySettingsSchema, path, await transport.post(path, settings))
+  return parseResponse(RepositorySettingsSchema, path, await transport.put(path, settings))
 }
