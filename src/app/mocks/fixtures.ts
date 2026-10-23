@@ -9,6 +9,7 @@ import type { ReviewFinding } from '../../entities/review-finding'
 import type { ReviewRun } from '../../entities/review-run'
 import type { ReviewRunStep } from '../../entities/review-run-step'
 import type { ReviewRunResponse } from '../../pages/review-run'
+import { mockRepositoryId } from './repositories'
 
 /**
  * Mock-данные одного прогона в форме контракта бэкенда: прогон (`ReviewRunResponse`), дифф
@@ -29,8 +30,12 @@ export const run: ReviewRun = {
     source_branch: 'feat/findings-endpoint',
     target_branch: 'develop',
     state: 'open',
-    url: 'https://github.com/acme/review-service/pull/42',
-    repository: { id: 'repo-1', provider: 'github', full_name: 'acme/review-service' },
+    url: 'https://github.com/larchanka-training/platform-api/pull/42',
+    repository: {
+      id: mockRepositoryId(1),
+      provider: 'github',
+      full_name: 'larchanka-training/platform-api',
+    },
   },
   head_sha: '9f3c2a17e4b8d6c0a5f1',
   base_sha: '2b7e41d09c3a8f6e1d24',

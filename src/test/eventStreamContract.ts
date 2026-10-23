@@ -9,16 +9,16 @@ import type { EventStream, StreamState } from '../shared/api'
 export type EventStreamHarness = {
   stream: EventStream
   path: string
-  /** Соединение открылось, пришёл снимок: `{ review_run_id: 'run-7', status: 'queued' }`. */
+  /** Соединение открылось. */
   serverConnects: () => void
+  /** Сервер шлёт `run.status_changed` с данными прогона. */
+  serverSendsRunEvent: () => void
   /** Проходит время, сервер продолжает слать события. */
   serverKeepsTalking: () => void
   /** Соединение закрыто и ничего не ждёт: ни сокета, ни таймеров. */
   isClosed: () => boolean
   dispose: () => void
 }
-
-export const CONTRACT_RUN_ID = 'run-7'
 
 /** Общий контракт `EventStream`: то, что обязана делать любая реализация. */
 export function describeEventStreamContract(name: string, makeHarness: () => EventStreamHarness) {
@@ -46,10 +46,12 @@ export function describeEventStreamContract(name: string, makeHarness: () => Eve
       const { harness, states, events } = listen()
 
       harness.serverConnects()
-
       expect(states).toEqual(['connecting', 'open'])
-      expect(events).toEqual([
-        ['status', expect.objectContaining({ review_run_id: CONTRACT_RUN_ID, status: 'queued' })],
+
+      harness.serverSendsRunEvent()
+      expect(events).toContainEqual([
+        'run.status_changed',
+        expect.objectContaining({ id: expect.any(String), status: expect.any(String) }),
       ])
       harness.dispose()
     })

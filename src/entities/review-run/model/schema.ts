@@ -91,28 +91,91 @@ export function isKnownStatus(status: string): status is KnownRunStatus {
 }
 
 /**
- * Событие `status` из `GET /api/v1/reviews/{id}/events` (контракт — в design.md change
- * `review-run-live-status`). `status` — любая строка, как в `ReviewRunSchema`.
+ * Прогон строкой списка (`ReviewRunListItem` контракта): те же данные приходят в событиях `run.*`
+ * общего потока `GET /api/v1/events`. `status` — любая строка, как в `ReviewRunSchema`.
  */
-export const RunStatusEventSchema = z.object({
-  review_run_id: z.string(),
+export const ReviewRunListItemSchema = z.object({
+  id: z.string(),
   status: z.string(),
+  trigger: z.enum(['webhook', 'manual', 'mention']),
+  head_sha: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
   last_progress_at: z.string(),
+  duration_seconds: z.number().nullable(),
   failed_stage: z.enum(RUN_STAGES).nullable(),
-  failure_reason: z.string().nullable(),
+  findings_count: z.number().int(),
+  merge_request: MergeRequestSummarySchema,
 })
 
-export type RunStatusEvent = z.infer<typeof RunStatusEventSchema>
+export type ReviewRunListItem = z.infer<typeof ReviewRunListItemSchema>
 
-/** Накладывает событие на прогон: обновляются только поля статуса, остальное не трогаем. */
-export function applyStatusEvent(run: ReviewRun, event: RunStatusEvent): ReviewRun {
+/** События прогона в общем потоке; данные у всех — `ReviewRunListItem`. */
+export const RUN_EVENT_TYPES = ['run.created', 'run.status_changed', 'run.finished'] as const
+
+export type RunEventType = (typeof RUN_EVENT_TYPES)[number]
+
+export function isRunEventType(type: string): type is RunEventType {
+  return (RUN_EVENT_TYPES as readonly string[]).includes(type)
+}
+
+// Формат времени контракта: UTC с `Z`, дробная часть секунд — от 1 до 6 знаков.
+const CONTRACT_INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?Z$/
+
+/** Момент контракта строкой фиксированной ширины с микросекундами: такие строки сравнимы как есть. */
+function toMicros(value: string): string | null {
+  const match = CONTRACT_INSTANT.exec(value)
+  return match ? `${match[1]}.${(match[2] ?? '').padEnd(6, '0')}` : null
+}
+
+/**
+ * Из двух версий строки новее та, у которой `updated_at` больше, при равном — пришедшая позже
+ * (правило контракта `GET /api/v1/events`). Дробная часть секунд у бэкенда переменной длины, до
+ * микросекунд: дополняем её до 6 знаков и сравниваем строки — `Date.parse` режет до миллисекунд.
+ * Строку вне формата контракта сравниваем через `Date.parse`.
+ */
+export function isSameOrNewer(incoming: string, current: string): boolean {
+  const a = toMicros(incoming)
+  const b = toMicros(current)
+  if (a !== null && b !== null) return a >= b
+  return Date.parse(incoming) >= Date.parse(current)
+}
+
+/** Поля прогона, которые несут события `run.*`: их версия определяется `updated_at`. */
+type RunStatusFields = Pick<
+  ReviewRun,
+  'status' | 'last_progress_at' | 'failed_stage' | 'duration_seconds' | 'updated_at'
+>
+
+function statusFields(source: RunStatusFields): RunStatusFields {
   return {
-    ...run,
-    status: event.status,
-    last_progress_at: event.last_progress_at,
-    failed_stage: event.failed_stage,
-    failure_reason: event.failure_reason,
+    status: source.status,
+    last_progress_at: source.last_progress_at,
+    failed_stage: source.failed_stage,
+    duration_seconds: source.duration_seconds,
+    updated_at: source.updated_at,
   }
+}
+
+/**
+ * Накладывает событие прогона на прогон: обновляются поля статуса и прогресса, остальное не
+ * трогаем. Событие старше данных в кэше проигрывает: прогон возвращается как есть.
+ */
+export function applyRunEvent<T extends ReviewRun>(run: T, event: ReviewRunListItem): T {
+  if (!isSameOrNewer(event.updated_at, run.updated_at)) return run
+  return { ...run, ...statusFields(event) }
+}
+
+/**
+ * Сводит снимок прогона из REST с тем, что уже лежит в кэше. Снимок могли прочитать до события,
+ * которое пришло раньше ответа: тогда его статусные поля старше кэша по `updated_at` и
+ * проигрывают, а остальное (замечания, вердикт, причина сбоя) берётся из снимка. При равном
+ * `updated_at` снимок, пришедший позже, побеждает целиком.
+ */
+export function mergeRunSnapshot<T extends ReviewRun>(cached: T | undefined, snapshot: T): T {
+  if (cached === undefined || cached.id !== snapshot.id) return snapshot
+  if (isSameOrNewer(snapshot.updated_at, cached.updated_at)) return snapshot
+  return { ...snapshot, ...statusFields(cached) }
 }
 
 /** Статус шире enum контракта намеренно (см. `ReviewRunSchema.status`), остальное — поле в поле. */
@@ -123,6 +186,7 @@ const contractCheck: [
     WithoutStatus<ReviewRun>,
     WithoutStatus<Omit<ApiSchemas['ReviewRunResponse'], 'findings' | 'published_comments'>>
   >,
-  MatchesContract<WithoutStatus<RunStatusEvent>, WithoutStatus<ApiSchemas['ReviewRunStatusEvent']>>,
-] = [true, true]
+  MatchesContract<WithoutStatus<ReviewRunListItem>, WithoutStatus<ApiSchemas['ReviewRunListItem']>>,
+  MatchesContract<RunEventType, Exclude<ApiSchemas['StreamEventType'], 'ping'>>,
+] = [true, true, true]
 void contractCheck

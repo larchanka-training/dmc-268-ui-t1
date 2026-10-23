@@ -10,6 +10,7 @@ import { mockDiff, mockReview, mockSteps } from './fixtures'
 import type { MockServer } from './mockServer'
 import { createRepositoryStore } from './repositories'
 import { createRepositorySettingsStore } from './repositorySettings'
+import { createReviewRunStore } from './reviewRuns'
 
 /**
  * Mock adapter с той же границей, что и HTTP-клиент: пути и формы ответов — как в контракте
@@ -19,7 +20,8 @@ import { createRepositorySettingsStore } from './repositorySettings'
  * mock-поток событий. Пока прогон не завершён, замечаний, публикаций и шагов нет; к
  * завершению они приходят из фикстуры. Дифф есть сразу: его получают до анализа. Без `server` отдаётся готовый завершённый прогон.
  *
- * Прогон в фикстуре один, `/reviews/run-42`; любой другой путь — 404, как у бэкенда.
+ * Экран прогона есть у одного прогона, `/reviews/run-42`; список `/reviews` — он, чужой прогон
+ * потока и сгенерированные прогоны (`reviewRuns.ts`). Любой другой путь — 404, как у бэкенда.
  * Настройки, статус правил и история живут в своём store и отвечают схемам
  * `model/settings.ts` — ручек в контракте бэкенда для них ещё нет (#28, api#49).
  */
@@ -31,6 +33,7 @@ export function createMockAdapter({
   const repositorySettings = createRepositorySettingsStore({
     findRepository: (repositoryId) => repositories.find(repositoryId),
   })
+  const reviewRuns = createReviewRunStore(server)
 
   const runNow = (): ReviewRunResponse => {
     // Копия, как после сети: UI не должен мутировать фикстуры.
@@ -43,6 +46,8 @@ export function createMockAdapter({
       ...review,
       status: step.status,
       last_progress_at: new Date(server.enteredAt(index)).toISOString(),
+      // Строка меняется ровно на переходах сценария: так событие и снимок сравнимы по `updated_at`.
+      updated_at: new Date(server.enteredAt(index)).toISOString(),
       failed_stage: step.failed_stage ?? null,
       failure_reason: step.failure_reason ?? null,
       findings: finished ? review.findings : [],
@@ -69,7 +74,8 @@ export function createMockAdapter({
   }
 
   const get = (path: string): unknown => {
-    const route = path.split('?')[0]
+    const [route, search = ''] = path.split('?')
+    if (route === '/reviews') return reviewRuns.list(search)
     if (route === '/repositories') return repositories.list()
     if (route === '/repositories/available') return repositories.available()
     // `/repositories/{id}/settings|rules|history` — блок настроек вне контракта (#29).

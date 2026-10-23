@@ -5,6 +5,16 @@ import type {
 } from '../../entities/repository'
 import { ApiError } from '../../shared/api'
 
+/**
+ * Id подключённого репозитория `n` (с единицы, по порядку подключения). В контракте id
+ * репозитория — uuid, и фильтр `repository_id` вкладки «Ревью» другие значения отбрасывает,
+ * поэтому моки отдают uuid. Им же ссылаются на репозиторий прогоны из `fixtures.ts` и
+ * `reviewRuns.ts`: 1 — `platform-api`, 2 — `docs`.
+ */
+export function mockRepositoryId(n: number): string {
+  return `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
+}
+
 /** Репозиторий установки GitHub App, ещё не обязательно подключённый. */
 type InstallationRepository = Omit<AvailableRepository, 'already_connected'>
 
@@ -22,7 +32,7 @@ const installation: InstallationRepository[] = [
 }))
 
 const registered = (repo: InstallationRepository, n: number, at: string): Repository => ({
-  id: `repo-${n}`,
+  id: mockRepositoryId(n),
   provider: repo.provider,
   provider_id: repo.provider_id,
   full_name: repo.full_name,
@@ -41,7 +51,7 @@ export function createRepositoryStore() {
     registered(installation[0], 1, '2026-09-20T10:00:00Z'),
     // `auto_review_enabled` выключен, как в фикстуре настроек: список и экран настроек сходятся.
     { ...registered(installation[1], 2, '2026-09-22T14:15:00Z'), auto_review_enabled: false },
-    // repo-3 — сценарий «файл правил есть, но применимых правил нет» (repositorySettings).
+    // Третий репозиторий — сценарий «файл правил есть, но применимых правил нет» (repositorySettings).
     registered(installation[4], 3, '2026-09-25T09:00:00Z'),
   ]
   const isConnected = (repo: InstallationRepository) =>

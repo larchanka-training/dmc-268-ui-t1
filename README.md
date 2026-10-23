@@ -82,11 +82,14 @@ httpOnly cookie `session`. Кабинет берёт профиль из `GET /a
 Дополнительные переменные (опционально). `VITE_USE_MOCK_API`, `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
 читаются из `.env`, `.env.local` и окружения оболочки:
 
-| Переменная              | По умолчанию            | Описание                                                                                                           |
-| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `VITE_USE_MOCK_API`     | `true`                  | `false` — мока нет: данные кабинета и вход идут на бэкенд, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` |
-| `VITE_API_PROXY_TARGET` | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`                                                      |
-| `VITE_API_BASE_URL`     | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                                                       |
+| Переменная               | По умолчанию            | Описание                                                                                                                   |
+| ------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `VITE_USE_MOCK_API`      | `true`                  | `false` — мока нет: данные кабинета и вход идут на бэкенд, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET`         |
+| `VITE_API_PROXY_TARGET`  | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`                                                              |
+| `VITE_API_BASE_URL`      | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                                                               |
+| `VITE_OTEL_EXPORTER_URL` | —                       | Приёмник OTLP/HTTP для ошибок и трейсов кабинета, путь на том же адресе (`/otlp/v1/traces`). Без него телеметрия выключена |
+| `VITE_OTEL_ENVIRONMENT`  | `local`                 | `deployment.environment.name` телеметрии                                                                                   |
+| `VITE_APP_VERSION`       | `dev`                   | `service.version` телеметрии; при деплое — sha коммита                                                                     |
 
 Против настоящего бэкенда: `VITE_USE_MOCK_API=false pnpm dev`. Прокси не переписывает путь и пропускает
 cookie, а `Origin` браузера остаётся `http://localhost:3000` — поэтому у API должен стоять

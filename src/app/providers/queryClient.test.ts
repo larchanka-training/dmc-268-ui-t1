@@ -12,6 +12,10 @@ describe('shouldRetry', () => {
     expect(shouldRetry(0, new ApiError(404, 'нет'))).toBe(false)
   })
 
+  it('501 ручки-заглушки не повторяется', () => {
+    expect(shouldRetry(0, new ApiError(501, 'не реализовано', 'NOT_IMPLEMENTED'))).toBe(false)
+  })
+
   it('5xx и сбой сети повторяются, но не больше двух раз', () => {
     expect(shouldRetry(0, new ApiError(503, 'недоступно'))).toBe(true)
     expect(shouldRetry(1, new TypeError('Failed to fetch'))).toBe(true)

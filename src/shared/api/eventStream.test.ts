@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  CONTRACT_RUN_ID,
   describeEventStreamContract,
   type EventStreamHarness,
 } from '../../test/eventStreamContract'
@@ -45,21 +44,26 @@ class FakeEventSource {
   }
 }
 
+const EVENTS = '/api/v1/events'
+const EVENT_TYPES = ['run.status_changed', 'run.finished'] as const
+
 function eventSourceHarness(): EventStreamHarness {
   FakeEventSource.instances = []
   vi.stubGlobal('EventSource', FakeEventSource)
   vi.useFakeTimers()
   return {
-    stream: createEventSourceStream(),
-    path: `/api/v1/reviews/${CONTRACT_RUN_ID}/events`,
+    stream: createEventSourceStream({ eventTypes: EVENT_TYPES }),
+    path: EVENTS,
     serverConnects: () => {
+      FakeEventSource.instances[0].onopen?.()
+    },
+    serverSendsRunEvent: () => {
       const source = FakeEventSource.instances[0]
-      source.onopen?.()
-      source.send('status', JSON.stringify({ review_run_id: CONTRACT_RUN_ID, status: 'queued' }))
+      source.send('run.status_changed', JSON.stringify({ id: 'run-7', status: 'queued' }))
     },
     serverKeepsTalking: () => {
       const source = FakeEventSource.instances[0]
-      source.send('status', JSON.stringify({ review_run_id: CONTRACT_RUN_ID, status: 'analysing' }))
+      source.send('run.status_changed', JSON.stringify({ id: 'run-7', status: 'analysing' }))
       vi.advanceTimersByTime(SILENCE_LIMIT * 2)
     },
     isClosed: () =>
@@ -85,7 +89,7 @@ describe('createEventSourceStream', () => {
   function open() {
     const states: StreamState[] = []
     const events: [string, unknown][] = []
-    const unsubscribe = createEventSourceStream().subscribe('/api/v1/reviews/run-1/events', {
+    const unsubscribe = createEventSourceStream({ eventTypes: EVENT_TYPES }).subscribe(EVENTS, {
       onEvent: (type, data) => events.push([type, data]),
       onStateChange: (state) => states.push(state),
     })
@@ -95,7 +99,7 @@ describe('createEventSourceStream', () => {
   it('подключается с cookie сессии', () => {
     const { source, states } = open()
 
-    expect(source.url).toBe('/api/v1/reviews/run-1/events')
+    expect(source.url).toBe('/api/v1/events')
     expect(source.init).toEqual({ withCredentials: true })
     expect(states).toEqual(['connecting'])
   })
@@ -103,13 +107,31 @@ describe('createEventSourceStream', () => {
   it('отдаёт разобранный JSON события, а не JSON — строкой', () => {
     const { source, events } = open()
 
-    source.send('status', '{"status":"analysing"}')
-    source.send('status', 'не json')
+    source.send('run.status_changed', '{"status":"analysing"}')
+    source.send('run.finished', 'не json')
 
     expect(events).toEqual([
-      ['status', { status: 'analysing' }],
-      ['status', 'не json'],
+      ['run.status_changed', { status: 'analysing' }],
+      ['run.finished', 'не json'],
     ])
+  })
+
+  it('события типов вне списка до подписчика не доходят', () => {
+    const { source, events } = open()
+
+    source.send('repository.synced', '{"id":"repo-1"}')
+
+    expect(events).toEqual([])
+  })
+
+  it('сообщает open на каждое соединение, в том числе после переподключения браузера', () => {
+    const { source, states } = open()
+
+    source.onopen?.()
+    source.onerror?.()
+    source.onopen?.()
+
+    expect(states).toEqual(['connecting', 'open', 'reconnecting', 'open'])
   })
 
   it('различает обрыв с переподключением и отказ сервера', () => {
@@ -156,9 +178,9 @@ describe('createEventSourceStream', () => {
       const { events } = open()
       vi.advanceTimersByTime(SILENCE_LIMIT)
 
-      FakeEventSource.instances[1].send('status', '{"status":"analysing"}')
+      FakeEventSource.instances[1].send('run.status_changed', '{"status":"analysing"}')
 
-      expect(events).toEqual([['status', { status: 'analysing' }]])
+      expect(events).toEqual([['run.status_changed', { status: 'analysing' }]])
     })
 
     it('события старого соединения после переоткрытия не доходят и не двигают таймер', () => {
@@ -167,7 +189,7 @@ describe('createEventSourceStream', () => {
       expect(FakeEventSource.instances).toHaveLength(2)
 
       vi.advanceTimersByTime(5_000)
-      source.sendLate('status', '{"status":"publishing"}')
+      source.sendLate('run.status_changed', '{"status":"publishing"}')
       source.sendLate('ping')
 
       expect(events).toEqual([])
@@ -188,11 +210,11 @@ describe('createEventSourceStream', () => {
       expect(events).toEqual([])
     })
 
-    it('событие status тоже сбрасывает таймер', () => {
+    it('событие прогона тоже сбрасывает таймер', () => {
       const { source } = open()
 
       vi.advanceTimersByTime(SILENCE_LIMIT - 1)
-      source.send('status', '{"status":"analysing"}')
+      source.send('run.status_changed', '{"status":"analysing"}')
       vi.advanceTimersByTime(SILENCE_LIMIT - 1)
 
       expect(FakeEventSource.instances).toHaveLength(1)

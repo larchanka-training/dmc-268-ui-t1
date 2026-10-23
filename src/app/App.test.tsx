@@ -9,11 +9,15 @@ import { ME, stubFetch } from '@/test/api'
 import { createMockAdapter } from './mocks/mockAdapter'
 import { createScenarioEventStream } from './mocks/mockEventStream'
 import { createMockServer, FAILED_SCENARIO } from './mocks/mockServer'
+import { mockRepositoryId } from './mocks/repositories'
 
 const STEP_MS = 4_000
 
+/** Глубокая ссылка на настройки первого подключённого репозитория mock adapter. */
+const SETTINGS_URL = `/app/repositories/${mockRepositoryId(1)}/settings`
+
 /** Собирает приложение на mock adapter и mock-потоке с общим «сервером» и считает обращения. */
-function setup(scenario?: Parameters<typeof createMockServer>[0]) {
+function setup(scenario?: Parameters<typeof createMockServer>[0], url = '/app/reviews/run-42') {
   const server = createMockServer({ ...scenario, stepMs: STEP_MS })
   const adapter = createMockAdapter({ latencyMs: 0, server })
   const stream = createScenarioEventStream(server)
@@ -34,7 +38,7 @@ function setup(scenario?: Parameters<typeof createMockServer>[0]) {
   }
   // Экран прогона под `RequireAuth`: сессия жива, данные прогона — из mock adapter.
   stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
-  window.history.pushState({}, '', '/app/reviews/run-42')
+  window.history.pushState({}, '', url)
   render(<App transport={transport} eventStream={eventStream} />)
   return { calls }
 }
@@ -113,28 +117,28 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/app/repositories')
   })
 
-  it('без сессии уводит с /app/repositories/repo-1/settings на /login с возвратом на настройки', async () => {
-    window.history.pushState({}, '', '/app/repositories/repo-1/settings')
+  it('без сессии уводит со страницы настроек на /login с возвратом на настройки', async () => {
+    window.history.pushState({}, '', SETTINGS_URL)
     stubFetch({ 'GET /api/v1/auth/me': { status: 401 } })
 
     render(<App />)
 
     await waitFor(() =>
       expect(navigation.assign).toHaveBeenCalledWith(
-        '/login?redirect=%2Fapp%2Frepositories%2Frepo-1%2Fsettings',
+        `/login?redirect=${encodeURIComponent(SETTINGS_URL)}`,
       ),
     )
     expect(screen.queryByText('Настройки репозитория')).not.toBeInTheDocument()
   })
 
-  it('с сессией глубокая ссылка /app/repositories/repo-1/settings открывает экран настроек', async () => {
-    window.history.pushState({}, '', '/app/repositories/repo-1/settings')
+  it('с сессией глубокая ссылка на настройки репозитория открывает экран настроек', async () => {
+    window.history.pushState({}, '', SETTINGS_URL)
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
 
     render(<App />)
 
     expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
-    expect(window.location.pathname).toBe('/app/repositories/repo-1/settings')
+    expect(window.location.pathname).toBe(SETTINGS_URL)
   })
 
   it('неизвестный адрес под /app уводит на /app/', async () => {
@@ -164,7 +168,8 @@ describe('App на mock adapter и mock-потоке', () => {
     const { calls } = setup()
 
     expect(await screen.findByText('В очереди', { selector: 'span' })).toBeInTheDocument()
-    expect(calls).toEqual({ get: 1, subscribe: 1 })
+    // Первая загрузка и снимок после open потока: истории у потока нет.
+    await waitFor(() => expect(calls).toEqual({ get: 2, subscribe: 1 }))
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 3))
@@ -180,17 +185,18 @@ describe('App на mock adapter и mock-потоке', () => {
         /Публикация.*выполняется/,
       ),
     )
-    expect(calls.get).toBe(1)
+    // События чужого прогона и незнакомого типа экран пропустил: перезапросов не было.
+    expect(calls.get).toBe(2)
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS))
 
     // Замечания и вердикт приходят перезапросом, который вызвало терминальное событие.
     expect(await screen.findByLabelText(/^Вердикт:/)).toBeInTheDocument()
     expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
   })
 
   it('сценарий сбоя заканчивается failed с этапом и причиной, без новых подписок', async () => {
@@ -204,6 +210,22 @@ describe('App на mock adapter и mock-потоке', () => {
     expect(within(progress()).getByText('LLM не ответила за отведённое время')).toBeInTheDocument()
 
     await act(() => vi.advanceTimersByTimeAsync(STEP_MS * 10))
-    expect(calls).toEqual({ get: 2, subscribe: 1 })
+    expect(calls).toEqual({ get: 3, subscribe: 1 })
+  })
+
+  it('вкладка «Ревью»: список из мока, статус прогона меняется по потоку без перезагрузки', async () => {
+    setup(undefined, '/app/reviews')
+
+    expect(await screen.findByText('Найдено прогонов: 30')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Ревью/ })).toBeInTheDocument()
+    const row = () => {
+      const title = screen.getByText('#42 Эндпоинт замечаний прогона и повтор запросов к БД')
+      return title.closest('tr') as HTMLElement
+    }
+    expect(within(row()).getByText('В очереди')).toBeInTheDocument()
+
+    await act(() => vi.advanceTimersByTimeAsync(STEP_MS))
+
+    await waitFor(() => expect(within(row()).getByText('Сбор контекста')).toBeInTheDocument())
   })
 })

@@ -22,15 +22,16 @@ export async function apiFetch(
   const response = await fetch(`${API_V1_BASE_URL}${path}`, { ...init, credentials: 'include' })
   if (response.status === 401) {
     if (redirectOn401) redirectToLogin()
-    const { code, detail } = await readProblem(response)
-    throw new ApiError(401, detail ?? 'Требуется вход', code)
+    const { code, detail, traceId } = await readProblem(response)
+    throw new ApiError(401, detail ?? 'Требуется вход', code, traceId)
   }
   if (!response.ok) {
-    const { code, detail } = await readProblem(response)
+    const { code, detail, traceId } = await readProblem(response)
     throw new ApiError(
       response.status,
       detail ?? `Запрос ${path} завершился ошибкой ${response.status}`,
       code,
+      traceId,
     )
   }
   return response
@@ -40,22 +41,29 @@ export async function apiFetch(
  * `code` и `detail` из тела ошибки. Бэкенд отвечает по RFC 9457
  * (`application/problem+json`): ветвимся по `code`, `detail` — текст для человека.
  * Тип содержимого не проверяем: тело не по форме или не JSON — оба поля `undefined`.
+ * `traceId` — из `X-Trace-ID`, без заголовка — из `trace_id` тела.
  */
-async function readProblem(
-  response: Response,
-): Promise<{ code: string | undefined; detail: string | undefined }> {
+async function readProblem(response: Response): Promise<{
+  code: string | undefined
+  detail: string | undefined
+  traceId: string | undefined
+}> {
+  const header = response.headers.get('X-Trace-ID') ?? undefined
   try {
     const body: unknown = await response.json()
     if (typeof body === 'object' && body !== null) {
       return {
         code: 'code' in body && typeof body.code === 'string' ? body.code : undefined,
         detail: 'detail' in body && typeof body.detail === 'string' ? body.detail : undefined,
+        traceId:
+          header ??
+          ('trace_id' in body && typeof body.trace_id === 'string' ? body.trace_id : undefined),
       }
     }
   } catch {
     // Пустое или не JSON-тело — ни кода, ни текста.
   }
-  return { code: undefined, detail: undefined }
+  return { code: undefined, detail: undefined, traceId: header }
 }
 
 /**

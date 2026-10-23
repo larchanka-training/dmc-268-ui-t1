@@ -1,3 +1,5 @@
-export { eventsPath, useRunLiveStatus } from './model/useRunLiveStatus'
+export { EVENTS_PATH, useRunLiveStatus } from './model/useRunLiveStatus'
 export type { RunLiveStatus } from './model/useRunLiveStatus'
+export { LIST_REFETCH_THROTTLE, useRunListLiveUpdates } from './model/useRunListLiveUpdates'
+export type { RunListLiveUpdates } from './model/useRunListLiveUpdates'
 export { ConnectionNotice, RECONNECT_NOTICE_DELAY } from './ui/ConnectionNotice'

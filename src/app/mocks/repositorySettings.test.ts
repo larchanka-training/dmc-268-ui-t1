@@ -8,6 +8,7 @@ import {
   RulesStatusSchema,
 } from '../../entities/repository'
 import { ApiError } from '../../shared/api'
+import { mockRepositoryId } from './repositories'
 import { createRepositorySettingsStore } from './repositorySettings'
 
 /**
@@ -26,7 +27,8 @@ const ALL_RUN_STATUSES = [
 
 function repository(n: number, defaultBranch = 'main'): Repository {
   return {
-    id: `repo-${n}`,
+    // Id как в mock adapter: фикстуры store ключуются по `mockRepositoryId(n)`.
+    id: mockRepositoryId(n),
     provider: 'github',
     provider_id: String(100 + n),
     full_name: `larchanka-training/repo-${n}`,
@@ -45,10 +47,10 @@ function createStore(...repos: Repository[]) {
 }
 
 describe('фикстуры настроек', () => {
-  it('у repo-1 и repo-2 настройки различаются и проходят схему', () => {
+  it('у первого и второго репозитория настройки различаются и проходят схему', () => {
     const store = createStore(repository(1), repository(2))
-    const first = store.settings('repo-1')
-    const second = store.settings('repo-2')
+    const first = store.settings(mockRepositoryId(1))
+    const second = store.settings(mockRepositoryId(2))
 
     expect(first).not.toEqual(second)
     expect(RepositorySettingsSchema.safeParse(first).success).toBe(true)
@@ -57,17 +59,17 @@ describe('фикстуры настроек', () => {
 
   it('возвращённые настройки — копия: мутация не меняет store', () => {
     const store = createStore(repository(1))
-    const settings = store.settings('repo-1')
+    const settings = store.settings(mockRepositoryId(1))
     settings.branchFilter.push('hack/**')
 
-    expect(store.settings('repo-1').branchFilter).not.toContain('hack/**')
+    expect(store.settings(mockRepositoryId(1)).branchFilter).not.toContain('hack/**')
   })
 })
 
 describe('статус правил', () => {
-  it('repo-1: файл загружен, три правила в форме api#49 и отклонённый раздел', () => {
+  it('первый репозиторий: файл загружен, три правила в форме api#49 и отклонённый раздел', () => {
     const store = createStore(repository(1), repository(2), repository(3))
-    const status = store.rulesStatus('repo-1')
+    const status = store.rulesStatus(mockRepositoryId(1))
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     if (status.status === 'loaded') {
@@ -77,17 +79,17 @@ describe('статус правил', () => {
     }
   })
 
-  it('repo-2: файла правил нет', () => {
+  it('второй репозиторий: файла правил нет', () => {
     const store = createStore(repository(2))
-    const status = store.rulesStatus('repo-2')
+    const status = store.rulesStatus(mockRepositoryId(2))
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     expect(status.status).toBe('absent')
   })
 
-  it('repo-3: файл загружен, но применимых правил нет — оба раздела отклонены', () => {
+  it('третий репозиторий: файл загружен, но применимых правил нет — оба раздела отклонены', () => {
     const store = createStore(repository(3))
-    const status = store.rulesStatus('repo-3')
+    const status = store.rulesStatus(mockRepositoryId(3))
 
     expect(RulesStatusSchema.safeParse(status).success).toBe(true)
     if (status.status === 'loaded') {
@@ -98,9 +100,9 @@ describe('статус правил', () => {
 })
 
 describe('история проверок', () => {
-  it('repo-1: покрывает все статусы, новые прогоны сверху', () => {
+  it('первый репозиторий: история покрывает все статусы, новые прогоны сверху', () => {
     const store = createStore(repository(1))
-    const history = store.history('repo-1')
+    const history = store.history(mockRepositoryId(1))
 
     expect(history.map((run) => run.status).sort()).toEqual([...ALL_RUN_STATUSES].sort())
     for (const run of history) {
@@ -110,9 +112,9 @@ describe('история проверок', () => {
     expect([...createdAt].sort((a, b) => b.localeCompare(a))).toEqual(createdAt)
   })
 
-  it('repo-2: проверок ещё не было', () => {
+  it('второй репозиторий: проверок ещё не было', () => {
     const store = createStore(repository(2))
-    expect(store.history('repo-2')).toEqual([])
+    expect(store.history(mockRepositoryId(2))).toEqual([])
   })
 })
 
@@ -125,23 +127,29 @@ describe('saveSettings', () => {
       minSeverity: 'critical',
     }
 
-    expect(store.saveSettings('repo-1', draft)).toEqual(draft)
-    expect(store.settings('repo-1')).toEqual(draft)
+    expect(store.saveSettings(mockRepositoryId(1), draft)).toEqual(draft)
+    expect(store.settings(mockRepositoryId(1))).toEqual(draft)
   })
 
   it('сохранение затрагивает только свой репозиторий', () => {
     const store = createStore(repository(1), repository(2))
-    const before = store.settings('repo-2')
+    const before = store.settings(mockRepositoryId(2))
 
-    store.saveSettings('repo-1', { autoReviewEnabled: false, branchFilter: [], minSeverity: 'low' })
+    store.saveSettings(mockRepositoryId(1), {
+      autoReviewEnabled: false,
+      branchFilter: [],
+      minSeverity: 'low',
+    })
 
-    expect(store.settings('repo-2')).toEqual(before)
+    expect(store.settings(mockRepositoryId(2))).toEqual(before)
   })
 
   it('несуществующему репозиторию сохранить нельзя', () => {
     const store = createStore(repository(1))
 
-    expect(() => store.saveSettings('repo-nope', store.settings('repo-1'))).toThrow(ApiError)
+    expect(() => store.saveSettings('repo-nope', store.settings(mockRepositoryId(1)))).toThrow(
+      ApiError,
+    )
   })
 })
 
@@ -159,16 +167,16 @@ describe('репозиторий, подключённый после старт
   it('получает дефолтные настройки, статус без правил и пустую историю', () => {
     const store = createStore(repository(1), repository(4, 'develop'))
 
-    expect(store.settings('repo-4')).toEqual({
+    expect(store.settings(mockRepositoryId(4))).toEqual({
       autoReviewEnabled: true,
       branchFilter: [],
       minSeverity: 'critical',
     })
-    expect(store.rulesStatus('repo-4')).toEqual({
+    expect(store.rulesStatus(mockRepositoryId(4))).toEqual({
       status: 'absent',
       branch: 'develop',
       path: '.review/rules.md',
     })
-    expect(store.history('repo-4')).toEqual([])
+    expect(store.history(mockRepositoryId(4))).toEqual([])
   })
 })

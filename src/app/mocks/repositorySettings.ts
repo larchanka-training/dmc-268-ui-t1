@@ -5,6 +5,7 @@ import type {
   RulesStatus,
 } from '../../entities/repository'
 import { ApiError } from '../../shared/api'
+import { mockRepositoryId } from './repositories'
 
 const RULES_PATH = '.review/rules.md'
 
@@ -16,12 +17,12 @@ const RULES_PATH = '.review/rules.md'
 
 /** Настройки фикстур различаются, чтобы форма не выглядела константой (design.md). */
 const SETTINGS_BY_REPO: Record<string, RepositorySettings> = {
-  'repo-1': {
+  [mockRepositoryId(1)]: {
     autoReviewEnabled: true,
     branchFilter: ['feature/**', 'fix/**'],
     minSeverity: 'high',
   },
-  'repo-2': {
+  [mockRepositoryId(2)]: {
     autoReviewEnabled: false,
     branchFilter: ['docs/**'],
     minSeverity: 'critical',
@@ -36,11 +37,11 @@ const DEFAULT_SETTINGS: RepositorySettings = {
 }
 
 /**
- * У repo-1 есть отклонённый раздел — рендерим и его; у repo-3 файл есть, но применимых
- * правил нет — оба раздела отклонены, сценарий «правила не применяются».
+ * У первого репозитория есть отклонённый раздел — рендерим и его; у третьего файл есть, но
+ * применимых правил нет — оба раздела отклонены, сценарий «правила не применяются».
  */
 const RULES_BY_REPO: Record<string, RulesStatus> = {
-  'repo-1': {
+  [mockRepositoryId(1)]: {
     status: 'loaded',
     branch: 'main',
     path: RULES_PATH,
@@ -70,12 +71,12 @@ const RULES_BY_REPO: Record<string, RulesStatus> = {
     rejected: [{ name: 'Docs', reason: 'нет паттерна (pattern); нет проверок' }],
     fetchedAt: '2026-10-11T09:40:00.000Z',
   },
-  'repo-2': {
+  [mockRepositoryId(2)]: {
     status: 'absent',
     branch: 'main',
     path: RULES_PATH,
   },
-  'repo-3': {
+  [mockRepositoryId(3)]: {
     status: 'loaded',
     branch: 'main',
     path: RULES_PATH,
@@ -89,12 +90,12 @@ const RULES_BY_REPO: Record<string, RulesStatus> = {
 }
 
 /**
- * История `repo-1` покрывает все статусы прогона, включая незавершённые: mock должен
- * рендерить каждый бейдж. Новые сверху; id свежего completed-прогона совпадает с фикстурой
- * экрана `/reviews/run-42`.
+ * История первого репозитория покрывает все статусы прогона, включая незавершённые: mock
+ * должен рендерить каждый бейдж. Новые сверху; id свежего completed-прогона совпадает с
+ * фикстурой экрана `/reviews/run-42`.
  */
 const HISTORY_BY_REPO: Record<string, HistoryRun[]> = {
-  'repo-1': [
+  [mockRepositoryId(1)]: [
     {
       id: 'run-42',
       number: 42,
@@ -152,7 +153,7 @@ const HISTORY_BY_REPO: Record<string, HistoryRun[]> = {
       createdAt: '2026-09-29T10:00:00Z',
     },
   ],
-  'repo-2': [],
+  [mockRepositoryId(2)]: [],
 }
 
 /**
