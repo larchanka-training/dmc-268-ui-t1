@@ -5,7 +5,7 @@ import { useConnectedRepositories } from '@/features/repository'
 
 export function OverviewPage() {
   const user = useCurrentUser()
-  const { data: repos = [] } = useConnectedRepositories()
+  const { data: repos, isLoading, isLoadingError, refetch } = useConnectedRepositories()
 
   return (
     <div>
@@ -18,7 +18,20 @@ export function OverviewPage() {
       <Row gutter={[16, 16]} className="page-section">
         <Col xs={24} sm={12} md={8}>
           <Card className="app-content-card">
-            <Statistic title="Подключённых репозиториев" value={repos.length} />
+            {/* Список не загрузился — не «0»: это выглядело бы как «репозиториев нет». */}
+            <Statistic
+              title="Подключённых репозиториев"
+              value={repos ? repos.length : '—'}
+              loading={isLoading}
+            />
+            {isLoadingError && (
+              <div role="alert" className="mt-2 text-sm text-red-700">
+                Не удалось загрузить репозитории.{' '}
+                <Button size="small" type="link" onClick={() => void refetch()}>
+                  Повторить
+                </Button>
+              </div>
+            )}
           </Card>
         </Col>
         <Col xs={24} sm={12} md={8}>

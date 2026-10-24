@@ -91,9 +91,18 @@ describe('RepositoriesPage', () => {
     githubDown = true
     await act(() => queryClient.refetchQueries())
 
-    expect(await screen.findByText('Не удалось обновить репозитории')).toBeInTheDocument()
+    const notice = (
+      await screen.findByText('Не удалось обновить репозитории')
+    ).closest<HTMLElement>('[role="alert"]')
+    if (!notice) throw new Error('плашка без role="alert"')
     expect(screen.getByText('larchanka-training/docs')).toBeInTheDocument()
     expect(screen.queryByText('Не удалось загрузить репозитории')).not.toBeInTheDocument()
+
+    githubDown = false
+    await userEvent.click(within(notice).getByRole('button', { name: 'Повторить' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Не удалось обновить репозитории')).not.toBeInTheDocument(),
+    )
   })
 })
 

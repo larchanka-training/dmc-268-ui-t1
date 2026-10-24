@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Alert, Button, Space, Table, Tag, Typography } from 'antd'
+import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { Repository } from '@/entities/repository'
 import { useConnectedRepositories } from '@/features/repository'
@@ -11,7 +11,7 @@ import {
   useNormalizeUrlPage,
   useUrlPage,
 } from '@/shared/lib'
-import { ErrorState, PageNav } from '@/shared/ui'
+import { ErrorState, PageNav, RefreshErrorNotice } from '@/shared/ui'
 
 const PAGE_SIZE = 10
 
@@ -90,16 +90,10 @@ export function RepositoriesPage() {
         <div className="app-content-card">
           {/* Упал перезапрос — список остаётся, сверху плашка. */}
           {isRefetchError && (
-            <Alert
-              type="warning"
-              showIcon
+            <RefreshErrorNotice
               title="Не удалось обновить репозитории"
               description="В таблице — последний полученный список."
-              action={
-                <Button size="small" onClick={() => void refetch()}>
-                  Повторить
-                </Button>
-              }
+              onRetry={() => void refetch()}
             />
           )}
           <Table
