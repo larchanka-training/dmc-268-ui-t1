@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
+
+function subscribe(onChange: () => void): () => void {
+  document.addEventListener('visibilitychange', onChange)
+  return () => document.removeEventListener('visibilitychange', onChange)
+}
+
+const isVisible = () => document.visibilityState !== 'hidden'
 
 /**
  * Видна ли вкладка: `false`, пока она скрыта (`document.visibilityState === 'hidden'`).
  * Подписки на поток событий закрываются на скрытой вкладке — при возврате придёт `open`
- * и снимок REST.
+ * и снимок REST. `useSyncExternalStore`, а не `useState` + эффект: переключение между
+ * рендером и подпиской не теряется.
  */
 export function usePageVisible(): boolean {
-  const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden')
-  useEffect(() => {
-    const onVisibilityChange = () => setVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [])
-  return visible
+  return useSyncExternalStore(subscribe, isVisible)
 }

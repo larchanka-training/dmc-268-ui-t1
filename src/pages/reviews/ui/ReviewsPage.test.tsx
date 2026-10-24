@@ -375,6 +375,9 @@ describe('ReviewsPage: обновления из потока', () => {
     expect(stream.active()).toBe(1)
     act(() => stream.setState('open'))
     await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+    // Второй, лишний перезапрос успел бы прийти: ждём дольше окна троттлинга.
+    await act(() => new Promise((resolve) => setTimeout(resolve, LIST_REFETCH_THROTTLE + 200)))
+    expect(backend.calls).toHaveLength(calls + 1)
   })
 
   it('скрытая вкладка не открывает поток при загрузке страницы', async () => {

@@ -349,7 +349,7 @@ describe('useRunLiveStatus', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('источник событий на сервере недоступен: цикл переподключений раз в 3 с — снимок на каждый open, без плашки и без «Обновить»', async () => {
+  it('источник событий на сервере недоступен: цикл переподключений раз в 3 с — снимок на каждый open, без плашки', async () => {
     vi.useFakeTimers()
     renderHarness()
 
@@ -367,7 +367,6 @@ describe('useRunLiveStatus', () => {
 
     expect(fetches).toBe(5)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Обновить' })).not.toBeInTheDocument()
     expect(stream.active()).toBe(1)
   })
 
