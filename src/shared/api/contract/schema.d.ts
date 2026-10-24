@@ -133,7 +133,7 @@ export interface paths {
         };
         /**
          * Список зарегистрированных репозиториев
-         * @description Требует сессию. Постранично, по времени регистрации, затем по id. limit выше 200 не отклоняется, а приводится к 200. Общего числа записей в ответе нет: конец списка — страница короче limit.
+         * @description Требует сессию. Только репозитории, которые пользователь видит на GitHub по своему токену, — то же правило, что у GET /reviews и GET /events. Постранично, по времени регистрации, затем по id. limit выше 200 не отклоняется, а приводится к 200. Общего числа записей в ответе нет: конец списка — страница короче limit.
          */
         get: operations["listRepositories"];
         put?: never;
@@ -157,7 +157,7 @@ export interface paths {
         };
         /**
          * Зарегистрированный репозиторий
-         * @description Требует сессию. Один зарегистрированный репозиторий по id — та же форма, что строка GET /repositories. 404 REPOSITORY_NOT_FOUND, если репозитория нет.
+         * @description Требует сессию. Один зарегистрированный репозиторий по id — та же форма, что строка GET /repositories. 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub — ответ один и тот же.
          */
         get: operations["getRepository"];
         put?: never;
@@ -221,7 +221,7 @@ export interface paths {
         };
         /**
          * Список запросов на изменение репозитория
-         * @description Требует сессию. Постранично, по номеру запроса на изменение. Пагинация та же, что у списка репозиториев: limit выше 200 приводится к 200. Репозитория нет — 404.
+         * @description Требует сессию. Постранично, по номеру запроса на изменение. Пагинация та же, что у списка репозиториев: limit выше 200 приводится к 200. Репозитория нет или пользователь не видит его на GitHub — один и тот же 404.
          */
         get: operations["listPullRequests"];
         put?: never;
@@ -2986,6 +2986,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
@@ -3143,6 +3153,16 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -3448,6 +3468,16 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
