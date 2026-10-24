@@ -139,6 +139,13 @@ function rowOf(text: string) {
   return row
 }
 
+function setVisibility(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+}
+
 beforeEach(() => {
   backend = { calls: [], rows: makeRuns(3) }
   stream = createFakeEventStream()
@@ -146,6 +153,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  setVisibility('visible')
 })
 
 describe('ReviewsPage: таблица и URL', () => {
@@ -352,6 +360,29 @@ describe('ReviewsPage: обновления из потока', () => {
     act(() => stream.setState('open'))
 
     await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+  })
+
+  it('скрытая вкладка закрывает поток, возврат открывает его и перезапрашивает страницу', async () => {
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    expect(stream.active()).toBe(1)
+
+    setVisibility('hidden')
+    expect(stream.active()).toBe(0)
+
+    const calls = backend.calls.length
+    setVisibility('visible')
+    expect(stream.active()).toBe(1)
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+  })
+
+  it('скрытая вкладка не открывает поток при загрузке страницы', async () => {
+    setVisibility('hidden')
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+
+    expect(stream.opened).toEqual([])
   })
 
   const freshRun = (): ReviewRunListItem => ({

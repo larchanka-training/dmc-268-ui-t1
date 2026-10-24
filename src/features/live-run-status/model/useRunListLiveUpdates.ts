@@ -10,6 +10,7 @@ import {
 } from '../../../entities/review-run'
 import { fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
+import { usePageVisible } from '../../../shared/lib'
 import { EVENTS_PATH } from './useRunLiveStatus'
 
 /** Не чаще одного перезапроса страницы за это время, мс: пачка событий даёт один-два запроса. */
@@ -64,6 +65,7 @@ export function useRunListLiveUpdates({
   const queryClient = useQueryClient()
   const [streamState, setStreamState] = useState<StreamState>('connecting')
   const [attempt, setAttempt] = useState(0)
+  const visible = usePageVisible()
 
   // Страница и фильтры меняются, а подписка остаётся одной: обработчик читает их отсюда.
   const current = useRef({ queryKey, listKey, canUpsert, pageSize })
@@ -72,7 +74,10 @@ export function useRunListLiveUpdates({
   })
 
   useEffect(() => {
-    if (!enabled) return
+    // Скрытой вкладке поток не нужен: при возврате придёт `open` и перезапрос страницы. Иначе
+    // фоновая вкладка, пока источник событий на сервере недоступен, перезапрашивала бы
+    // страницу на каждом переподключении — раз в 3 секунды.
+    if (!enabled || !visible) return
 
     let finished = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -161,7 +166,7 @@ export function useRunListLiveUpdates({
       unsubscribe()
       unsubscribeCache()
     }
-  }, [stream, queryClient, enabled, attempt])
+  }, [stream, queryClient, enabled, visible, attempt])
 
   useEffect(() => {
     // Как на экране прогона: `EventSource` не отдаёт статус, сессию проверяет `apiFetch`.
