@@ -1,3 +1,4 @@
+import { Alert, Button } from 'antd'
 import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -63,14 +64,16 @@ export function ReviewRunView() {
   })
 
   if (review.isPending) return <LoadingState label="Загружаем прогон…" />
-  if (review.error instanceof ApiError && review.error.status === 404) {
+  // Ошибка на весь экран — только когда показывать нечего. Упал перезапрос уже загруженного
+  // прогона (переподключение потока, `run.finished`) — прогон остаётся, сверху плашка.
+  if (review.isLoadingError && review.error instanceof ApiError && review.error.status === 404) {
     return (
       <main className="mx-auto max-w-7xl p-6">
         <ErrorState title="Прогон не найден" />
       </main>
     )
   }
-  if (review.isError) {
+  if (review.isLoadingError) {
     return (
       <main className="mx-auto max-w-7xl p-6">
         <ErrorState
@@ -85,6 +88,19 @@ export function ReviewRunView() {
   const { findings, published_comments, ...run } = review.data
   return (
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
+      {review.isRefetchError && (
+        <Alert
+          type="warning"
+          showIcon
+          title="Не удалось обновить прогон"
+          description="На экране — последние полученные данные."
+          action={
+            <Button size="small" onClick={() => void review.refetch()}>
+              Повторить
+            </Button>
+          }
+        />
+      )}
       <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
       {!isTerminalStatus(run.status) && (
         <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />

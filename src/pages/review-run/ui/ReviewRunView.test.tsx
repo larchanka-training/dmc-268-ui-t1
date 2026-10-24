@@ -201,6 +201,57 @@ describe('ReviewRunView', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
   })
 
+  it('GitHub недоступен при проверке видимости (502) — ошибка с повтором, повтор показывает прогон', async () => {
+    const backend = fakeAdapter()
+    let githubDown = true
+    renderView(
+      fakeTransport({
+        get: async (path) => {
+          if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          return backend.get(path)
+        },
+      }),
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить прогон')
+    githubDown = false
+    await userEvent.click(within(alert).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+  })
+
+  it.each([
+    ['шаги', reviewStepsPath(makeReviewRun().id)],
+    ['дифф', reviewDiffPath(makeReviewRun().id)],
+  ])(
+    '%s не загрузились из-за GitHub (502) — прогон на экране без этой части',
+    async (_, failing) => {
+      const backend = fakeAdapter()
+      const requested: string[] = []
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            requested.push(path)
+            if (path === failing) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+            return backend.get(path)
+          },
+        }),
+      )
+
+      expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+      await waitFor(() => expect(requested).toContain(failing))
+      expect(screen.queryByText(/Не удалось/)).not.toBeInTheDocument()
+      if (failing === reviewStepsPath(makeReviewRun().id)) {
+        expect(screen.queryByRole('heading', { name: 'Ход прогона' })).not.toBeInTheDocument()
+      } else {
+        // Без диффа замечания показаны списком, а не в области изменений.
+        expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
+        expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      }
+    },
+  )
+
   it('бинарный файл не притворяется диффом', async () => {
     const user = userEvent.setup()
     renderView(fakeAdapter({ files: [api, logo], findings: [] }))
@@ -451,6 +502,37 @@ describe('ReviewRunView', () => {
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
       expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
       expect(stream.active()).toBe(0)
+    })
+
+    it('перезапрос после run.finished упал (502) — прогон остаётся, плашка с повтором', async () => {
+      let backend: Backend = { run: makeReviewRun({ status: 'analysing' }), findings: [] }
+      let githubDown = false
+      const adapter = fakeAdapter(() => backend)
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+            return adapter.get(path)
+          },
+        }),
+      )
+      expect(await screen.findByText(/Ревью ещё идёт/)).toBeInTheDocument()
+
+      githubDown = true
+      backend = { run: makeReviewRun({ status: 'completed' }) }
+      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
+
+      const title = await screen.findByText('Не удалось обновить прогон')
+      const notice = title.closest<HTMLElement>('[role="alert"]')
+      if (!notice) throw new Error('плашка «Не удалось обновить прогон» без role="alert"')
+      expect(screen.queryByText('Не удалось загрузить прогон')).not.toBeInTheDocument()
+      expect(screen.getByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+
+      githubDown = false
+      await userEvent.click(within(notice).getByRole('button', { name: 'Повторить' }))
+
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      expect(screen.queryByText('Не удалось обновить прогон')).not.toBeInTheDocument()
     })
 
     it('INT-11: сбой по событию показывает этап и причину', async () => {
