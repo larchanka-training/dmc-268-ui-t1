@@ -111,7 +111,16 @@ export function ReviewRunView() {
       ) : (
         <FindingsList findings={findings} publishedComments={published_comments} />
       )}
-      {steps.data && <RunInspector steps={steps.data.items} />}
+      {/* Ход прогона не загрузился — ошибка с повтором в его месте; `501` — блока нет. */}
+      {steps.isLoadingError ? (
+        <ErrorState
+          title="Не удалось загрузить ход прогона"
+          error={steps.error}
+          onRetry={() => void steps.refetch()}
+        />
+      ) : (
+        steps.data && <RunInspector steps={steps.data.items} runStatus={run.status} />
+      )}
     </main>
   )
 }

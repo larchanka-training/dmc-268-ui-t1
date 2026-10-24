@@ -1,3 +1,4 @@
+import type { ReviewRun } from '../../../entities/review-run'
 import { STAGE_LABEL, type ReviewRunStep, type StepStatus } from '../../../entities/review-run-step'
 import { formatDateTime, formatDuration, formatNumber } from '../../../shared/lib'
 import { EmptyState } from '../../../shared/ui'
@@ -8,8 +9,24 @@ const STATUS_VIEW: Record<StepStatus, { label: string; className: string }> = {
   failed: { label: 'ошибка', className: 'text-red-700' },
 }
 
+/**
+ * Упавшая проверка замечаний у завершённого прогона — не падение: верификатор недоступен,
+ * прогон довёл ревью без второго прохода (fail-open), замечания опубликованы непроверенными.
+ */
+const UNVERIFIED = { label: 'не перепроверено', className: 'text-amber-700' }
+
+function isUnverified(step: ReviewRunStep, runStatus: ReviewRun['status']): boolean {
+  return step.stage === 'verifying' && step.status === 'failed' && runStatus === 'completed'
+}
+
 /** Ход прогона: шаги воркера по порядку — этап, статус, время, токены, код ошибки. */
-export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
+export function RunInspector({
+  steps,
+  runStatus,
+}: {
+  steps: readonly ReviewRunStep[]
+  runStatus: ReviewRun['status']
+}) {
   return (
     <section
       aria-labelledby="run-inspector-title"
@@ -25,7 +42,8 @@ export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
       ) : (
         <ol aria-label="Шаги прогона" className="mt-3 space-y-1 text-sm">
           {steps.map((step, index) => {
-            const status = STATUS_VIEW[step.status]
+            const unverified = isUnverified(step, runStatus)
+            const status = unverified ? UNVERIFIED : STATUS_VIEW[step.status]
             return (
               <li
                 key={`${step.stage}-${index}`}
@@ -41,10 +59,16 @@ export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
                     {formatNumber(step.tokens_used)} токенов
                   </span>
                 )}
-                {step.error_code && (
-                  <span role="alert" className="font-mono text-xs text-red-700">
-                    {step.error_code}
+                {unverified ? (
+                  <span role="status" className="text-xs text-amber-700">
+                    Замечания не перепроверены: проверка была недоступна
                   </span>
+                ) : (
+                  step.error_code && (
+                    <span role="alert" className="font-mono text-xs text-red-700">
+                      {step.error_code}
+                    </span>
+                  )
                 )}
                 <span className="sr-only">начат {formatDateTime(step.started_at)}</span>
               </li>
