@@ -65,17 +65,15 @@ export function useReviewRun(reviewId: string) {
 }
 
 /**
- * Часть прогона, которую бэкенд ещё не реализовал: `501 NOT_IMPLEMENTED` (и `404` от источника
- * без этого пути) — `null`, экран показывает прогон без неё.
- *
- * TODO: когда бэкенд реализует дифф и шаги (dmc-268-api-t1#87, #88), перепроверить `404` —
- * настоящий `404` на под-ресурсе сейчас маскируется под «части нет».
+ * Часть прогона, которую бэкенд может не отдавать: ответ со статусом из `absent` — `null`,
+ * экран показывает прогон без неё. Остальные ошибки — ошибка запроса.
  */
 function usePlannedPart<T extends z.ZodType>(
   reviewId: string,
   part: string,
   path: string,
   schema: T,
+  absent: readonly number[],
 ) {
   const transport = useTransport()
   return useQuery({
@@ -84,19 +82,33 @@ function usePlannedPart<T extends z.ZodType>(
       try {
         return parseResponse(schema, path, await transport.get(path))
       } catch (error) {
-        if (error instanceof ApiError && (error.status === 501 || error.status === 404)) return null
+        if (error instanceof ApiError && absent.includes(error.status)) return null
         throw error
       }
     },
   })
 }
 
-/** Дифф прогона; `null` — бэкенд его пока не отдаёт. */
+/**
+ * Дифф прогона; `null` — бэкенд его пока не отдаёт (`501`, `404` от источника без пути).
+ *
+ * TODO: когда бэкенд реализует дифф (dmc-268-api-t1#87), убрать `404` — настоящий `404`
+ * на под-ресурсе сейчас маскируется под «части нет».
+ */
 export function useReviewDiff(reviewId: string) {
-  return usePlannedPart(reviewId, 'diff', reviewDiffPath(reviewId), ReviewDiffSchema)
+  return usePlannedPart(reviewId, 'diff', reviewDiffPath(reviewId), ReviewDiffSchema, [501, 404])
 }
 
-/** Шаги прогона; `null` — бэкенд их пока не отдаёт. */
+/**
+ * Шаги прогона; `null` — бэкенд их не отдаёт (`501`). `GET /steps` реализован
+ * (dmc-268-api-t1#90), поэтому `404` — «прогона нет», это ошибка, а не «части нет».
+ */
 export function useReviewSteps(reviewId: string) {
-  return usePlannedPart(reviewId, 'steps', reviewStepsPath(reviewId), ReviewRunStepListSchema)
+  return usePlannedPart(
+    reviewId,
+    'steps',
+    reviewStepsPath(reviewId),
+    ReviewRunStepListSchema,
+    [501],
+  )
 }

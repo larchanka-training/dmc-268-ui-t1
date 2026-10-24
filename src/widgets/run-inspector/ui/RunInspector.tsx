@@ -1,3 +1,4 @@
+import type { ReviewRun } from '../../../entities/review-run'
 import { STAGE_LABEL, type ReviewRunStep, type StepStatus } from '../../../entities/review-run-step'
 import { formatDateTime, formatDuration, formatNumber } from '../../../shared/lib'
 import { EmptyState } from '../../../shared/ui'
@@ -8,8 +9,26 @@ const STATUS_VIEW: Record<StepStatus, { label: string; className: string }> = {
   failed: { label: 'ошибка', className: 'text-red-700' },
 }
 
+/**
+ * Упавшая проверка замечаний при `verification = 'unavailable'` — не падение: верификатор
+ * недоступен, прогон довёл ревью без второго прохода (fail-open). Источник правды — итог
+ * верификации прогона, а не статус шага: неудачная попытка модели с удачным повтором тоже
+ * пишется шагом `failed`, хотя замечания проверены.
+ */
+const UNVERIFIED = { label: 'не перепроверено', className: 'text-amber-700' }
+
+function isUnverified(step: ReviewRunStep, verification: ReviewRun['verification']): boolean {
+  return step.stage === 'verifying' && step.status === 'failed' && verification === 'unavailable'
+}
+
 /** Ход прогона: шаги воркера по порядку — этап, статус, время, токены, код ошибки. */
-export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
+export function RunInspector({
+  steps,
+  verification,
+}: {
+  steps: readonly ReviewRunStep[]
+  verification: ReviewRun['verification']
+}) {
   return (
     <section
       aria-labelledby="run-inspector-title"
@@ -25,7 +44,8 @@ export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
       ) : (
         <ol aria-label="Шаги прогона" className="mt-3 space-y-1 text-sm">
           {steps.map((step, index) => {
-            const status = STATUS_VIEW[step.status]
+            const unverified = isUnverified(step, verification)
+            const status = unverified ? UNVERIFIED : STATUS_VIEW[step.status]
             return (
               <li
                 key={`${step.stage}-${index}`}
@@ -41,10 +61,16 @@ export function RunInspector({ steps }: { steps: readonly ReviewRunStep[] }) {
                     {formatNumber(step.tokens_used)} токенов
                   </span>
                 )}
-                {step.error_code && (
-                  <span role="alert" className="font-mono text-xs text-red-700">
-                    {step.error_code}
+                {unverified ? (
+                  <span role="status" className="text-xs text-amber-700">
+                    Замечания не перепроверены: проверка была недоступна
                   </span>
+                ) : (
+                  step.error_code && (
+                    <span role="alert" className="font-mono text-xs text-red-700">
+                      {step.error_code}
+                    </span>
+                  )
                 )}
                 <span className="sr-only">начат {formatDateTime(step.started_at)}</span>
               </li>
