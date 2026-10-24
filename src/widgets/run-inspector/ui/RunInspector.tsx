@@ -10,22 +10,24 @@ const STATUS_VIEW: Record<StepStatus, { label: string; className: string }> = {
 }
 
 /**
- * Упавшая проверка замечаний у завершённого прогона — не падение: верификатор недоступен,
- * прогон довёл ревью без второго прохода (fail-open), замечания опубликованы непроверенными.
+ * Упавшая проверка замечаний при `verification = 'unavailable'` — не падение: верификатор
+ * недоступен, прогон довёл ревью без второго прохода (fail-open). Источник правды — итог
+ * верификации прогона, а не статус шага: неудачная попытка модели с удачным повтором тоже
+ * пишется шагом `failed`, хотя замечания проверены.
  */
 const UNVERIFIED = { label: 'не перепроверено', className: 'text-amber-700' }
 
-function isUnverified(step: ReviewRunStep, runStatus: ReviewRun['status']): boolean {
-  return step.stage === 'verifying' && step.status === 'failed' && runStatus === 'completed'
+function isUnverified(step: ReviewRunStep, verification: ReviewRun['verification']): boolean {
+  return step.stage === 'verifying' && step.status === 'failed' && verification === 'unavailable'
 }
 
 /** Ход прогона: шаги воркера по порядку — этап, статус, время, токены, код ошибки. */
 export function RunInspector({
   steps,
-  runStatus,
+  verification,
 }: {
   steps: readonly ReviewRunStep[]
-  runStatus: ReviewRun['status']
+  verification: ReviewRun['verification']
 }) {
   return (
     <section
@@ -42,7 +44,7 @@ export function RunInspector({
       ) : (
         <ol aria-label="Шаги прогона" className="mt-3 space-y-1 text-sm">
           {steps.map((step, index) => {
-            const unverified = isUnverified(step, runStatus)
+            const unverified = isUnverified(step, verification)
             const status = unverified ? UNVERIFIED : STATUS_VIEW[step.status]
             return (
               <li

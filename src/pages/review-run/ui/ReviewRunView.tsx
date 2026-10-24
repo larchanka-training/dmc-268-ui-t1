@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 
 import {
@@ -43,12 +43,19 @@ export function ReviewRunView() {
   const loadedRun = review.data
   const findingsOfRun = loadedRun?.findings
   // Шаги в контракте пока не приходят событиями: перезапрашиваем их на каждой смене этапа,
-  // чтобы текущий шаг был виден со статусом «выполняется».
+  // чтобы текущий шаг был виден со статусом «выполняется». Только на смене уже известного
+  // статуса: первый статус экрана шаги и так грузят своим запросом. Итоговый статус
+  // перезапрашивает их `run.finished` вместе со всем прогоном.
   const runStatus = loadedRun?.status
   const refetchSteps = steps.refetch
+  const seenStatus = useRef<{ reviewId: string; status: string } | null>(null)
   useEffect(() => {
-    if (runStatus !== undefined && !isTerminalStatus(runStatus)) void refetchSteps()
-  }, [runStatus, refetchSteps])
+    if (runStatus === undefined) return
+    const previous = seenStatus.current
+    seenStatus.current = { reviewId, status: runStatus }
+    const changed = previous?.reviewId === reviewId && previous.status !== runStatus
+    if (changed && !isTerminalStatus(runStatus)) void refetchSteps()
+  }, [reviewId, runStatus, refetchSteps])
   const workspace = useMemo(
     () => (diff.data && findingsOfRun ? toWorkspace(diff.data, findingsOfRun) : null),
     [diff.data, findingsOfRun],
@@ -119,7 +126,19 @@ export function ReviewRunView() {
           onRetry={() => void steps.refetch()}
         />
       ) : (
-        steps.data && <RunInspector steps={steps.data.items} runStatus={run.status} />
+        steps.data && (
+          <>
+            {/* Упал перезапрос — прежние шаги остаются, сверху плашка: иначе у завершённого
+                прогона висел бы шаг «выполняется» без подсказки, что данные устарели. */}
+            {steps.isRefetchError && (
+              <RefreshErrorNotice
+                title="Не удалось обновить ход прогона"
+                onRetry={() => void steps.refetch()}
+              />
+            )}
+            <RunInspector steps={steps.data.items} verification={run.verification} />
+          </>
+        )
       )}
     </main>
   )
