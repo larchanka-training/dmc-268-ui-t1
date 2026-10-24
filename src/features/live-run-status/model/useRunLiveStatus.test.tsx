@@ -349,6 +349,27 @@ describe('useRunLiveStatus', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
+  it('источник событий на сервере недоступен: цикл переподключений раз в 3 с — снимок на каждый open, без плашки', async () => {
+    vi.useFakeTimers()
+    renderHarness()
+
+    // Сервер отвечает потоком из одной строки `retry` и закрывает его: EventSource открывается
+    // и через 3 с переподключается снова.
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      await act(async () => {
+        stream.setState('open')
+      })
+      act(() => stream.setState('reconnecting'))
+      act(() => {
+        vi.advanceTimersByTime(3_000)
+      })
+    }
+
+    expect(fetches).toBe(5)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(stream.active()).toBe(1)
+  })
+
   it('отказ сервера: сообщение и «Обновить», который перезапрашивает прогон один раз', async () => {
     const user = userEvent.setup()
     stream = createFakeEventStream({ autoOpen: true })
