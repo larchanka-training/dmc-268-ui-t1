@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import type { Repository } from '@/entities/repository'
+import { ApiError } from '@/shared/api'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { fakeTransport, renderWithTransport } from '@/test/api'
 
@@ -60,6 +61,48 @@ describe('RepositoriesPage', () => {
     renderRepositoriesPage(async () => [repository(1, 'larchanka-training/docs', true)])
 
     expect(await screen.findByText('Не удалось загрузить репозитории')).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('GitHub недоступен (502) — ошибка с повтором, повтор показывает список', async () => {
+    let githubDown = true
+    renderRepositoriesPage(async () => {
+      if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+      return { items: [repository(1, 'larchanka-training/docs', true)] }
+    })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить репозитории')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    githubDown = false
+    await userEvent.click(within(alert).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByText('larchanka-training/docs')).toBeInTheDocument()
+  })
+
+  it('упал перезапрос (502) — список остаётся, сверху плашка с повтором', async () => {
+    let githubDown = false
+    const { queryClient } = renderRepositoriesPage(async () => {
+      if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+      return { items: [repository(1, 'larchanka-training/docs', true)] }
+    })
+    expect(await screen.findByText('larchanka-training/docs')).toBeInTheDocument()
+
+    githubDown = true
+    await act(() => queryClient.refetchQueries())
+
+    const notice = (
+      await screen.findByText('Не удалось обновить репозитории')
+    ).closest<HTMLElement>('[role="alert"]')
+    if (!notice) throw new Error('плашка без role="alert"')
+    expect(screen.getByText('larchanka-training/docs')).toBeInTheDocument()
+    expect(screen.queryByText('Не удалось загрузить репозитории')).not.toBeInTheDocument()
+
+    githubDown = false
+    await userEvent.click(within(notice).getByRole('button', { name: 'Повторить' }))
+    await waitFor(() =>
+      expect(screen.queryByText('Не удалось обновить репозитории')).not.toBeInTheDocument(),
+    )
   })
 })
 

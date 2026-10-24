@@ -60,7 +60,12 @@ function CommitInput({
 }
 
 export function ReviewFilters({ filters, onChange, onReset }: Props) {
-  const { data: repositories, isLoading: repositoriesLoading } = useConnectedRepositories()
+  const {
+    data: repositories,
+    isLoading: repositoriesLoading,
+    isLoadingError: repositoriesFailed,
+    refetch: refetchRepositories,
+  } = useConnectedRepositories()
   // Репозиторий из ссылки может быть уже не подключён: показываем его id, а не теряем фильтр.
   const repositoryOptions = [
     ...(repositories ?? []).map((repo) => ({ label: repo.full_name, value: repo.id })),
@@ -106,6 +111,17 @@ export function ReviewFilters({ filters, onChange, onReset }: Props) {
           allowClear
           virtual={false}
           loading={repositoriesLoading}
+          status={repositoriesFailed ? 'warning' : undefined}
+          notFoundContent={
+            repositoriesFailed ? (
+              <div role="alert" className="text-sm">
+                Не удалось загрузить репозитории.{' '}
+                <Button size="small" type="link" onClick={() => void refetchRepositories()}>
+                  Повторить
+                </Button>
+              </div>
+            ) : undefined
+          }
           className="min-w-64"
           options={repositoryOptions}
           // Лимит контракта: больше 50 репозиториев выбрать нельзя, а не срезается молча.

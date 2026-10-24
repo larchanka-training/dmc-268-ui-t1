@@ -1,4 +1,3 @@
-import { Alert, Button } from 'antd'
 import { useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -9,7 +8,7 @@ import {
 } from '../../../entities/review-run'
 import { ConnectionNotice, useRunLiveStatus } from '../../../features/live-run-status'
 import { ApiError } from '../../../shared/api'
-import { ErrorState, LoadingState } from '../../../shared/ui'
+import { ErrorState, LoadingState, RefreshErrorNotice } from '../../../shared/ui'
 import { ReviewSummary, RunHeader, RunProgress } from '../../../widgets/review-run-view'
 import { ReviewWorkspace } from '../../../widgets/review-workspace'
 import { RunInspector } from '../../../widgets/run-inspector'
@@ -89,16 +88,9 @@ export function ReviewRunView() {
   return (
     <main className="mx-auto max-w-7xl space-y-4 p-4 sm:p-6">
       {review.isRefetchError && (
-        <Alert
-          type="warning"
-          showIcon
+        <RefreshErrorNotice
           title="Не удалось обновить прогон"
-          description="На экране — последние полученные данные."
-          action={
-            <Button size="small" onClick={() => void review.refetch()}>
-              Повторить
-            </Button>
-          }
+          onRetry={() => void review.refetch()}
         />
       )}
       <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
