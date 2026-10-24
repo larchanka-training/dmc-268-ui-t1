@@ -17,3 +17,11 @@ export class ApiError extends Error {
     this.traceId = traceId
   }
 }
+
+/**
+ * Ручка описана в контракте, но бэкенд отвечает заглушкой `501 NOT_IMPLEMENTED`:
+ * экран показывает «пока не реализовано», а не ошибку с повтором.
+ */
+export function isNotImplemented(error: unknown): boolean {
+  return error instanceof ApiError && error.code === 'NOT_IMPLEMENTED'
+}

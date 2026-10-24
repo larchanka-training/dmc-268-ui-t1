@@ -4,6 +4,7 @@ import { AppLayout } from '@/widgets/app-shell'
 import { ConnectRepositoryPage } from '@/pages/ConnectRepositoryPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
+import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 import { ReviewRunView } from '@/pages/review-run'
 import { ReviewsPage } from '@/pages/reviews'
 
@@ -32,6 +33,7 @@ export function AppRouter() {
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/repositories" element={<RepositoriesPage />} />
           <Route path="/repositories/connect" element={<ConnectRepositoryPage />} />
+          <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

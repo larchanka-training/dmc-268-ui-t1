@@ -38,7 +38,7 @@ export function renderWithQuery(ui: ReactNode) {
 /** Транспорт, который на все запросы отвечает ошибкой: тест задаёт только нужные методы. */
 export function fakeTransport(overrides: Partial<ApiTransport> = {}): ApiTransport {
   const unexpected = (path: string) => Promise.reject(new Error(`неожиданный запрос ${path}`))
-  return { get: unexpected, post: unexpected, ...overrides }
+  return { get: unexpected, post: unexpected, put: unexpected, ...overrides }
 }
 
 /** Рендер экрана с данными через `ApiTransport`, как в приложении. */
@@ -46,9 +46,11 @@ export function renderWithTransport(ui: ReactNode, transport: ApiTransport) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  return render(
+  const utils = render(
     <QueryClientProvider client={client}>
       <TransportContext value={transport}>{ui}</TransportContext>
     </QueryClientProvider>,
   )
+  // `client` нужен тестам фоновой инвалидации: ошибки рефетча при живом кэше.
+  return { ...utils, client }
 }

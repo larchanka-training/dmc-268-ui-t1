@@ -4,6 +4,8 @@ node_modules/
 # Build output
 dist/
 coverage/
+# Результаты прогонов vitest 5 (пересоздаются на каждом `pnpm run test`)
+.vitest/
 
 # Env
 .env
