@@ -1,0 +1,25 @@
+{
+  "Results": [
+    {
+      "Target": "dmc268-ui:ci (alpine 3.22.1)",
+      "Vulnerabilities": [
+        {
+          "VulnerabilityID": "CVE-2026-0001",
+          "PkgName": "libfoo",
+          "Severity": "CRITICAL",
+          "FixedVersion": "1.2.4"
+        },
+        { "VulnerabilityID": "CVE-2026-0002", "PkgName": "libbar", "Severity": "HIGH" },
+        {
+          "VulnerabilityID": "CVE-2026-0003",
+          "PkgName": "libbaz",
+          "Severity": "MEDIUM",
+          "FixedVersion": "2.0"
+        },
+        { "VulnerabilityID": "CVE-2026-0004", "PkgName": "libqux", "Severity": "LOW" },
+        { "VulnerabilityID": "CVE-2026-0005", "PkgName": "libqux", "Severity": "LOW" }
+      ]
+    },
+    { "Target": "usr/share/nginx/html (node-pkg)" }
+  ]
+}

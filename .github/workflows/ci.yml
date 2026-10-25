@@ -196,6 +196,60 @@ jobs:
           exit-code: '1'
           format: table
 
+      # Summary сборки (change ci-build-summary): ниже шаги ничего не роняют —
+      # падает только gate выше, а summary нужен и тогда. Находки сканеров —
+      # вторым запуском с json, чтобы увидеть и то, что gate пропускает
+      # (unfixed у trivy, style у hadolint).
+      - name: Каталог summary
+        if: ${{ !cancelled() }}
+        run: mkdir -p build-summary
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        if: ${{ !cancelled() }}
+        with:
+          dockerfile: Dockerfile
+          format: json
+          output-file: build-summary/hadolint.json
+          no-fail: true
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: ${{ !cancelled() }}
+        with:
+          image-ref: dmc268-ui:ci
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          format: json
+          output: build-summary/trivy.json
+      - name: Метрики бандла и образа
+        if: ${{ !cancelled() }}
+        run: scripts/build-summary.sh dmc268-ui:ci build-summary
+      # База для разницы — метрики последнего успешного прогона develop из
+      # кэша Actions: токену не нужен actions: read, как скачиванию артефакта
+      # чужого прогона. Кэш пул-реквеста видит кэш его базовой ветки.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ !cancelled() }}
+        with:
+          path: build-base
+          key: build-metrics-${{ github.sha }}
+          restore-keys: build-metrics-
+      - name: Summary сборки
+        if: ${{ !cancelled() }}
+        run: >-
+          node scripts/build-summary.mjs render
+          --metrics build-summary/metrics.json
+          --base build-base/metrics.json
+          --trivy build-summary/trivy.json
+          --hadolint build-summary/hadolint.json
+          >> "$GITHUB_STEP_SUMMARY"
+      # Только успешный прогон develop становится базой. Ключ по sha: запись
+      # кэша неизменяема, а restore-keys берёт самую свежую.
+      - name: Метрики develop для следующих прогонов
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+        run: mkdir -p build-base && cp build-summary/metrics.json build-base/metrics.json
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+        with:
+          path: build-base
+          key: build-metrics-${{ github.sha }}
+
   # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
   # registry_auth и переменные, от которых зависит деплой. Без этого job'а
   # ошибка в них обнаруживалась бы только самим деплоем.
