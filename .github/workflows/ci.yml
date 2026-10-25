@@ -35,12 +35,22 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
-      # Контракт и типы из него совпадают с бэкендом на коммите из
-      # src/shared/api/contract/VERSION (ловит правку сгенерированного руками
-      # и забытый pnpm api:sync), и этот коммит входит в develop бэкенда:
-      # коммит из PR бэкенда в мёрж не пройдёт. Если в develop контракт новее —
-      # только предупреждение. Ходит в сеть к raw.githubusercontent.com и
-      # api.github.com; токен — против лимита анонимных запросов (60 в час).
+
+  # Отдельно от typecheck: ходит в сеть (raw.githubusercontent.com и
+  # api.github.com), и сетевой сбой не должен выглядеть как красный typecheck.
+  # Контракт и типы из него совпадают с бэкендом на коммите из
+  # src/shared/api/contract/VERSION (ловит правку сгенерированного руками
+  # и забытый pnpm api:sync), и этот коммит входит в develop бэкенда:
+  # коммит из PR бэкенда в мёрж не пройдёт. Если в develop контракт новее —
+  # только предупреждение. Токен — против лимита анонимных запросов (60 в час).
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       - run: pnpm api:check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
