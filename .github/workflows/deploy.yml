@@ -131,6 +131,11 @@ jobs:
             VITE_APP_VERSION=${{ needs.gate.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Без provenance-аттестации: в ней данные прогона (id, время), и
+          # повторная сборка того же коммита с теми же build-args давала бы
+          # новый digest — tofu пересоздавал бы контейнер интерфейса без
+          # изменений в образе. Аттестацию никто не читает.
+          provenance: false
 
       - name: Убедиться, что образ забирается обратно
         env:
@@ -146,6 +151,23 @@ jobs:
           fi
           docker manifest inspect "${IMAGE}@${DIGEST}" > /dev/null
           echo "образ доступен по digest: ${IMAGE}@${DIGEST}"
+
+      # trivy в ci.yml смотрит образ, собранный в CI, а на стенд уезжает этот:
+      # он собран заново, и пакеты базового nginx:1.30-alpine между сборками
+      # могли смениться. Поэтому сканируется опубликованный digest — ровно то,
+      # что запустит стенд, — с теми же порогами, что в CI. Образ в приватном
+      # ghcr: trivy берёт креды из ~/.docker/config.json, который записал
+      # docker/login-action выше. TRIVY_IMAGE_SRC=remote — сразу из реестра:
+      # в локальном docker этого образа нет, buildx его не загружал.
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        env:
+          TRIVY_IMAGE_SRC: remote
+        with:
+          image-ref: ${{ steps.meta.outputs.image }}@${{ steps.build.outputs.digest }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
 
   deploy:
     needs: [gate, image]
