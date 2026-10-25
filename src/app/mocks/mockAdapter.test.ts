@@ -6,7 +6,6 @@ import {
   fetchRulesStatus,
   saveRepositorySettings,
 } from '../../entities/repository'
-import { fetchReviewRunList } from '../../entities/review-run'
 import { createMockAdapter } from './mockAdapter'
 import { mockRepositoryId } from './repositories'
 
@@ -68,25 +67,5 @@ describe('mock adapter: сохранение настроек', () => {
     // Флаг авто-ревью — та же колонка репозитория: сохранение меняет и `GET /repositories/{id}`.
     const repo = await fetchRepository(transport, id)
     expect(repo.auto_review_enabled).toBe(false)
-  })
-})
-
-describe('mock adapter: история репозитория', () => {
-  it('GET /reviews?repository_id= фильтрует список по репозиторию', async () => {
-    const transport = adapter()
-    const first = mockRepositoryId(1)
-    const second = mockRepositoryId(2)
-
-    const all = await fetchReviewRunList(transport, {})
-    const ofFirst = await fetchReviewRunList(transport, { repository_id: [first] })
-    const ofSecond = await fetchReviewRunList(transport, { repository_id: [second] })
-
-    // Фикстуры делят прогоны между двумя репозиториями: фильтр не теряет и не дублирует.
-    expect(ofFirst.total + ofSecond.total).toBe(all.total)
-    expect(ofFirst.items).not.toEqual(ofSecond.items)
-    expect(ofFirst.items.every((run) => run.merge_request.repository.id === first)).toBe(true)
-    expect(ofSecond.items.every((run) => run.merge_request.repository.id === second)).toBe(true)
-    // Прогон фикстуры (run-42) принадлежит первому репозиторию и остаётся в его списке.
-    expect(ofFirst.items.some((run) => run.id === 'run-42')).toBe(true)
   })
 })

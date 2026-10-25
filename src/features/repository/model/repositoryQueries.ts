@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { fetchReviewRunList, type ReviewRunListQuery } from '@/entities/review-run'
 import {
   connectRepository,
   fetchAvailableRepositories,
@@ -19,19 +18,6 @@ export const repositoryKeys = {
   repository: (repositoryId: string) => ['repositories', repositoryId] as const,
   settings: (repositoryId: string) => ['repositories', repositoryId, 'settings'] as const,
   rules: (repositoryId: string) => ['repositories', repositoryId, 'rules'] as const,
-}
-
-/** Первая страница истории: та же ручка списка прогонов, что у вкладки «Ревью». */
-const HISTORY_LIMIT = 50
-
-/** Запрос истории репозитория — `GET /reviews` с фильтром `repository_id` (контракт). */
-function historyQuery(repositoryId: string): ReviewRunListQuery {
-  return { repository_id: [repositoryId], limit: HISTORY_LIMIT }
-}
-
-/** Корень ключа — как у списка вкладки «Ревью»: общий поток помечает устаревшим оба. */
-export function repositoryHistoryKey(repositoryId: string) {
-  return ['reviews', 'list', historyQuery(repositoryId)] as const
 }
 
 export function useConnectedRepositories() {
@@ -84,14 +70,6 @@ export function useRulesStatus(repositoryId: string) {
   return useQuery({
     queryKey: repositoryKeys.rules(repositoryId),
     queryFn: () => fetchRulesStatus(transport, repositoryId),
-  })
-}
-
-export function useRepositoryHistory(repositoryId: string) {
-  const transport = useTransport()
-  return useQuery({
-    queryKey: repositoryHistoryKey(repositoryId),
-    queryFn: () => fetchReviewRunList(transport, historyQuery(repositoryId)),
   })
 }
 

@@ -11,12 +11,9 @@ import {
   Skeleton,
   Space,
   Switch,
-  Table,
   Typography,
 } from 'antd'
-import type { ColumnsType } from 'antd/es/table'
-import { Link, useParams } from 'react-router-dom'
-import { formatDateTime } from '@/shared/lib'
+import { useParams } from 'react-router-dom'
 import { isNotImplemented, ApiError } from '@/shared/api'
 import { ErrorState, LinkButton } from '@/shared/ui'
 import {
@@ -27,11 +24,9 @@ import {
   SEVERITY_LEVEL_OPTIONS,
   type RepositorySettings,
 } from '@/entities/repository'
-import { RunStatusBadge, type ReviewRunListItem } from '@/entities/review-run'
 import {
   repositoryKeys,
   useRepository,
-  useRepositoryHistory,
   useRepositorySettings,
   useRulesStatus,
   useSaveRepositorySettings,
@@ -206,81 +201,6 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
   )
 }
 
-const historyColumns: ColumnsType<ReviewRunListItem> = [
-  {
-    title: 'Запрос на изменение',
-    key: 'merge_request',
-    render: (_, run) => {
-      const mr = run.merge_request
-      return (
-        <Link to={`/reviews/${encodeURIComponent(run.id)}`}>
-          #{mr.number} {mr.title}
-        </Link>
-      )
-    },
-  },
-  {
-    title: 'Ветка',
-    key: 'source_branch',
-    render: (_, run) => run.merge_request.source_branch,
-  },
-  {
-    title: 'Статус',
-    key: 'status',
-    render: (_, run) => <RunStatusBadge status={run.status} />,
-  },
-  {
-    title: 'Время',
-    key: 'created_at',
-    render: (_, run) => formatDateTime(run.created_at),
-  },
-]
-
-function HistoryTable({ repositoryId }: { repositoryId: string }) {
-  const { data, isLoading, isError, error, refetch } = useRepositoryHistory(repositoryId)
-
-  if (isLoading) {
-    return <Skeleton active paragraph={{ rows: 6 }} />
-  }
-  if (!data) {
-    if (isNotImplemented(error))
-      return <NotImplementedNote title="История проверок пока недоступна" />
-    return (
-      <ErrorState
-        title="Не удалось загрузить историю проверок"
-        error={error}
-        onRetry={isRetryable(error) ? () => void refetch() : undefined}
-      />
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      {isError && (
-        <ErrorState
-          title="Не удалось обновить историю проверок — показана последняя загруженная"
-          error={error}
-          onRetry={isRetryable(error) ? () => void refetch() : undefined}
-        />
-      )}
-      <Table
-        rowKey="id"
-        loading={isLoading}
-        columns={historyColumns}
-        dataSource={data.items}
-        pagination={false}
-        locale={{ emptyText: 'Проверок ещё не было' }}
-      />
-      {/* Первая страница списка прогонов; остальные — на вкладке «Ревью» с фильтром. */}
-      {data.total > data.items.length && (
-        <Link to={`/reviews?repository_id=${encodeURIComponent(repositoryId)}`}>
-          Остальные прогоны — на вкладке «Ревью»
-        </Link>
-      )}
-    </div>
-  )
-}
-
 export function RepositorySettingsPage() {
   const { repositoryId = '' } = useParams()
   const repoQuery = useRepository(repositoryId)
@@ -331,7 +251,13 @@ export function RepositorySettingsPage() {
           </Typography.Title>
           <Typography.Text type="secondary">{repo.full_name}</Typography.Text>
         </div>
-        <LinkButton to="/repositories">К списку репозиториев</LinkButton>
+        {/* Журнал прогонов живёт на вкладке «Ревью»: сюда ведём с фильтром по этому репозиторию. */}
+        <Space>
+          <LinkButton to="/repositories">К списку репозиториев</LinkButton>
+          <LinkButton to={`/reviews?repository_id=${encodeURIComponent(repositoryId)}`}>
+            Прогоны репозитория
+          </LinkButton>
+        </Space>
       </div>
       {repoQuery.isError && (
         <ErrorState
@@ -347,9 +273,6 @@ export function RepositorySettingsPage() {
         </Card>
         <Card title="Правила ревью">
           <RulesPanel key={repositoryId} repositoryId={repositoryId} />
-        </Card>
-        <Card title="История проверок">
-          <HistoryTable key={repositoryId} repositoryId={repositoryId} />
         </Card>
       </div>
     </div>

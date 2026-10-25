@@ -3,13 +3,13 @@
 ## 1. Подготовка и модели
 
 - [x] 1.1 Создать ветку `feat/repository-settings` от `develop`, change `repository-settings` и задачу [#28](https://github.com/larchanka-training/dmc-268-ui-t1/issues/28); проверить: `openspec status --change repository-settings` показывает артефакты, карточка на доске `dmc-268-t1`
-- [x] 1.2 Завести `entities/repository/model/settings.ts`: типы и Zod-схемы `RepositorySettings`, `RulesStatus`, `HistoryRun` по design.md; тесты схем — уровни severity, вариант правил без файла, незнакомый статус прогона, данные вне схемы; `pnpm run test` зелёный
-- [x] 1.3 Расширить `entities/repository/api/mockStore.ts`: настройки, статус правил, история и `saveRepositorySettings`; фикстуры — `repo-1` с `.review/rules.md` (правила Security, Performance, Style в форме api#49 и отклонённый раздел) и историей прогонов, `repo-2` без правил и с пустой историей; тест — сохранение меняет состояние store
+- [x] 1.2 Завести `entities/repository/model/settings.ts`: Zod-схемы настроек и статуса правил по контракту с `MatchesContract` против `RepositorySettingsResponse`, `RulesStatusResponse`, `FindingSeverity` — пять исходов правил `loaded`/`empty`/`absent`/`too_large`/`unavailable`; тесты схем — уровни severity, исходы правил, данные вне схемы; `pnpm run test` зелёный
+- [x] 1.3 Завести моки по ручкам контракта: `app/mocks/repositorySettings.ts` — стор настроек и статуса правил с `onAutoReviewChange` (синхронизация флага авто-ревью в стор репозиториев, как у бэкенда), маршруты `mockAdapter.ts` — `GET`/`PUT …/settings` и `GET …/rules`; фикстуры — `repo-1` с `.review/rules.md` (правила Security, Performance, Style и отклонённый раздел Docs), `repo-2` без файла (absent), `repo-3` — исход `empty`; тест — сохранение меняет стор и синхронизирует `auto_review_enabled` (`repositorySettings.test.ts`)
 
 ## 2. API-функции и запросы
 
-- [x] 2.1 Добавить в `entities/repository/api/repositoryApi.ts` fetch-функции настроек, статуса правил и истории и `saveRepositorySettings` с задержкой по образцу существующих; экспорт через публичный `index.ts` слайса; `pnpm run typecheck` без ошибок
-- [x] 2.2 Расширить `features/repository/model/repositoryQueries.ts`: ключи `['repositories', id, 'settings' | 'rules' | 'history']`, hooks `useRepositorySettings`, `useRulesStatus`, `useRepositoryHistory`, mutation `useSaveRepositorySettings` с инвалидацией настроек; поведение проверяется интеграционными тестами страницы в 4.3
+- [x] 2.1 Добавить в `entities/repository/api/repositoryApi.ts` `fetchRepository` (`GET /repositories/{id}`), `fetchRepositorySettings`/`saveRepositorySettings` (`GET`/`PUT …/settings`, тело — `RepositorySettingsUpdate`) и `fetchRulesStatus` (`GET …/rules`) через `ApiTransport`; экспорт через публичный `index.ts` слайса; `pnpm run typecheck` без ошибок
+- [x] 2.2 Расширить `features/repository/model/repositoryQueries.ts`: ключи `['repositories', id, 'settings' | 'rules']`, hooks `useRepository`, `useRepositorySettings`, `useRulesStatus`; mutation `useSaveRepositorySettings` кладёт ответ в кэш (`setQueryData`) и инвалидирует `settings`, `repository` и `connected`; поведение проверяется интеграционными тестами страницы в 4.3
 
 ## 3. UI сущностей
 
@@ -17,9 +17,9 @@
 
 ## 4. Страница и маршрут
 
-- [x] 4.1 Собрать `src/pages/RepositorySettingsPage.tsx`: форма настроек (авто-ревью, фильтр веток, порог severity `min_severity` с подписями Low / Medium / High / Critical), панель статуса правил, таблица истории со ссылкой на `/reviews/:reviewId`; блоки отдельно переживают загрузку и ошибку, экран показывает «репозиторий не найден», сброс возвращает сохранённые значения
+- [x] 4.1 Собрать `src/pages/RepositorySettingsPage.tsx`: форма настроек (авто-ревью, фильтр веток, порог severity `min_severity` с подписями Low / Medium / High / Critical), панель статуса правил, ссылка «Прогоны репозитория» на вкладку «Ревью» с фильтром по репозиторию; блоки отдельно переживают загрузку и ошибку, экран показывает «репозиторий не найден», сброс возвращает сохранённые значения
 - [x] 4.2 Прописать маршрут `/app/repositories/:repositoryId/settings` (под `basename="/app"`) в `AppRouter` и действие «Настройки» в `RepositoriesPage`; тесты — из списка репозиториев открывается экран настроек и прямая ссылка без сессии уводит на `/login?redirect=…`
-- [x] 4.3 Интеграционные тесты `RepositorySettingsPage`: загрузка текущих значений, сохранение (успех, ошибка с сохранением черновика, сброс), правила есть/нет, переход на прогон, пустая история, незнакомый статус прогона, ошибка одного блока не ломает остальные, данные вне схемы
+- [x] 4.3 Интеграционные тесты `RepositorySettingsPage`: загрузка текущих значений, сохранение (успех, ошибка с сохранением черновика, сброс), правила есть/нет, черновик не переезжает между репозиториями, 501 блоков, 404/4xx без повтора, ссылка на прогоны, ошибка одного блока не ломает остальные, данные вне схемы
 
 ## 5. Проверки и доставка
 
@@ -40,10 +40,9 @@
 - [x] 6.2 Сохранение — `PUT` полной заменой (`saveRepositorySettings` через `transport.put`);
       нормализация `branch_filter` при сохранении (`lib/branchFilter.ts`: трим, пустые — мимо,
       дедуп, лимиты 50/200)
-- [x] 6.3 История — список прогонов `GET /reviews` с фильтром `repository_id` (`limit: 50`,
-      ключ `['reviews', 'list', query]` — общий корень с вкладкой «Ревью»); заголовок экрана —
-      `useRepository` по одной ручке `GET /repositories/{id}` без поиска в первой странице
-      списка
+- [x] 6.3 Заголовок экрана — `useRepository` по одной ручке `GET /repositories/{id}`, без
+      поиска в первой странице списка; карточка истории по решению созвона убрана
+      (см. раздел 7)
 - [x] 6.4 501 от ручек-заглушек → «пока недоступно» в этом блоке (`NotImplementedNote`,
       паттерн `ConnectRepositoryPage`/`ReviewsPage`); блоки ошибок — `ErrorState`, «Повторить»
       только для не-4xx; 404 заголовка — `Result` с инвалидацией `connected`
@@ -62,4 +61,20 @@
       `@/shared/api`
 - [x] 6.10 Актуализировать артефакты change: `design.md`, `proposal.md`, `tasks.md` и дельта
       `specs/cabinet-repository-settings/spec.md` — архитектура после перехода на контракт;
+      `openspec validate repository-settings --strict` зелёный
+
+## 7. Правки по повторному ревью 24.10
+
+Ревью головы `9dde444` (треды Grinv, AndrewKonst): карточка «История проверок» противоречит
+решению созвона — журнал прогонов живёт на вкладке «Ревью» (#43; frontend #44, backend
+api-t1#103), а не в настройках репозитория; пункты 1.2–2.2 описывали архитектуру до
+перехода на контракт.
+
+- [x] 7.1 Убрать карточку «История проверок» и всё под неё: `HistoryTable`,
+      `useRepositoryHistory`/`repositoryHistoryKey`, требование «История проверок» из спеки,
+      тесты истории, упоминания в proposal и design; вместо карточки — ссылка «Прогоны
+      репозитория» на `/app/reviews?repository_id={id}` в тулбаре страницы
+- [x] 7.2 Переписать пункты 1.2–2.2 под фактическую реализацию — схемы контракта с
+      `MatchesContract`, моки `app/mocks/repositorySettings.ts` и маршруты `mockAdapter.ts`,
+      API-функции через `ApiTransport`, ключи `settings`/`rules`;
       `openspec validate repository-settings --strict` зелёный

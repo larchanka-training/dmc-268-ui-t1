@@ -151,8 +151,6 @@ describe('RepositoriesPage', () => {
           fetched_at: '2026-10-11T09:40:00.000Z',
         }
       }
-      // История — первая страница списка прогонов с фильтром репозитория.
-      if (path === '/reviews?repository_id=repo-1&limit=50') return { items: [], total: 0 }
       throw new Error(`неожиданный запрос ${path}`)
     })
 

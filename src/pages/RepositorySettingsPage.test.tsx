@@ -9,8 +9,7 @@ import type {
   RepositorySettingsUpdate,
   RulesStatus,
 } from '@/entities/repository'
-import type { ReviewRunListItem } from '@/entities/review-run'
-import { repositoryHistoryKey, repositoryKeys } from '@/features/repository'
+import { repositoryKeys } from '@/features/repository'
 import { ApiError } from '@/shared/api'
 import { renderWithTransport } from '@/test/api'
 import { RepositorySettingsPage } from './RepositorySettingsPage'
@@ -18,18 +17,15 @@ import { RepositorySettingsPage } from './RepositorySettingsPage'
 /**
  * Управляемый бэкенд теста: записи можно менять до рендера и между рефетчами, `failures`
  * роняет один блок, `badShape` отвечает данными вне схемы, `beforeSave` держит сохранение,
- * пока тест не отпустит. `historyTotal` подменяет счётчик `total` истории: ручка отдаёт
- * первую страницу, а всего прогонов может быть больше. Ручки — как в контракте:
- * `GET /repositories/{id}`, `GET/PUT …/settings`, `GET …/rules` и `GET /reviews?repository_id=`.
+ * пока тест не отпустит. Ручки — как в контракте: `GET /repositories/{id}`,
+ * `GET/PUT …/settings` и `GET …/rules`.
  */
 type Backend = {
   repositories: Record<string, Repository>
   settings: Record<string, RepositorySettings>
   rules: Record<string, RulesStatus>
-  history: Record<string, ReviewRunListItem[]>
-  historyTotal?: Record<string, number>
-  failures: { repository?: Error; settings?: Error; rules?: Error; history?: Error; save?: Error }
-  badShape: { settings?: unknown; rules?: unknown; history?: unknown }
+  failures: { repository?: Error; settings?: Error; rules?: Error; save?: Error }
+  badShape: { settings?: unknown; rules?: unknown }
   beforeSave?: () => Promise<void>
 }
 
@@ -51,47 +47,6 @@ function repository(n: number, full_name: string): Repository {
     auto_review_enabled: true,
     created_at: '2026-09-20T10:00:00Z',
     updated_at: '2026-09-20T10:00:00Z',
-  }
-}
-
-/** Запрос на изменение прогона истории (`MergeRequestSummary` контракта). */
-function mergeRequest(
-  n: number,
-  overrides: Partial<ReviewRunListItem['merge_request']> = {},
-): ReviewRunListItem['merge_request'] {
-  return {
-    id: `mr-${n}`,
-    number: n,
-    title: 'Чтение токена из окружения',
-    author: 'a.petrova',
-    source_branch: 'feat/env-token',
-    target_branch: 'develop',
-    state: 'merged',
-    url: `https://github.com/larchanka-training/platform-api/pull/${n}`,
-    repository: { id: 'repo-1', provider: 'github', full_name: 'larchanka-training/platform-api' },
-    ...overrides,
-  }
-}
-
-/** Строка истории — полный `ReviewRunListItem` контракта. */
-function runListItem(
-  n: number,
-  mrOverrides: Partial<ReviewRunListItem['merge_request']> = {},
-  runOverrides: Partial<ReviewRunListItem> = {},
-): ReviewRunListItem {
-  return {
-    id: `run-${n}`,
-    status: 'completed',
-    trigger: 'webhook',
-    head_sha: '9f3c2a17e4b8d6c0a5f1',
-    created_at: '2026-10-05T17:03:26Z',
-    updated_at: '2026-10-05T17:05:40Z',
-    last_progress_at: '2026-10-05T17:05:40Z',
-    duration_seconds: 134,
-    failed_stage: null,
-    findings_count: 2,
-    merge_request: mergeRequest(n, mrOverrides),
-    ...runOverrides,
   }
 }
 
@@ -161,20 +116,6 @@ function createBackend(): Backend {
         fetched_at: '2026-10-11T09:35:00.000Z',
       },
     },
-    history: {
-      'repo-1': [
-        runListItem(42),
-        runListItem(
-          41,
-          {
-            title: 'Отмена прогона при деплое соседнего сервиса',
-            source_branch: 'feat/bulk-export',
-          },
-          { status: 'cancelled', created_at: '2026-10-04T12:10:00Z' },
-        ),
-      ],
-      'repo-2': [],
-    },
     failures: {},
     badShape: {},
   }
@@ -183,15 +124,7 @@ function createBackend(): Backend {
 /** Транспорт поверх бэкенда теста: те же ручки, что в контракте; вызовы — шпионы. */
 function backendTransport(backend: Backend) {
   const get = vi.fn(async (path: string): Promise<unknown> => {
-    const [route, search = ''] = path.split('?')
-    if (route === '/reviews') {
-      if (backend.failures.history) throw backend.failures.history
-      if (backend.badShape.history !== undefined) return structuredClone(backend.badShape.history)
-      const repositoryId = new URLSearchParams(search).get('repository_id') ?? ''
-      const items = backend.history[repositoryId] ?? []
-      const total = backend.historyTotal?.[repositoryId] ?? items.length
-      return { items: structuredClone(items), total }
-    }
+    const [route] = path.split('?')
     const repositoryRoute = /^\/repositories\/([^/]+)$/.exec(route)
     if (repositoryRoute) {
       if (backend.failures.repository) throw backend.failures.repository
@@ -248,8 +181,6 @@ function renderSettingsPage(repositoryId = 'repo-1', backend = createBackend(), 
       {extra}
       <Routes>
         <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
-        {/* Заглушка экрана прогона: проверяем только переход по ссылке. */}
-        <Route path="/reviews/:reviewId" element={<div>Экран прогона</div>} />
       </Routes>
     </MemoryRouter>,
     transport,
@@ -280,6 +211,14 @@ describe('RepositorySettingsPage: загрузка', () => {
       'href',
       '/repositories',
     )
+  })
+
+  it('тулбар ведёт на вкладку «Ревью» с фильтром по этому репозиторию', async () => {
+    renderSettingsPage('repo-1')
+
+    expect(await screen.findByRole('switch')).toBeChecked()
+    const runsLink = screen.getByRole('link', { name: 'Прогоны репозитория' })
+    expect(runsLink).toHaveAttribute('href', '/reviews?repository_id=repo-1')
   })
 })
 
@@ -480,59 +419,6 @@ describe('RepositorySettingsPage: статус правил', () => {
   })
 })
 
-describe('RepositorySettingsPage: история проверок', () => {
-  it('выбор прогона открывает экран его просмотра', async () => {
-    const user = userEvent.setup()
-    renderSettingsPage()
-
-    const runLink = await screen.findByRole('link', {
-      name: '#42 Чтение токена из окружения',
-    })
-    expect(runLink).toHaveAttribute('href', '/reviews/run-42')
-    await user.click(runLink)
-
-    expect(await screen.findByText('Экран прогона')).toBeInTheDocument()
-  })
-
-  it('repo-2: проверок ещё не было', async () => {
-    renderSettingsPage('repo-2')
-
-    expect(await screen.findByText('Проверок ещё не было')).toBeInTheDocument()
-    // Все прогоны уместились в первую страницу — ссылки на «Остальные» нет.
-    expect(
-      screen.queryByRole('link', { name: 'Остальные прогоны — на вкладке «Ревью»' }),
-    ).not.toBeInTheDocument()
-  })
-
-  it('прогонов больше, чем в первой странице: ссылка ведёт на вкладку «Ревью» с фильтром', async () => {
-    const backend = createBackend()
-    backend.historyTotal = { 'repo-1': 61 }
-    renderSettingsPage('repo-1', backend)
-
-    const link = await screen.findByRole('link', {
-      name: 'Остальные прогоны — на вкладке «Ревью»',
-    })
-    expect(link).toHaveAttribute('href', '/reviews?repository_id=repo-1')
-  })
-
-  it('незнакомый статус прогона показывается как есть и не ломает список', async () => {
-    const backend = createBackend()
-    backend.history['repo-1'] = [
-      runListItem(
-        99,
-        { title: 'Ребейз поверх develop', source_branch: 'feat/rebase' },
-        { status: 'rebasing', created_at: '2026-10-10T10:00:00Z' },
-      ),
-    ]
-    renderSettingsPage('repo-1', backend)
-
-    expect(await screen.findByText('rebasing')).toBeInTheDocument()
-    expect(screen.getByText('#99 Ребейз поверх develop')).toBeInTheDocument()
-    // Время — одним форматтером с экраном прогона: Intl, UTC.
-    expect(screen.getByText('10.10.2026, 10:00 UTC')).toBeInTheDocument()
-  })
-})
-
 describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
   const notImplemented = () => new ApiError(501, 'Не реализовано', 'NOT_IMPLEMENTED')
 
@@ -545,7 +431,6 @@ describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
       note: 'Настройки ревью пока недоступны',
       alive: async () => {
         expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
-        expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
       },
     },
     {
@@ -556,18 +441,6 @@ describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
       note: 'Статус правил пока недоступен',
       alive: async () => {
         expect(await screen.findByRole('switch')).toBeChecked()
-        expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
-      },
-    },
-    {
-      block: 'история',
-      fail: (backend: Backend) => {
-        backend.failures.history = notImplemented()
-      },
-      note: 'История проверок пока недоступна',
-      alive: async () => {
-        expect(await screen.findByRole('switch')).toBeChecked()
-        expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
       },
     },
   ])(
@@ -616,9 +489,9 @@ describe('RepositorySettingsPage: состояния данных', () => {
 
     expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
     expect(await screen.findByText('rules boom')).toBeInTheDocument()
-    // Настройки и история работают.
+    // Настройки продолжают работать.
     expect(await screen.findByRole('switch')).toBeChecked()
-    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
 
     // Чиним бэкенд и повторяем запрос блока.
     delete backend.failures.rules
@@ -634,9 +507,9 @@ describe('RepositorySettingsPage: состояния данных', () => {
     expect(await screen.findByText('Файл правил не найден')).toBeInTheDocument()
     // 4xx повтор не изменит — кнопки повтора в блоке нет.
     expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
-    // Настройки и история работают.
+    // Настройки продолжают работать.
     expect(await screen.findByRole('switch')).toBeChecked()
-    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
   })
 
   it('данные вне схемы: каждый блок показывает ошибку контракта, экран не падает', async () => {
@@ -644,14 +517,12 @@ describe('RepositorySettingsPage: состояния данных', () => {
     backend.badShape = {
       settings: { auto_review_enabled: 'yes' },
       rules: { status: 'half-loaded' },
-      history: { items: [{ nope: true }], total: 1 },
     }
     renderSettingsPage('repo-1', backend)
 
     expect(await screen.findByText('Не удалось загрузить настройки')).toBeInTheDocument()
     expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
-    expect(await screen.findByText('Не удалось загрузить историю проверок')).toBeInTheDocument()
-    expect(screen.getAllByText(/не соответствует контракту/)).toHaveLength(3)
+    expect(screen.getAllByText(/не соответствует контракту/)).toHaveLength(2)
   })
 
   it('фоновая ошибка настроек: форма остаётся на данных из кэша, сверху Alert с повтором', async () => {
@@ -679,34 +550,6 @@ describe('RepositorySettingsPage: состояния данных', () => {
       expect(screen.queryByText(/Не удалось обновить настройки/)).not.toBeInTheDocument(),
     )
     expect(screen.getByRole('switch')).toBeChecked()
-  })
-
-  it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert с повтором', async () => {
-    const user = userEvent.setup()
-    const { backend, queryClient } = renderSettingsPage()
-
-    expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
-
-    backend.failures.history = new Error('history boom')
-    await act(() => queryClient.invalidateQueries({ queryKey: repositoryHistoryKey('repo-1') }))
-
-    expect(
-      await screen.findByText(
-        'Не удалось обновить историю проверок — показана последняя загруженная',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByText('history boom')).toBeInTheDocument()
-    // Таблица с данными из кэша не заменена полной ошибкой.
-    expect(screen.getByText('#42 Чтение токена из окружения')).toBeInTheDocument()
-
-    // Повтор с починенным бэкендом убирает Alert.
-    expect(screen.getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
-    delete backend.failures.history
-    await user.click(screen.getByRole('button', { name: 'Повторить' }))
-    await waitFor(() =>
-      expect(screen.queryByText(/Не удалось обновить историю проверок/)).not.toBeInTheDocument(),
-    )
-    expect(screen.getByText('#42 Чтение токена из окружения')).toBeInTheDocument()
   })
 
   it('фоновая ошибка правил: панель остаётся на данных из кэша, сверху Alert с повтором', async () => {

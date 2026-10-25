@@ -23,8 +23,9 @@ import { createReviewRunStore } from './reviewRuns'
  * Экран прогона есть у одного прогона, `/reviews/run-42`; список `/reviews` — он, чужой прогон
  * потока и сгенерированные прогоны (`reviewRuns.ts`). Любой другой путь — 404, как у бэкенда.
  * Настройки и статус правил живут в своём store (`repositorySettings.ts`) по ручкам контракта
- * `GET/PUT /repositories/{id}/settings` и `GET /repositories/{id}/rules`; история репозитория —
- * `GET /reviews` с фильтром `repository_id`.
+ * `GET/PUT /repositories/{id}/settings` и `GET /repositories/{id}/rules`; список прогонов
+ * `/reviews` (в том числе с фильтром `repository_id`) отдаёт вкладке «Ревью» store
+ * `reviewRuns.ts`.
  */
 export function createMockAdapter({
   latencyMs = 250,
