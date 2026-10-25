@@ -10,7 +10,7 @@ import type {
   RulesStatus,
 } from '@/entities/repository'
 import { repositoryKeys } from '@/features/repository'
-import { ApiError } from '@/shared/api'
+import { ApiError, ContractError } from '@/shared/api'
 import { renderWithTransport } from '@/test/api'
 import { RepositorySettingsPage } from './RepositorySettingsPage'
 
@@ -211,6 +211,15 @@ describe('RepositorySettingsPage: загрузка', () => {
       'href',
       '/repositories',
     )
+  })
+
+  it('422 на не-uuid идентификатор — тоже «Репозиторий не найден», как 404', async () => {
+    const backend = createBackend()
+    backend.failures.repository = new ApiError(422, 'repository_id: не uuid', 'VALIDATION_ERROR')
+    renderSettingsPage('repo-1', backend)
+
+    expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
   it('тулбар ведёт на вкладку «Ревью» с фильтром по этому репозиторию', async () => {
@@ -510,6 +519,39 @@ describe('RepositorySettingsPage: состояния данных', () => {
     // Настройки продолжают работать.
     expect(await screen.findByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+  })
+
+  it('429 — повтор имеет смысл: кнопка «Повторить» есть', async () => {
+    const backend = createBackend()
+    backend.failures.rules = new ApiError(429, 'Слишком много запросов', 'RATE_LIMITED')
+    renderSettingsPage('repo-1', backend)
+
+    expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Повторить/ })).toBeInTheDocument()
+  })
+
+  it('ContractError повтор не изменит: кнопки «Повторить» нет', async () => {
+    const backend = createBackend()
+    backend.failures.rules = new ContractError('/repositories/repo-1/rules', 'поле отсутствует')
+    renderSettingsPage('repo-1', backend)
+
+    expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
+  })
+
+  it('репозиторий отключили, пока настройки открыты: фоновый рефетч с 404 показывает «не найден», а не ошибку обновления', async () => {
+    const { backend, queryClient } = renderSettingsPage()
+
+    expect(await screen.findByRole('switch')).toBeChecked()
+
+    backend.failures.repository = new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
+    await act(() =>
+      queryClient.invalidateQueries({ queryKey: repositoryKeys.repository('repo-1') }),
+    )
+
+    expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
+    // Блоки и форма скрыты: данных больше нет.
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
   })
 
   it('данные вне схемы: каждый блок показывает ошибку контракта, экран не падает', async () => {

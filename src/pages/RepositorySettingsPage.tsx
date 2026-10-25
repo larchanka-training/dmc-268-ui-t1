@@ -14,7 +14,7 @@ import {
   Typography,
 } from 'antd'
 import { useParams } from 'react-router-dom'
-import { isNotImplemented, ApiError } from '@/shared/api'
+import { isNotImplemented, ApiError, ContractError } from '@/shared/api'
 import { ErrorState, LinkButton } from '@/shared/ui'
 import {
   branchFilterProblem,
@@ -32,13 +32,21 @@ import {
   useSaveRepositorySettings,
 } from '@/features/repository'
 
-/** Повтор имеет смысл только после сетевой или серверной ошибки: 4xx повтор не изменит. */
+/**
+ * Повтор имеет смысл, только если он может изменить ответ: сетевая ошибка, 5xx или 429.
+ * Прочие 4xx повтор не изменит, а повтор `ContractError` вернёт тот же ответ.
+ */
 function isRetryable(error: unknown): boolean {
-  return !(error instanceof ApiError && error.status >= 400 && error.status < 500)
+  if (error instanceof ApiError) return error.status >= 500 || error.status === 429
+  return !(error instanceof ContractError)
 }
 
+/**
+ * «Не найден» — 404 и 422: `repository_id` — единственный параметр `GET /repositories/{id}`,
+ * а не-uuid по контракту бэкенд отклоняет именно 422, это тот же отсутствующий адрес.
+ */
 function isNotFound(error: unknown): boolean {
-  return error instanceof ApiError && error.status === 404
+  return error instanceof ApiError && (error.status === 404 || error.status === 422)
 }
 
 /** Блок на ручке-заглушке: она описана в контракте, но бэкенд отвечает `501 NOT_IMPLEMENTED`. */
@@ -216,21 +224,23 @@ export function RepositorySettingsPage() {
   if (repoQuery.isLoading) {
     return <Skeleton active paragraph={{ rows: 8 }} />
   }
+  // «Не найден» — независимо от кэша: фоновый рефетч мог узнать, что репозиторий отключили,
+  // пока настройки были открыты; блоки и форма при этом скрываются.
+  if (isNotFound(repoQuery.error)) {
+    return (
+      <Result
+        status="404"
+        title="Репозиторий не найден"
+        subTitle="Репозитория с таким адресом нет среди подключённых."
+        extra={
+          <LinkButton to="/repositories" type="primary">
+            К списку репозиториев
+          </LinkButton>
+        }
+      />
+    )
+  }
   if (!repoQuery.data) {
-    if (isNotFound(repoQuery.error)) {
-      return (
-        <Result
-          status="404"
-          title="Репозиторий не найден"
-          subTitle="Репозитория с таким адресом нет среди подключённых."
-          extra={
-            <LinkButton to="/repositories" type="primary">
-              К списку репозиториев
-            </LinkButton>
-          }
-        />
-      )
-    }
     return (
       <ErrorState
         title="Не удалось загрузить репозиторий"

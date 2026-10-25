@@ -53,6 +53,16 @@ describe('branchFilterProblem', () => {
     expect(branchFilterProblem(patterns)).toBe('Не больше 50 паттернов')
   })
 
+  it(
+    `${MAX_BRANCH_PATTERNS + 1} сырое значение с одним повтором — не проблема: ` +
+      `после нормализации их ${MAX_BRANCH_PATTERNS}`,
+    () => {
+      const raw = Array.from({ length: MAX_BRANCH_PATTERNS + 1 }, (_, i) => ` branch-${i} `)
+      raw[MAX_BRANCH_PATTERNS] = 'branch-0'
+      expect(branchFilterProblem(raw)).toBeNull()
+    },
+  )
+
   it(`паттерн в ровно ${MAX_BRANCH_PATTERN_LENGTH} символов — допустим, граница контракта`, () => {
     expect(branchFilterProblem(['a'.repeat(MAX_BRANCH_PATTERN_LENGTH)])).toBeNull()
   })
@@ -61,6 +71,11 @@ describe('branchFilterProblem', () => {
     expect(branchFilterProblem(['a'.repeat(MAX_BRANCH_PATTERN_LENGTH + 1)])).toBe(
       'Паттерн — не длиннее 200 символов',
     )
+  })
+
+  it('паттерн, уложившийся в лимит после обрезки пробелов, — не проблема', () => {
+    const padded = ` ${'a'.repeat(MAX_BRANCH_PATTERN_LENGTH)} `
+    expect(branchFilterProblem([padded])).toBeNull()
   })
 
   // Валидация смотрит на черновик формы: пустые и пробельные паттерны не длиннее лимита,
