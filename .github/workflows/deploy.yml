@@ -26,7 +26,6 @@ concurrency:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
-  STATE_PORT: '9000'
 
 jobs:
   # Какой коммит катить. Автоматический запуск — только после зелёного CI
@@ -74,9 +73,13 @@ jobs:
     permissions:
       contents: read
       packages: write
+    # Наружу — одна ссылка `имя:тег@digest`. Тег показывает, что на стенде
+    # (коммит и источник данных кабинета), а digest называет ровно собранный
+    # здесь образ: пересборка того же коммита с другими build-args пушит образ
+    # под тем же тегом, и по тегу tofu не увидел бы разницы. Проверка ui_image
+    # в infra/variables.tf пропускает только ссылку с digest.
     outputs:
-      image: ${{ steps.meta.outputs.image }}
-      image_ref: ${{ steps.ref.outputs.image_ref }}
+      image: ${{ steps.meta.outputs.image }}@${{ steps.build.outputs.digest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,9 +93,8 @@ jobs:
           USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
         run: |
           set -euo pipefail
-          # Тег по commit sha и источнику данных кабинета: так видно, что сейчас
-          # на стенде. Пересоздание контейнера от тега не зависит — его
-          # гарантирует digest (шаг «Ссылка на образ по digest»).
+          # Реестр принимает имя только в нижнем регистре, а в имени
+          # репозитория бывают заглавные.
           if [ "$USE_MOCK_API" = false ]; then source=api; else source=mock; fi
           image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):${SHA}-${source}"
           echo "use_mock_api=$USE_MOCK_API" >> "$GITHUB_OUTPUT"
@@ -133,28 +135,17 @@ jobs:
       - name: Убедиться, что образ забирается обратно
         env:
           IMAGE: ${{ steps.meta.outputs.image }}
-        run: |
-          set -euo pipefail
-          docker manifest inspect "$IMAGE" > /dev/null
-          echo "образ доступен по тегу"
-
-      # tofu сравнивает имя образа. Пересборка того же коммита с другими
-      # build-args (VITE_USE_MOCK_API, PUBLIC_ORIGIN) пушит образ под тем же
-      # тегом, и по тегу tofu не увидел бы разницы. Digest меняется с
-      # содержимым, поэтому новый образ всегда пересоздаёт контейнер.
-      - name: Ссылка на образ по digest
-        id: ref
-        env:
           DIGEST: ${{ steps.build.outputs.digest }}
         run: |
           set -euo pipefail
+          # Пустой digest дал бы ссылку, которую отвергнет проверка ui_image,
+          # но уже в job'е деплоя; ловим здесь.
           if [ -z "$DIGEST" ]; then
             echo "::error::build-push-action не вернул digest образа"
             exit 1
           fi
-          image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
-          echo "image_ref=${image}@${DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "${image}@${DIGEST}"
+          docker manifest inspect "${IMAGE}@${DIGEST}" > /dev/null
+          echo "образ доступен по digest: ${IMAGE}@${DIGEST}"
 
   deploy:
     needs: [gate, image]
@@ -169,66 +160,36 @@ jobs:
     permissions:
       contents: read
       packages: read
+    # Адрес стенда: имя для клиента, адрес проверок и summary. На сервер шаги
+    # ходят через хост `stand` из ~/.ssh/config (stand-ssh).
+    env:
+      HOST: ${{ vars.VPS_DMC268_IP_T1 }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           ref: ${{ needs.gate.outputs.sha }}
 
+      # Ключ, known_hosts и хост `stand` в ~/.ssh/config для всех шагов ниже.
+      - uses: ./.github/actions/stand-ssh
+        with:
+          ssh_key: ${{ secrets.VPS_DMC268_KEY_T1 }}
+          ssh_user: ${{ secrets.VPS_DMC268_U }}
+          host: ${{ vars.VPS_DMC268_IP_T1 }}
+
       - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: 1.13.2
 
-      # Хранилище состояния поднимает деплой бэкенда: он по требованию спеки
-      # применяется раньше. Здесь нужны только ключ и туннель к хранилищу —
-      # поэтому тридцать строк, а не копия чужого composite action целиком.
-      - name: Подготовить подключение и туннель к хранилищу состояния
-        env:
-          CI_KEY: ${{ secrets.VPS_DMC268_KEY_T1 }}
-          SSH_USER: ${{ secrets.VPS_DMC268_U }}
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-        run: |
-          set -euo pipefail
-          umask 077
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          printf '%s\n' "$CI_KEY" > ~/.ssh/ci_key
-          chmod 600 ~/.ssh/ci_key
-          # Ключ хоста закреплён в репозитории и сверен с сервером вне CI.
-          # ssh-keyscan доверял бы любому, кто ответит по этому адресу.
-          pinned="$GITHUB_WORKSPACE/.github/ssh/known_hosts"
-          if ! ssh-keygen -F "$HOST" -f "$pinned" > /dev/null; then
-            echo "::error::ключ хоста $HOST не закреплён в .github/ssh/known_hosts"
-            exit 1
-          fi
-          cp "$pinned" ~/.ssh/known_hosts
+      # Хранилище состояния поднимает деплой бэкенда: по спеке он применяется
+      # раньше. Здесь — только туннель к нему. Порт — тот же, что в endpoints
+      # infra/backend.tf.
+      - uses: ./.github/actions/state-tunnel
+        with:
+          port: '9000'
 
-          # Docker-провайдер вызывает ssh сам и флаг -i не передаёт: без записи
-          # в конфиге он берёт личности по умолчанию, которых на раннере нет.
-          cat > ~/.ssh/config <<CFG
-          Host $HOST
-            IdentityFile ~/.ssh/ci_key
-            IdentitiesOnly yes
-            BatchMode yes
-            StrictHostKeyChecking yes
-          CFG
-          chmod 600 ~/.ssh/config
-
-          # ExitOnForwardFailure обязателен: без него ssh уходит в фон даже
-          # когда проброс не удался, и всё падает позже с невнятной ошибкой.
-          ssh -o ExitOnForwardFailure=yes -f -N \
-            -L "${STATE_PORT}:127.0.0.1:${STATE_PORT}" "$SSH_USER@$HOST"
-
-          for _ in $(seq 1 20); do
-            if (exec 3<>"/dev/tcp/127.0.0.1/${STATE_PORT}") 2>/dev/null; then
-              echo "туннель открыт, порт ${STATE_PORT} отвечает"
-              exit 0
-            fi
-            sleep 0.5
-          done
-          echo "::error::туннель поднялся, но порт ${STATE_PORT} не отвечает — применён ли стек бэкенда?"
-          exit 1
-
+      # HTTPS с сертификатом Let's Encrypt на адрес стенда. Порт 80 нужен и для
+      # проверки HTTP-01, и для перенаправления на HTTPS.
       - name: Применить конфигурацию
         id: apply
         working-directory: infra
@@ -236,160 +197,43 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_USER_DMC268_T1 }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_PASSWORD_DMC268_T1 }}
           AWS_DEFAULT_REGION: us-east-1
-          SSH_USER: ${{ secrets.VPS_DMC268_U }}
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-          TF_VAR_ui_image: ${{ needs.image.outputs.image_ref }}
+          # Docker-провайдер зовёт системный ssh, и тот берёт пользователя,
+          # адрес и ключ из ~/.ssh/config.
+          TF_VAR_docker_host: ssh://stand
+          TF_VAR_service_host: ${{ vars.VPS_DMC268_IP_T1 }}
+          TF_VAR_bind_ip: 0.0.0.0
+          TF_VAR_ui_port: '80'
+          TF_VAR_public_tls: 'true'
+          TF_VAR_ui_image: ${{ needs.image.outputs.image }}
           TF_VAR_registry_username: ${{ github.actor }}
           TF_VAR_registry_password: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          # HTTPS с сертификатом Let's Encrypt на адрес стенда. Порт 80 нужен
-          # и для проверки HTTP-01, и для перенаправления на HTTPS.
-          export TF_VAR_docker_host="ssh://${SSH_USER}@${HOST}"
-          export TF_VAR_service_host="$HOST"
-          export TF_VAR_bind_ip="0.0.0.0"
-          export TF_VAR_ui_port="80"
-          export TF_VAR_public_tls="true"
-
           tofu init -input=false -no-color
           tofu apply -input=false -no-color -auto-approve
           echo "ui_url=$(tofu output -raw ui_url)" >> "$GITHUB_OUTPUT"
 
+      # Проверки стенда — .github/scripts/deploy/ (shellcheck в CI) и
+      # scripts/check-routes.sh, общий с CI.
       - name: Проверить, что по адресу отдаётся именно наш сайт
-        env:
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-        run: |
-          set -uo pipefail
-          # curl проверяет сертификат: так шаг заодно убеждается, что он
-          # выпущен и действителен. При первом запуске на чистом томе nginx
-          # получает его у Let's Encrypt — отсюда ожидание до двух минут.
-          body=""
-          for _ in $(seq 1 40); do
-            body="$(curl -fsS --max-time 5 "https://${HOST}/" 2>/dev/null || true)"
-            [ -n "$body" ] && break
-            sleep 3
-          done
-
-          if [ -z "$body" ]; then
-            echo "::error::по https://${HOST}/ ничего не отвечает или сертификат недействителен"
-            curl -sSv --max-time 5 "https://${HOST}/" 2>&1 | tail -15 || true
-            exit 1
-          fi
-
-          # Различаем «не отвечает» и «отвечает не тем»: на адресе мог бы
-          # оказаться другой сервис или страница-заглушка nginx. В корне теперь
-          # лендинг, а не приложение; «DMC-268» есть в его <title>.
-          case "$body" in
-            *"DMC-268"*) echo "лендинг отдаётся по адресу" ;;
-            *) echo "::error::адрес отвечает, но это не наш сайт"
-               printf '%s\n' "$body" | head -5
-               exit 1 ;;
-          esac
-
-          # HTTP не должен отдавать интерфейс открытым текстом — только
-          # перенаправлять на HTTPS.
-          location="$(curl -sS -o /dev/null -w '%{redirect_url}' --max-time 5 "http://${HOST}/" || true)"
-          case "$location" in
-            "https://${HOST}/") echo "HTTP перенаправляет на HTTPS" ;;
-            *) echo "::error::HTTP не перенаправляет на HTTPS: '${location}'"; exit 1 ;;
-          esac
-
-          # HSTS: после первого ответа по HTTPS браузер больше не ходит по
-          # HTTP. Без конвейера с grep -q — см. соседние шаги про SIGPIPE.
-          hsts="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^strict-transport-security:' || true)"
-          case "$hsts" in
-            *max-age=*) echo "HTTPS закреплён заголовком: $hsts" ;;
-            *) echo "::error::в ответе по HTTPS нет Strict-Transport-Security"; exit 1 ;;
-          esac
+        run: .github/scripts/deploy/check-site.sh
 
       - name: Проверить маршруты
-        env:
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
         run: scripts/check-routes.sh "https://${HOST}"
 
       - name: Проверить сжатие статики
-        env:
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-        run: |
-          set -uo pipefail
-          # Бандл берём из HTML приложения (/app/): у лендинга JS нет. Имя с
-          # хэшем меняется от сборки к сборке. Гостя /app/ уводит на вход,
-          # поэтому запрос — с cookie сессии: nginx смотрит только на её наличие.
-          asset="$(curl -sS --max-time 5 -b session=check "https://${HOST}/app/" | grep -oE '/assets/[^"]+\.js' | head -n 1 || true)"
-          [ -n "$asset" ] || { echo "::error::в /app/ не нашёлся JS-бандл"; exit 1; }
-          encoding="$(curl -sS -o /dev/null -D - -H 'Accept-Encoding: gzip' --max-time 5 "https://${HOST}${asset}" | tr -d '\r' | grep -i '^content-encoding:' || true)"
-          case "$encoding" in
-            *gzip*) echo "${asset} отдаётся сжатым: $encoding" ;;
-            *) echo "::error::${asset} отдаётся без gzip"; exit 1 ;;
-          esac
+        run: .github/scripts/deploy/check-compression.sh "https://${HOST}"
 
       - name: Проверить HTTP/2 и HTTP/3
-        env:
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-        run: |
-          set -uo pipefail
-          # HTTP/2 снимает лимит браузера в 6 соединений на адрес — без него
-          # несколько открытых SSE-подписок занимают все соединения.
-          version="$(curl -sS -o /dev/null -w '%{http_version}' --http2 --max-time 5 "https://${HOST}/" || true)"
-          [ "$version" = "2" ] || { echo "::error::по TCP отдаётся HTTP/${version}, ожидался HTTP/2"; exit 1; }
-          echo "по TCP отдаётся HTTP/2"
-
-          # Alt-Svc нужен именно на index.html: из него браузер узнаёт о QUIC.
-          alt_svc="$(curl -sS -o /dev/null -D - --max-time 5 "https://${HOST}/" | tr -d '\r' | grep -i '^alt-svc:' || true)"
-          case "$alt_svc" in
-            *'h3=":443"'*) echo "интерфейс объявляет HTTP/3: $alt_svc" ;;
-            *) echo "::error::в ответе нет Alt-Svc с h3"; exit 1 ;;
-          esac
-
-          # curl на раннере собран без HTTP/3 — берём собранный с ним из Debian.
-          # Запрос только по QUIC заодно проверяет, что UDP 443 открыт до стенда.
-          h3_version="$(docker run --rm debian:trixie-slim sh -c "
-            apt-get -qq update >/dev/null && apt-get -qq install -y --no-install-recommends curl ca-certificates >/dev/null || { echo no-curl; exit; }
-            curl -sS -o /dev/null -w '%{http_version}' --http3-only --max-time 10 https://${HOST}/
-          " || true)"
-          # Сбой apt — не повод искать проблему в сети стенда.
-          case "$h3_version" in
-            3) echo "по QUIC отдаётся HTTP/3" ;;
-            no-curl) echo "::error::не удалось поставить curl в debian:trixie-slim — проверка HTTP/3 не выполнена"; exit 1 ;;
-            *) echo "::error::по QUIC стенд не ответил — проверьте UDP 443"; exit 1 ;;
-          esac
+        run: .github/scripts/deploy/check-protocols.sh
 
       - name: Проверить, что API доступен через тот же адрес
-        env:
-          HOST: ${{ vars.VPS_DMC268_IP_T1 }}
-        run: |
-          set -uo pipefail
-          # Требование спеки: браузеру не нужен второй адрес. Проксирование
-          # делает nginx внутри контейнера интерфейса.
-          # Без конвейера: с `set -o pipefail` короткий `grep -q` закрывает
-          # канал, curl получает SIGPIPE, и проверка падает при работающем
-          # сервисе.
-          # /health наружу не публикуется — это проверка живости бэкенда, а
-          # не часть API. Поэтому стучимся под /api/v1/ без -f: на путь без
-          # ручки приложение отвечает JSON с полем "detail", а nginx (502)
-          # и SPA-fallback (index.html) такого поля не дают.
-          # Ждём до минуты, как и интерфейс выше: если API в этот момент
-          # перезапускается (например, деплоится параллельно), один запрос
-          # уронил бы деплой интерфейса, который сам работает.
-          body=""
-          for _ in $(seq 1 20); do
-            body="$(curl -sS --max-time 10 "https://${HOST}/api/v1/" 2>/dev/null || true)"
-            case "$body" in *'"detail"'*) break ;; esac
-            sleep 3
-          done
-          case "$body" in
-            *'"detail"'*) echo "API отвечает через адрес интерфейса: $body" ;;
-            "") echo "::error::API через адрес интерфейса не ответил"; exit 1 ;;
-            *) echo "::error::ответ пришёл, но не от API:"
-               printf '%s\n' "$body" | head -5
-               exit 1 ;;
-          esac
+        run: .github/scripts/deploy/check-api-proxy.sh "https://${HOST}"
 
       - name: Записать результат в summary
         if: always()
         env:
           IMAGE: ${{ needs.image.outputs.image }}
-          IMAGE_REF: ${{ needs.image.outputs.image_ref }}
           UI_URL: ${{ steps.apply.outputs.ui_url || 'не получен' }}
         run: |
           {
@@ -398,6 +242,5 @@ jobs:
             echo "| | |"
             echo "| --- | --- |"
             echo "| Образ | \`${IMAGE}\` |"
-            echo "| Digest | \`${IMAGE_REF}\` |"
             echo "| Адрес | ${UI_URL} |"
           } >> "$GITHUB_STEP_SUMMARY"

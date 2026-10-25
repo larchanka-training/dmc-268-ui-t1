@@ -128,8 +128,8 @@ jobs:
         with:
           version: '0.13.5'
       - run: uvx zizmor@1.31.1 --offline --persona pedantic --min-severity high .github/
-      # Каталога .github/scripts пока нет: workflow вызывают scripts/*.sh, образ
-      # — nginx/*.sh. shellcheck предустановлен на ubuntu-latest (apt-пакет в
+      # Скрипты деплоя (.github/scripts), общие с CI (scripts/) и образа
+      # (nginx/). shellcheck предустановлен на ubuntu-latest (apt-пакет в
       # образе раннера). find отдаёт ненулевой код, если shellcheck упал.
       - run: find .github scripts nginx -name '*.sh' -exec shellcheck {} +
 

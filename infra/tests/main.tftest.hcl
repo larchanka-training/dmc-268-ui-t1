@@ -94,6 +94,19 @@ run "container_joins_only_backend_network" {
   }
 }
 
+run "image_tag_dropped_before_digest" {
+  command = plan
+
+  variables {
+    ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:0123abc-api@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+  }
+
+  assert {
+    condition     = docker_image.ui.name == "ghcr.io/larchanka-training/dmc-268-ui-t1@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+    error_message = "Ресурс образа получает ссылку без тега: новый тег при том же digest не должен заменять образ и контейнер."
+  }
+}
+
 run "image_without_digest_rejected" {
   command = plan
 
