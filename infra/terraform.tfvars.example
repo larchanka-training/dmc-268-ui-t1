@@ -7,8 +7,10 @@
 
 # --- обязательные (без них apply не стартует) ---
 
-# Полная ссылка на образ интерфейса с тегом. В CI — тег по commit sha из ghcr.
-ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:CHANGE_ME_TAG"
+# Ссылка на образ интерфейса с digest — по тегу plan откажет. В CI digest
+# возвращает сборка; локально его показывает
+# `docker buildx imagetools inspect ghcr.io/larchanka-training/dmc-268-ui-t1:<тег>`.
+ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1@sha256:CHANGE_ME_64_HEX"
 
 # --- учётные данные реестра образов ---
 # В CI — github.actor и GITHUB_TOKEN. Локально нужны только для приватного пакета.
