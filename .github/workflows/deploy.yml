@@ -94,7 +94,7 @@ jobs:
           # на стенде. Пересоздание контейнера от тега не зависит — его
           # гарантирует digest (шаг «Ссылка на образ по digest»).
           if [ "$USE_MOCK_API" = false ]; then source=api; else source=mock; fi
-          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z'):${SHA}-${source}"
+          image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):${SHA}-${source}"
           echo "use_mock_api=$USE_MOCK_API" >> "$GITHUB_OUTPUT"
           echo "image=$image" >> "$GITHUB_OUTPUT"
           echo "$image"
@@ -152,7 +152,7 @@ jobs:
             echo "::error::build-push-action не вернул digest образа"
             exit 1
           fi
-          image="$(printf '%s' "$IMAGE_NAME" | tr 'A-Z' 'a-z')"
+          image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')"
           echo "image_ref=${image}@${DIGEST}" >> "$GITHUB_OUTPUT"
           echo "${image}@${DIGEST}"
 

@@ -16,7 +16,9 @@ fi
 export PUBLIC_HOST ACME_DIRECTORY
 
 # Только свои переменные: $request_uri и прочие переменные nginx в шаблоне
-# envsubst трогать не должен.
+# envsubst трогать не должен. Одинарные кавычки намеренны: envsubst получает
+# список имён, а не их значения.
+# shellcheck disable=SC2016
 envsubst '${PUBLIC_HOST} ${ACME_DIRECTORY}' \
     < /etc/nginx/https.conf.template > "$target"
 echo "$0: режим HTTPS для ${PUBLIC_HOST}, ACME: ${ACME_DIRECTORY}"
