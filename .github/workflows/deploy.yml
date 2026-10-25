@@ -178,7 +178,8 @@ jobs:
     # отклоняется до первого шага. Секреты при этом остаются в репозитории и
     # организации — job с environment видит их как и раньше.
     environment: stand
-    # packages: read обязателен — образ тянет docker-провайдер тем же токеном.
+    # packages: read обязателен — образ из приватного пакета скачивает шаг
+    # pull через docker login тем же токеном.
     permissions:
       contents: read
       packages: read
@@ -209,6 +210,23 @@ jobs:
       - uses: ./.github/actions/state-tunnel
         with:
           port: '9000'
+
+      # Образ — на сервер до apply: контейнер ссылается на него по digest
+      # (infra/ui.tf), и провайдер создаёт новый dmc268-ui из уже скачанного, а
+      # не тянет его из ghcr между удалением старого и созданием нового (#89).
+      # docker CLI раннера передаёт учётные данные удалённому демону вместе с
+      # запросом pull; на сервере токен не остаётся.
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Скачать образ на сервер
+        env:
+          DOCKER_HOST: ssh://stand
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: docker pull --quiet "$IMAGE"
 
       # HTTPS с сертификатом Let's Encrypt на адрес стенда. Порт 80 нужен и для
       # проверки HTTP-01, и для перенаправления на HTTPS.
