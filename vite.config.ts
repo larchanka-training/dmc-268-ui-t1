@@ -122,7 +122,9 @@ export default defineConfig(({ mode }) => {
       testTimeout: 15000,
       globals: true,
       setupFiles: ['./src/test/setup.ts'],
-      include: ['src/**/*.{test,spec}.{ts,tsx}'],
+      // .github/tests — тесты actions и скриптов деплоя: гоняют bash через
+      // node:child_process, DOM им не нужен, но и не мешает.
+      include: ['src/**/*.{test,spec}.{ts,tsx}', '.github/tests/**/*.test.mjs'],
       exclude: ['node_modules', 'dist', '.idea'],
       coverage: {
         provider: 'v8',
