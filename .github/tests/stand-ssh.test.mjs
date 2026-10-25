@@ -179,6 +179,10 @@ describe('stand-ssh', () => {
       options.controlpersist,
       'у хоста stand нет ControlPersist: master закрывался бы с первым вызовом',
     ).toBeTruthy()
+    // ConnectTimeout через живой master не действует: мёртвый master без
+    // ServerAlive держал бы вызовы до таймаута job'а.
+    expect(options.serveraliveinterval, 'у хоста stand нет ServerAliveInterval').toBeTruthy()
+    expect(options.serveralivecountmax, 'у хоста stand нет ServerAliveCountMax').toBeTruthy()
     const controlPath = options.controlpath ?? ''
     expect(controlPath, 'ControlPath без %C').toContain('%C')
     expect(
