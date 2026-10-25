@@ -11,9 +11,17 @@ permissions:
 
 # Новый пуш в ветку пул-реквеста отменяет прогон по устаревшему коммиту.
 # Пуши в main и develop не отменяются: там нужен результат по каждому коммиту.
+# Одного cancel-in-progress: false для этого мало: при `queue: single` (по
+# умолчанию) в группе ждёт только один прогон, и следующий пуш отменяет
+# ожидающий — из трёх быстрых пушей средний CI не получил бы. `queue: max`
+# держит в очереди до 100 прогонов, но с `cancel-in-progress: true` вместе
+# запрещён, поэтому оба ключа — выражения от события: у pull_request — отмена
+# и single, у push — очередь без отмены. Порядок очереди GitHub не
+# гарантирует, и gate в deploy.yml поэтому сверяет вершину develop.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 
 jobs:
   # Те же проверки, что AGENTS.md требует перед коммитом: хуки можно обойти
@@ -22,15 +30,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
-      # Контракт и типы из него совпадают с бэкендом на коммите из
-      # src/shared/api/contract/VERSION (ловит правку сгенерированного руками
-      # и забытый pnpm api:sync), и этот коммит входит в develop бэкенда:
-      # коммит из PR бэкенда в мёрж не пройдёт. Если в develop контракт новее —
-      # только предупреждение. Ходит в сеть к raw.githubusercontent.com и
-      # api.github.com; токен — против лимита анонимных запросов (60 в час).
+
+  # Отдельно от typecheck: ходит в сеть (raw.githubusercontent.com и
+  # api.github.com), и сетевой сбой не должен выглядеть как красный typecheck.
+  # Контракт и типы из него совпадают с бэкендом на коммите из
+  # src/shared/api/contract/VERSION (ловит правку сгенерированного руками
+  # и забытый pnpm api:sync), и этот коммит входит в develop бэкенда:
+  # коммит из PR бэкенда в мёрж не пройдёт. Если в develop контракт новее —
+  # только предупреждение. Токен — против лимита анонимных запросов (60 в час).
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
       - run: pnpm api:check
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,7 +59,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run lint
       - run: pnpm run stylelint
@@ -49,26 +71,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run test
-
-  # Сборка проходит, и в бандл не попал мок входа: он нужен только dev-серверу
-  # (плагин с apply: 'serve' в vite.config.ts). Ловит импорт src/build/mockAuth.ts
-  # из кода приложения — по строке фикстуры, которая переживает минификацию.
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-      - uses: ./.github/actions/setup
-      - run: pnpm run build
-      - name: Мока входа нет в сборке
-        run: |
-          if grep -rl 'Локальный пользователь' dist; then
-            echo 'Мок входа попал в production-сборку' >&2
-            exit 1
-          fi
 
   # Ошибка в спеке иначе всплывает только при архиве change: требование без
   # сценария, MODIFIED, теряющий сценарии. --strict ловит и стилистику —
@@ -78,22 +85,90 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run spec:validate
 
-  # Конфиг nginx иначе проверялся бы только деплоем: с ошибкой контейнер не
-  # стартует, и стенд ложится. Проверяем собранный образ, а не файлы из
-  # репозитория: важны версия nginx, подключённый модуль ACME и конфиг,
-  # который скрипт выбора режима собирает из шаблона. Сертификат и адрес API
-  # подставляются переменными, поэтому nginx -t не нужны ни файлы
-  # сертификата, ни сеть.
-  nginx:
+  # Workflow и actions: zizmor (шаблонные инъекции, незакреплённые actions,
+  # креды checkout, опасные триггеры) и shellcheck по shell-скриптам. Профиль
+  # pedantic — чтобы видеть и мелкие находки; падаем только на high.
+  # --offline: онлайн-аудитам нужен токен к API, а результат не должен зависеть
+  # от сети. Версия закреплена: новые проверки приходят с её обновлением.
+  zizmor:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v7
-      - run: docker build -t dmc268-ui:ci .
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Только uv для uvx: Node и зависимости проекта здесь не нужны. Версия uv —
+      # та же, что в CI бэкенда.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.5'
+      - run: uvx zizmor@1.31.1 --offline --persona pedantic --min-severity high .github/
+      # Скрипты деплоя (.github/scripts), общие с CI (scripts/) и образа
+      # (nginx/). shellcheck предустановлен на ubuntu-latest (apt-пакет в
+      # образе раннера). find отдаёт ненулевой код, если shellcheck упал.
+      - run: find .github scripts nginx -name '*.sh' -exec shellcheck {} +
+
+  # Образ интерфейса — так, как его собирает деплой: те же build-args, что у
+  # build-push-action в deploy.yml (держать в синхроне), и одна сборка на все
+  # проверки. Иначе CI проверял бы не тот бандл: без VITE_USE_MOCK_API в нём
+  # mock adapter, а на стенд едет HTTP-клиент. Образ не публикуется.
+  #
+  # По порядку: hadolint — правила Dockerfile; в бандл не попал мок входа (он
+  # нужен только dev-серверу: плагин с apply: 'serve' в vite.config.ts) — ловит
+  # импорт src/build/mockAuth.ts из кода приложения по строке фикстуры, которая
+  # переживает минификацию; nginx -t в обоих режимах — с ошибкой в конфиге
+  # контейнер не стартует, и стенд ложится; маршруты в режиме HTTP — nginx -t
+  # их не ловит; trivy — пакеты ОС образа. Важны версия nginx, подключённый
+  # модуль ACME и конфиг, который скрипт выбора режима собирает из шаблона,
+  # поэтому проверяется собранный образ, а не файлы репозитория. Сертификат и
+  # адрес API подставляются переменными: nginx -t не нужны ни файлы
+  # сертификата, ни сеть.
+  #
+  # trivy падает на HIGH и CRITICAL, у которых есть исправление: ignore-unfixed
+  # не даёт красному CI из-за CVE, которую нечем закрыть, — такие видны в
+  # отчёте, но решения от нас не ждут. Перед деплоем trivy ещё раз сканирует
+  # опубликованный digest (deploy.yml): тот образ собран заново.
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+      - name: Собрать образ с build-args деплоя
+        env:
+          PUBLIC_ORIGIN: https://${{ vars.VPS_DMC268_IP_T1 }}
+          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
+          OTEL_EXPORTER_URL: ${{ vars.VITE_OTEL_EXPORTER_URL }}
+        run: >-
+          docker build -t dmc268-ui:ci
+          --build-arg PUBLIC_ORIGIN="$PUBLIC_ORIGIN"
+          --build-arg VITE_USE_MOCK_API="$USE_MOCK_API"
+          --build-arg VITE_OTEL_EXPORTER_URL="$OTEL_EXPORTER_URL"
+          --build-arg VITE_OTEL_ENVIRONMENT=production
+          --build-arg VITE_APP_VERSION="$GITHUB_SHA"
+          .
+      - name: Мока входа нет в образе
+        run: |
+          rc=0
+          docker run --rm --entrypoint grep dmc268-ui:ci \
+            -rl 'Локальный пользователь' /usr/share/nginx/html || rc=$?
+          # grep: 0 — нашёл, 1 — не нашёл, 2 и выше — сам не отработал
+          # (например, статики нет по этому пути); последнее — не «чисто».
+          case "$rc" in
+            1) echo 'мока входа в образе нет' ;;
+            0) echo '::error::мок входа попал в образ'; exit 1 ;;
+            *) echo "::error::поиск мока в образе не выполнен (grep: ${rc})"; exit 1 ;;
+          esac
       - name: nginx -t в режиме HTTP
         run: >-
           docker run --rm --network none --entrypoint sh dmc268-ui:ci
@@ -103,8 +178,7 @@ jobs:
           docker run --rm --network none -e PUBLIC_HOST=ci.invalid
           --entrypoint sh dmc268-ui:ci
           -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
-      # nginx -t не ловит ошибки маршрутизации: поднимаем образ в режиме HTTP
-      # и проверяем лендинг, приложение под /app/, редирект и 404.
+      # Лендинг, приложение под /app/, редирект и 404 — в режиме HTTP.
       - name: Маршруты в режиме HTTP
         run: |
           docker run -d --name ui-routes -p 8080:80 dmc268-ui:ci
@@ -114,6 +188,67 @@ jobs:
             sleep 1
           done
           scripts/check-routes.sh http://localhost:8080
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: dmc268-ui:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
+
+      # Summary сборки (change ci-build-summary): ниже шаги ничего не роняют —
+      # падает только gate выше, а summary нужен и тогда. Находки сканеров —
+      # вторым запуском с json, чтобы увидеть и то, что gate пропускает
+      # (unfixed у trivy, style у hadolint).
+      - name: Каталог summary
+        if: ${{ !cancelled() }}
+        run: mkdir -p build-summary
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        if: ${{ !cancelled() }}
+        with:
+          dockerfile: Dockerfile
+          format: json
+          output-file: build-summary/hadolint.json
+          no-fail: true
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        if: ${{ !cancelled() }}
+        with:
+          image-ref: dmc268-ui:ci
+          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
+          exit-code: '0'
+          format: json
+          output: build-summary/trivy.json
+      - name: Метрики бандла и образа
+        if: ${{ !cancelled() }}
+        run: scripts/build-summary.sh dmc268-ui:ci build-summary
+      # База для разницы — метрики последнего успешного прогона develop из
+      # кэша Actions: токену не нужен actions: read, как скачиванию артефакта
+      # чужого прогона. Кэш пул-реквеста видит кэш его базовой ветки.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ !cancelled() }}
+        with:
+          path: build-base
+          key: build-metrics-${{ github.sha }}
+          restore-keys: build-metrics-
+      - name: Summary сборки
+        if: ${{ !cancelled() }}
+        run: >-
+          node scripts/build-summary.mjs render
+          --metrics build-summary/metrics.json
+          --base build-base/metrics.json
+          --trivy build-summary/trivy.json
+          --hadolint build-summary/hadolint.json
+          >> "$GITHUB_STEP_SUMMARY"
+      # Только успешный прогон develop становится базой. Ключ по sha: запись
+      # кэша неизменяема, а restore-keys берёт самую свежую.
+      - name: Метрики develop для следующих прогонов
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+        run: mkdir -p build-base && cp build-summary/metrics.json build-base/metrics.json
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/develop' }}
+        with:
+          path: build-base
+          key: build-metrics-${{ github.sha }}
 
   # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
   # registry_auth и переменные, от которых зависит деплой. Без этого job'а
@@ -122,13 +257,16 @@ jobs:
   # Версия та же, что в deploy.yml: проверять на одной, катить на другой —
   # значит проверять не то. `-backend=false` позволяет обойтись без доступа к
   # состоянию, который у CI и не должен быть при простой валидации.
-  terraform:
+  opentofu:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: opentofu/setup-opentofu@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          tofu_version: 1.12.6
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.13.2
       - run: tofu fmt -check -recursive infra/
       - run: cd infra && tofu init -backend=false && tofu validate
+      - run: cd infra && tofu test

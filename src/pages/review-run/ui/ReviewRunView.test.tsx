@@ -201,6 +201,77 @@ describe('ReviewRunView', () => {
     expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
   })
 
+  it('GitHub недоступен при проверке видимости (502) — ошибка с повтором, повтор показывает прогон', async () => {
+    const backend = fakeAdapter()
+    let githubDown = true
+    renderView(
+      fakeTransport({
+        get: async (path) => {
+          if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          return backend.get(path)
+        },
+      }),
+    )
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить прогон')
+    githubDown = false
+    await userEvent.click(within(alert).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+  })
+
+  it('дифф не загрузился из-за GitHub (502) — замечания списком, без ошибки', async () => {
+    const backend = fakeAdapter()
+    const requested: string[] = []
+    const diffPath = reviewDiffPath(makeReviewRun().id)
+    renderView(
+      fakeTransport({
+        get: async (path) => {
+          requested.push(path)
+          if (path === diffPath) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          return backend.get(path)
+        },
+      }),
+    )
+
+    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+    await waitFor(() => expect(requested).toContain(diffPath))
+    expect(screen.queryByText(/Не удалось/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+  })
+
+  it.each([
+    ['GitHub недоступен (502)', 502, 'SCM_UNAVAILABLE'],
+    ['прогона нет (404)', 404, 'REVIEW_NOT_FOUND'],
+  ])(
+    'ход прогона не загрузился: %s — ошибка с повтором на его месте, прогон на экране',
+    async (_, status, code) => {
+      const backend = fakeAdapter({ steps: [makeStep({ stage: 'fetching_diff' })] })
+      const stepsPath = reviewStepsPath(makeReviewRun().id)
+      let failing = true
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (failing && path === stepsPath) throw new ApiError(status, 'Сбой', code)
+            return backend.get(path)
+          },
+        }),
+      )
+
+      expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+      const problem = (
+        await screen.findByText('Не удалось загрузить ход прогона')
+      ).closest<HTMLElement>('[role="alert"]')
+      if (!problem) throw new Error('ошибка хода прогона без role="alert"')
+      failing = false
+      await userEvent.click(within(problem).getByRole('button', { name: 'Повторить' }))
+
+      expect(await screen.findByRole('list', { name: 'Шаги прогона' })).toBeInTheDocument()
+    },
+  )
+
   it('бинарный файл не притворяется диффом', async () => {
     const user = userEvent.setup()
     renderView(fakeAdapter({ files: [api, logo], findings: [] }))
@@ -316,6 +387,41 @@ describe('ReviewRunView', () => {
     ])
   })
 
+  it('верификатор недоступен (verification: unavailable) — упавшая проверка предупреждением', async () => {
+    const steps = [
+      makeStep({ stage: 'analysing' }),
+      makeStep({ stage: 'verifying', status: 'failed', error_code: 'LLM_UNAVAILABLE' }),
+    ]
+    renderView(
+      fakeAdapter({
+        run: makeReviewRun({ status: 'completed', verification: 'unavailable' }),
+        steps,
+      }),
+    )
+
+    const list = await screen.findByRole('list', { name: 'Шаги прогона' })
+    const verifying = within(list).getAllByRole('listitem')[1]
+    expect(verifying).toHaveTextContent('не перепроверено')
+    expect(verifying).toHaveTextContent('Замечания не перепроверены')
+    expect(verifying).not.toHaveTextContent('ошибка')
+    expect(verifying).not.toHaveTextContent('LLM_UNAVAILABLE')
+    expect(within(verifying).queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('неудачная попытка проверки с удачным повтором — ошибка попытки, а не «не перепроверено»', async () => {
+    const steps = [
+      makeStep({ stage: 'verifying', status: 'failed', error_code: 'LLM_TIMEOUT' }),
+      makeStep({ stage: 'verifying' }),
+    ]
+    renderView(
+      fakeAdapter({ run: makeReviewRun({ status: 'completed', verification: 'verified' }), steps }),
+    )
+
+    const list = await screen.findByRole('list', { name: 'Шаги прогона' })
+    expect(within(list).queryByText('не перепроверено')).not.toBeInTheDocument()
+    expect(within(list).getByRole('alert')).toHaveTextContent('LLM_TIMEOUT')
+  })
+
   it('вердикт выводится из замечаний завершённого прогона', async () => {
     renderView(fakeAdapter({ findings: [general] }))
     expect(await screen.findByLabelText('Вердикт: Есть замечания')).toBeInTheDocument()
@@ -418,6 +524,92 @@ describe('ReviewRunView', () => {
       expect(within(progress()).getByText('Анализ LLM')).toHaveTextContent('завершён')
     })
 
+    it('смена статуса по событию перезапрашивает ход прогона, без таймеров', async () => {
+      let backend: Backend = {
+        run: makeReviewRun({ status: 'analysing' }),
+        steps: [makeStep({ stage: 'analysing', status: 'running', duration_seconds: null })],
+      }
+      const adapter = fakeAdapter(() => backend)
+      const stepsPath = reviewStepsPath(makeReviewRun().id)
+      let stepRequests = 0
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (path === stepsPath) stepRequests += 1
+            return adapter.get(path)
+          },
+        }),
+      )
+      const list = await screen.findByRole('list', { name: 'Шаги прогона' })
+      const before = stepRequests
+
+      backend = {
+        ...backend,
+        steps: [
+          makeStep({ stage: 'analysing' }),
+          makeStep({ stage: 'publishing', status: 'running', duration_seconds: null }),
+        ],
+      }
+      act(() => stream.emitRun({ status: 'publishing' }))
+
+      await waitFor(() => expect(within(list).getAllByRole('listitem')).toHaveLength(2))
+      expect(stepRequests).toBe(before + 1)
+    })
+
+    it('первая загрузка идущего прогона запрашивает ход прогона один раз', async () => {
+      const adapter = fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) })
+      const stepsPath = reviewStepsPath(makeReviewRun().id)
+      let stepRequests = 0
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (path === stepsPath) stepRequests += 1
+            return adapter.get(path)
+          },
+        }),
+      )
+
+      await screen.findByRole('heading', { name: 'Ход прогона' })
+      // Даём эффектам и кэшу отработать: двойной запрос успел бы уйти.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(stepRequests).toBe(1)
+    })
+
+    it('упал перезапрос хода прогона — прежние шаги и плашка с повтором', async () => {
+      let backend: Backend = {
+        run: makeReviewRun({ status: 'analysing' }),
+        steps: [makeStep({ stage: 'analysing', status: 'running', duration_seconds: null })],
+      }
+      const adapter = fakeAdapter(() => backend)
+      const stepsPath = reviewStepsPath(makeReviewRun().id)
+      let stepsDown = false
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (stepsDown && path === stepsPath) {
+              throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+            }
+            return adapter.get(path)
+          },
+        }),
+      )
+      const list = await screen.findByRole('list', { name: 'Шаги прогона' })
+
+      stepsDown = true
+      backend = { ...backend, run: makeReviewRun({ status: 'publishing' }) }
+      act(() => stream.emitRun({ status: 'publishing' }))
+
+      const title = await screen.findByText('Не удалось обновить ход прогона')
+      const notice = title.closest<HTMLElement>('[role="alert"]')
+      if (!notice) throw new Error('плашка без role="alert"')
+      expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+      stepsDown = false
+      await userEvent.click(within(notice).getByRole('button', { name: 'Повторить' }))
+      await waitFor(() =>
+        expect(screen.queryByText('Не удалось обновить ход прогона')).not.toBeInTheDocument(),
+      )
+    })
+
     it('INT-23: события чужого прогона и незнакомого типа экран не меняют', async () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
       await screen.findByText('Анализ')
@@ -451,6 +643,37 @@ describe('ReviewRunView', () => {
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
       expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
       expect(stream.active()).toBe(0)
+    })
+
+    it('перезапрос после run.finished упал (502) — прогон остаётся, плашка с повтором', async () => {
+      let backend: Backend = { run: makeReviewRun({ status: 'analysing' }), findings: [] }
+      let githubDown = false
+      const adapter = fakeAdapter(() => backend)
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+            return adapter.get(path)
+          },
+        }),
+      )
+      expect(await screen.findByText(/Ревью ещё идёт/)).toBeInTheDocument()
+
+      githubDown = true
+      backend = { run: makeReviewRun({ status: 'completed' }) }
+      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
+
+      const title = await screen.findByText('Не удалось обновить прогон')
+      const notice = title.closest<HTMLElement>('[role="alert"]')
+      if (!notice) throw new Error('плашка «Не удалось обновить прогон» без role="alert"')
+      expect(screen.queryByText('Не удалось загрузить прогон')).not.toBeInTheDocument()
+      expect(screen.getByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
+
+      githubDown = false
+      await userEvent.click(within(notice).getByRole('button', { name: 'Повторить' }))
+
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      expect(screen.queryByText('Не удалось обновить прогон')).not.toBeInTheDocument()
     })
 
     it('INT-11: сбой по событию показывает этап и причину', async () => {

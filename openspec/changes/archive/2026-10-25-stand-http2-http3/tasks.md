@@ -15,5 +15,5 @@
 - [x] 2.4 Pebble: выпуск и продление сертификата модулем ACME, отдача по HTTP/2 и HTTP/3 без перезапуска
 - [x] 2.5 UDP-проба до VPS: ICMP port unreachable, провайдер UDP не режет
 - [x] 2.6 `deploy.yml`: шаг проверки HTTP/2, `Alt-Svc` и HTTP/3
-- [ ] 2.7 Первый деплой: шаг HTTP/3 зелёный, в браузере на стенде Protocol `h3`
+- [x] 2.7 Первый деплой: шаг HTTP/3 зелёный, в браузере на стенде Protocol `h3` — проверено: деплой [40082897966](https://github.com/larchanka-training/dmc-268-ui-t1/actions/runs/40082897966), шаг «Проверить HTTP/2 и HTTP/3» success: `alt-svc: h3=":443"; ma=86400`, «по QUIC отдаётся HTTP/3» (curl `--http3-only`); колонка Protocol в браузере не смотрелась — curl по QUIC даёт то же
 - [x] 2.8 CI: `nginx -t` на собранном образе в режимах HTTP и HTTPS

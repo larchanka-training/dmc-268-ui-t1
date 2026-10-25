@@ -52,6 +52,8 @@ type Backend = {
   calls: string[]
   rows: ReviewRunListItem[]
   error?: unknown
+  /** Ошибка списка подключённых репозиториев — опций фильтра «Репозиторий». */
+  repositoriesError?: unknown
   /**
    * Задержка ответа: снимок строк берётся в момент запроса, а отдаётся, когда промис разрешится.
    * Так воспроизводится гонка «событие пришло, пока страница в полёте».
@@ -65,7 +67,10 @@ let stream: FakeEventStream
 function createTransport() {
   return fakeTransport({
     get: async (path) => {
-      if (path.startsWith('/repositories')) return { items: REPOSITORIES }
+      if (path.startsWith('/repositories')) {
+        if (backend.repositoriesError) throw backend.repositoriesError
+        return { items: REPOSITORIES }
+      }
       if (path === '/reviews' || path.startsWith('/reviews?')) {
         backend.calls.push(path)
         if (backend.error) throw backend.error
@@ -134,6 +139,13 @@ function rowOf(text: string) {
   return row
 }
 
+function setVisibility(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => state })
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'))
+  })
+}
+
 beforeEach(() => {
   backend = { calls: [], rows: makeRuns(3) }
   stream = createFakeEventStream()
@@ -141,6 +153,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  setVisibility('visible')
 })
 
 describe('ReviewsPage: таблица и URL', () => {
@@ -349,6 +362,32 @@ describe('ReviewsPage: обновления из потока', () => {
     await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
   })
 
+  it('скрытая вкладка закрывает поток, возврат открывает его и перезапрашивает страницу', async () => {
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    expect(stream.active()).toBe(1)
+
+    setVisibility('hidden')
+    expect(stream.active()).toBe(0)
+
+    const calls = backend.calls.length
+    setVisibility('visible')
+    expect(stream.active()).toBe(1)
+    act(() => stream.setState('open'))
+    await waitFor(() => expect(backend.calls).toHaveLength(calls + 1))
+    // Второй, лишний перезапрос успел бы прийти: ждём дольше окна троттлинга.
+    await act(() => new Promise((resolve) => setTimeout(resolve, LIST_REFETCH_THROTTLE + 200)))
+    expect(backend.calls).toHaveLength(calls + 1)
+  })
+
+  it('скрытая вкладка не открывает поток при загрузке страницы', async () => {
+    setVisibility('hidden')
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+
+    expect(stream.opened).toEqual([])
+  })
+
   const freshRun = (): ReviewRunListItem => ({
     ...makeRuns(1)[0],
     id: 'run-new',
@@ -478,6 +517,20 @@ describe('ReviewsPage: ошибки', () => {
 
     expect(await screen.findByText('Не удалось загрузить прогоны')).toBeInTheDocument()
     expect(stream.opened).toEqual([])
+  })
+
+  it('репозитории фильтра не загрузились (502) — в списке опций ошибка с повтором', async () => {
+    backend.repositoriesError = new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+    const user = userEvent.setup()
+    renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+
+    await user.click(screen.getByRole('combobox', { name: 'Репозиторий' }))
+    const problem = await screen.findByText(/Не удалось загрузить репозитории/)
+    backend.repositoriesError = undefined
+    await user.click(within(problem).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByTitle('acme/api')).toBeInTheDocument()
   })
 
   it('прочая ошибка — сообщение с повтором', async () => {

@@ -1,0 +1,8 @@
+{
+  "bundle": [
+    { "name": "index-AAAAAAAA.js", "type": "js", "size": 200000, "gzip": 60000 },
+    { "name": "chunk-AAAAAAAA.js", "type": "js", "size": 5000, "gzip": 2000 },
+    { "name": "index-AAAAAAAA.css", "type": "css", "size": 20000, "gzip": 5000 }
+  ],
+  "image": { "name": "dmc268-ui:ci", "size": 60000000, "compressed": 20000000 }
+}

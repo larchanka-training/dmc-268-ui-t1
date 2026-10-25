@@ -46,11 +46,12 @@ export function renderWithTransport(ui: ReactNode, transport: ApiTransport) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
-  const utils = render(
+  // Клиент — наружу: тест может перезапросить данные, как повторное открытие страницы
+  // или инвалидация после мутации.
+  const view = render(
     <QueryClientProvider client={client}>
       <TransportContext value={transport}>{ui}</TransportContext>
     </QueryClientProvider>,
   )
-  // `client` нужен тестам фоновой инвалидации: ошибки рефетча при живом кэше.
-  return { ...utils, client }
+  return { ...view, queryClient: client }
 }

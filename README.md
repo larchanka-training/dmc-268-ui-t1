@@ -146,7 +146,7 @@ pnpm typecheck        # поправить код, который разошёл
 3. если контракт в голове `develop` отличается от зафиксированного, выводит предупреждение
    «запустите pnpm api:sync», но не падает (в GitHub Actions — аннотацией `::warning::`).
 
-В CI это шаг job'а `typecheck`. Нужна сеть до `raw.githubusercontent.com`, `github.com` и
+В CI это job `contract`. Нужна сеть до `raw.githubusercontent.com`, `github.com` и
 `api.github.com`. Если задан `GITHUB_TOKEN`, он уходит в запрос к GitHub API: без него лимит —
 60 запросов в час с одного адреса.
 

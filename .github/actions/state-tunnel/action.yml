@@ -1,0 +1,53 @@
+# Туннель с петли раннера к хранилищу состояния OpenTofu на стенде.
+#
+# Хранилище (контейнер dmc268-s3) поднимает и обслуживает деплой бэкенда —
+# .github/actions/s3-backend в dmc-268-api-t1: по спеке frontend-delivery его
+# стек применяется раньше. Интерфейсу нужен только доступ к хранилищу,
+# поэтому здесь один туннель, а не копия s3-backend. SSH к стенду (хост
+# `stand` в ~/.ssh/config) готовит .github/actions/stand-ssh — его шаг должен
+# стоять раньше.
+name: State tunnel
+description: Открывает SSH-туннель к хранилищу состояния бэкенда на стенде. SSH к стенду готовит stand-ssh.
+
+inputs:
+  port:
+    description: Порт хранилища на петле сервера, он же локальный конец туннеля
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Открыть туннель к хранилищу состояния
+      shell: bash
+      env:
+        STATE_PORT: ${{ inputs.port }}
+      run: |
+        set -euo pipefail
+        if ! grep -qx 'Host stand' ~/.ssh/config 2>/dev/null; then
+          echo "::error::нет хоста stand в ~/.ssh/config: шаг .github/actions/stand-ssh должен стоять до state-tunnel"
+          exit 1
+        fi
+
+        # ExitOnForwardFailure обязателен: без него ssh уходит в фон даже когда
+        # проброс не удался, и всё падает позже с невнятной ошибкой.
+        # ControlPath=none — своё соединение, мимо ControlMaster из stand-ssh:
+        # через master проброс открывал бы master, ExitOnForwardFailure не
+        # срабатывал бы, а туннель к состоянию закрылся бы через ControlPersist
+        # простоя посреди деплоя.
+        ssh -o ControlPath=none -o ExitOnForwardFailure=yes -f -N -L "${STATE_PORT}:127.0.0.1:${STATE_PORT}" stand
+
+        # Порт на петле раннера слушает сам ssh, и подключение к нему проходит
+        # даже без хранилища: отказ приходит уже по каналу, и ssh просто
+        # закрывает соединение. Поэтому ждём HTTP-ответа хранилища, а не
+        # открытого порта. Код ответа не важен — без подписи S3 отвечает 403;
+        # 000 значит, что ответа не было.
+        for _ in $(seq 1 10); do
+          code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "http://127.0.0.1:${STATE_PORT}/" || true)"
+          if [ "$code" != 000 ]; then
+            echo "туннель открыт, хранилище состояния отвечает (HTTP ${code})"
+            exit 0
+          fi
+          sleep 1
+        done
+        echo "::error::туннель поднялся, но хранилище состояния на порту ${STATE_PORT} не отвечает — применён ли стек бэкенда (dmc-268-api-t1)?"
+        exit 1

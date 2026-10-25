@@ -1,6 +1,6 @@
 #!/bin/sh
 # Проверка маршрутизации собранного образа: лендинг, приложение под /app/,
-# вход, редиректы, 404, заголовки кеша и безопасности. Общая для CI (job nginx)
+# вход, редиректы, 404, заголовки кеша и безопасности. Общая для CI (job image)
 # и деплоя.
 # nginx судит о входе по наличию cookie сессии, а не по её действительности,
 # поэтому «вошедшего» изображает любая cookie session.
@@ -40,9 +40,9 @@ has() {
 # header_has ИМЯ ЗНАЧЕНИЕ: есть ли у ответа заголовок с таким значением.
 # Имена заголовков регистронезависимы, поэтому сравниваем в нижнем регистре.
 header_has() {
-  want="$(printf '%s' "$1" | tr 'A-Z' 'a-z'):"
+  want="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]'):"
   while IFS= read -r line; do
-    lower="$(printf '%s' "$line" | tr 'A-Z' 'a-z')"
+    lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
     case "$lower" in
       "$want"*) has "$line" "$2" && return 0 ;;
     esac
@@ -55,7 +55,7 @@ HEADERS
 # location_is ЗНАЧЕНИЕ: Location ответа равен значению целиком.
 location_is() {
   while IFS= read -r line; do
-    case "$(printf '%s' "$line" | tr 'A-Z' 'a-z')" in
+    case "$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')" in
       location:*) [ "${line#*: }" = "$1" ] && return 0 ;;
     esac
   done <<HEADERS

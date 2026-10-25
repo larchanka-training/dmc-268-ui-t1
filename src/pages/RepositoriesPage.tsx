@@ -10,12 +10,19 @@ import {
   useNormalizeUrlPage,
   useUrlPage,
 } from '@/shared/lib'
-import { LinkButton, PageNav } from '@/shared/ui'
+import { ErrorState, LinkButton, PageNav, RefreshErrorNotice } from '@/shared/ui'
 
 const PAGE_SIZE = 10
 
 export function RepositoriesPage() {
-  const { data: repos, isLoading, isError } = useConnectedRepositories()
+  const {
+    data: repos,
+    isLoading,
+    isLoadingError,
+    isRefetchError,
+    error,
+    refetch,
+  } = useConnectedRepositories()
   const urlPage = useUrlPage({ pageSize: PAGE_SIZE })
   const pageCount = repos && pageCountOf(repos.length, PAGE_SIZE)
   useNormalizeUrlPage(urlPage, pageCount)
@@ -83,23 +90,35 @@ export function RepositoriesPage() {
           Подключить репозиторий
         </LinkButton>
       </div>
-      {isError && (
-        <Typography.Text type="danger" className="page-error">
-          Не удалось загрузить репозитории
-        </Typography.Text>
-      )}
-      <div className="app-content-card">
-        <Table
-          rowKey="id"
-          loading={isLoading}
-          columns={columns}
-          dataSource={pageSlice(repos ?? [], page, PAGE_SIZE)}
-          pagination={false}
+      {/* Списка нет — ошибка с повтором вместо пустой таблицы, которая выглядела бы как «репозиториев нет». */}
+      {isLoadingError ? (
+        <ErrorState
+          title="Не удалось загрузить репозитории"
+          error={error}
+          onRetry={() => void refetch()}
         />
-        {pageCount !== undefined && (
-          <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
-        )}
-      </div>
+      ) : (
+        <div className="app-content-card">
+          {/* Упал перезапрос — список остаётся, сверху плашка. */}
+          {isRefetchError && (
+            <RefreshErrorNotice
+              title="Не удалось обновить репозитории"
+              description="В таблице — последний полученный список."
+              onRetry={() => void refetch()}
+            />
+          )}
+          <Table
+            rowKey="id"
+            loading={isLoading}
+            columns={columns}
+            dataSource={pageSlice(repos ?? [], page, PAGE_SIZE)}
+            pagination={false}
+          />
+          {pageCount !== undefined && (
+            <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
+          )}
+        </div>
+      )}
     </div>
   )
 }

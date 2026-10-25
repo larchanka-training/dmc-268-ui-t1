@@ -656,13 +656,13 @@ describe('RepositorySettingsPage: состояния данных', () => {
 
   it('фоновая ошибка настроек: форма остаётся на данных из кэша, сверху Alert с повтором', async () => {
     const user = userEvent.setup()
-    const { backend, client } = renderSettingsPage()
+    const { backend, queryClient } = renderSettingsPage()
 
     expect(await screen.findByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
 
     backend.failures.settings = new Error('settings boom')
-    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
+    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
 
     expect(
       await screen.findByText('Не удалось обновить настройки — показаны сохранённые значения'),
@@ -683,12 +683,12 @@ describe('RepositorySettingsPage: состояния данных', () => {
 
   it('фоновая ошибка истории: таблица остаётся на данных из кэша, сверху Alert с повтором', async () => {
     const user = userEvent.setup()
-    const { backend, client } = renderSettingsPage()
+    const { backend, queryClient } = renderSettingsPage()
 
     expect(await screen.findByText('#42 Чтение токена из окружения')).toBeInTheDocument()
 
     backend.failures.history = new Error('history boom')
-    await act(() => client.invalidateQueries({ queryKey: repositoryHistoryKey('repo-1') }))
+    await act(() => queryClient.invalidateQueries({ queryKey: repositoryHistoryKey('repo-1') }))
 
     expect(
       await screen.findByText(
@@ -711,12 +711,12 @@ describe('RepositorySettingsPage: состояния данных', () => {
 
   it('фоновая ошибка правил: панель остаётся на данных из кэша, сверху Alert с повтором', async () => {
     const user = userEvent.setup()
-    const { backend, client } = renderSettingsPage()
+    const { backend, queryClient } = renderSettingsPage()
 
     expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
 
     backend.failures.rules = new Error('rules boom')
-    await act(() => client.invalidateQueries({ queryKey: repositoryKeys.rules('repo-1') }))
+    await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.rules('repo-1') }))
 
     expect(
       await screen.findByText('Не удалось обновить статус правил — показан последний загруженный'),

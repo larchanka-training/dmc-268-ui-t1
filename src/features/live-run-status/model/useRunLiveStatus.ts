@@ -11,6 +11,7 @@ import {
 } from '../../../entities/review-run'
 import { fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
+import { usePageVisible } from '../../../shared/lib'
 import { API_V1_BASE_URL } from '../../../shared/config/env'
 
 type Options<TData> = {
@@ -61,16 +62,10 @@ export function useRunLiveStatus<TData>({
   const queryClient = useQueryClient()
   const terminal = isTerminalStatus(status)
 
-  const [visible, setVisible] = useState(() => document.visibilityState !== 'hidden')
+  const visible = usePageVisible()
   const [streamState, setStreamState] = useState<StreamState>('connecting')
   // Номер ручного переподключения: меняется после «Обновить» и заставляет эффект открыть поток.
   const [attempt, setAttempt] = useState(0)
-
-  useEffect(() => {
-    const onVisibilityChange = () => setVisible(document.visibilityState !== 'hidden')
-    document.addEventListener('visibilitychange', onVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
-  }, [])
 
   // Последний виденный этап нужен, чтобы показать место сбоя, если бэкенд `failed_stage` не дал.
   const currentStage = isRunStage(status) ? status : null
