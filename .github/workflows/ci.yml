@@ -11,9 +11,17 @@ permissions:
 
 # Новый пуш в ветку пул-реквеста отменяет прогон по устаревшему коммиту.
 # Пуши в main и develop не отменяются: там нужен результат по каждому коммиту.
+# Одного cancel-in-progress: false для этого мало: при `queue: single` (по
+# умолчанию) в группе ждёт только один прогон, и следующий пуш отменяет
+# ожидающий — из трёх быстрых пушей средний CI не получил бы. `queue: max`
+# держит в очереди до 100 прогонов, но с `cancel-in-progress: true` вместе
+# запрещён, поэтому оба ключа — выражения от события: у pull_request — отмена
+# и single, у push — очередь без отмены. Порядок очереди GitHub не
+# гарантирует, и gate в deploy.yml поэтому сверяет вершину develop.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  queue: ${{ github.event_name == 'pull_request' && 'single' || 'max' }}
 
 jobs:
   # Те же проверки, что AGENTS.md требует перед коммитом: хуки можно обойти
@@ -22,7 +30,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run typecheck
       # Контракт и типы из него совпадают с бэкендом на коммите из
@@ -39,7 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run lint
       - run: pnpm run stylelint
@@ -49,7 +61,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run test
 
@@ -60,7 +74,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run build
       - name: Мока входа нет в сборке
@@ -78,9 +94,34 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run spec:validate
+
+  # Workflow и actions: zizmor (шаблонные инъекции, незакреплённые actions,
+  # креды checkout, опасные триггеры) и shellcheck по shell-скриптам. Профиль
+  # pedantic — чтобы видеть и мелкие находки; падаем только на high.
+  # --offline: онлайн-аудитам нужен токен к API, а результат не должен зависеть
+  # от сети. Версия закреплена: новые проверки приходят с её обновлением.
+  zizmor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Только uv для uvx: Node и зависимости проекта здесь не нужны. Версия uv —
+      # та же, что в CI бэкенда.
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: '0.13.5'
+      - run: uvx zizmor@1.31.1 --offline --persona pedantic --min-severity high .github/
+      # Каталога .github/scripts пока нет: workflow вызывают scripts/*.sh, образ
+      # — nginx/*.sh. shellcheck предустановлен на ubuntu-latest (apt-пакет в
+      # образе раннера). find отдаёт ненулевой код, если shellcheck упал.
+      - run: find .github scripts nginx -name '*.sh' -exec shellcheck {} +
 
   # Конфиг nginx иначе проверялся бы только деплоем: с ошибкой контейнер не
   # стартует, и стенд ложится. Проверяем собранный образ, а не файлы из
@@ -92,7 +133,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - run: docker build -t dmc268-ui:ci .
       - name: nginx -t в режиме HTTP
         run: >-
@@ -126,8 +169,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: opentofu/setup-opentofu@v2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
         with:
           tofu_version: 1.12.6
       - run: tofu fmt -check -recursive infra/

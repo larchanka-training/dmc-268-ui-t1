@@ -40,9 +40,9 @@ has() {
 # header_has ИМЯ ЗНАЧЕНИЕ: есть ли у ответа заголовок с таким значением.
 # Имена заголовков регистронезависимы, поэтому сравниваем в нижнем регистре.
 header_has() {
-  want="$(printf '%s' "$1" | tr 'A-Z' 'a-z'):"
+  want="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]'):"
   while IFS= read -r line; do
-    lower="$(printf '%s' "$line" | tr 'A-Z' 'a-z')"
+    lower="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
     case "$lower" in
       "$want"*) has "$line" "$2" && return 0 ;;
     esac
@@ -55,7 +55,7 @@ HEADERS
 # location_is ЗНАЧЕНИЕ: Location ответа равен значению целиком.
 location_is() {
   while IFS= read -r line; do
-    case "$(printf '%s' "$line" | tr 'A-Z' 'a-z')" in
+    case "$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')" in
       location:*) [ "${line#*: }" = "$1" ] && return 0 ;;
     esac
   done <<HEADERS
