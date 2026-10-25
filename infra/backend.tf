@@ -19,6 +19,13 @@ terraform {
     skip_credentials_validation = true
     skip_metadata_api_check     = true
     skip_region_validation      = true
+    skip_requesting_account_id  = true
     skip_s3_checksum            = true
+
+    # Блокировка: lock-объект ui/terraform.tfstate.tflock рядом с состоянием,
+    # создаётся условной записью. concurrency в deploy.yml очередь прогонов CI
+    # держит и так, а ручной apply из README идёт мимо неё. Хранилище то же,
+    # что у бэкенда, а он с use_lockfile уже работает.
+    use_lockfile = true
   }
 }

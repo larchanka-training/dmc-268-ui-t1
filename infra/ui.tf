@@ -1,9 +1,5 @@
-data "docker_network" "dmc268" {
-  name = "dmc268"
-}
-
 resource "docker_image" "ui" {
-  # Образ собирается и публикуется в CI, здесь он только забирается по тегу.
+  # Образ собирается и публикуется в CI, здесь он только забирается по digest.
   # Раньше он собирался прямо отсюда по хешу исходников; при удалённом
   # docker_host такая сборка ушла бы на сервер — без контекста и без кеша.
   name         = var.ui_image
@@ -39,30 +35,25 @@ resource "docker_container" "ui" {
   }
 
   # В режиме TLS этот порт обслуживает проверку HTTP-01 и перенаправляет на
-  # HTTPS, поэтому снаружи он должен быть именно 80.
+  # HTTPS, поэтому снаружи он должен быть именно 80. protocol указан явно,
+  # хотя tcp — значение по умолчанию: mock-провайдер в tofu test умолчаний
+  # провайдера не подставляет.
   ports {
     internal = 80
     external = var.ui_port
     ip       = var.bind_ip
+    protocol = "tcp"
   }
 
+  # 443 по TCP — HTTP/2, по UDP — HTTP/3 (QUIC). Порядок tcp, udp тот же, что
+  # был у двух отдельных блоков: ports — список, и перестановка дала бы diff.
   dynamic "ports" {
-    for_each = var.public_tls ? [443] : []
+    for_each = var.public_tls ? ["tcp", "udp"] : []
     content {
       internal = 443
       external = 443
       ip       = var.bind_ip
-    }
-  }
-
-  # HTTP/3 (QUIC) — тот же порт, но по UDP.
-  dynamic "ports" {
-    for_each = var.public_tls ? [443] : []
-    content {
-      internal = 443
-      external = 443
-      ip       = var.bind_ip
-      protocol = "udp"
+      protocol = ports.value
     }
   }
 }
