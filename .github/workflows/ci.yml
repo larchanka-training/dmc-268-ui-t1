@@ -77,25 +77,6 @@ jobs:
       - uses: ./.github/actions/setup
       - run: pnpm run test
 
-  # Сборка проходит, и в бандл не попал мок входа: он нужен только dev-серверу
-  # (плагин с apply: 'serve' в vite.config.ts). Ловит импорт src/build/mockAuth.ts
-  # из кода приложения — по строке фикстуры, которая переживает минификацию.
-  build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: ./.github/actions/setup
-      - run: pnpm run build
-      - name: Мока входа нет в сборке
-        run: |
-          if grep -rl 'Локальный пользователь' dist; then
-            echo 'Мок входа попал в production-сборку' >&2
-            exit 1
-          fi
-
   # Ошибка в спеке иначе всплывает только при архиве change: требование без
   # сценария, MODIFIED, теряющий сценарии. --strict ловит и стилистику —
   # слишком длинные требования. Версия openspec закреплена в package.json:
@@ -133,20 +114,61 @@ jobs:
       # образе раннера). find отдаёт ненулевой код, если shellcheck упал.
       - run: find .github scripts nginx -name '*.sh' -exec shellcheck {} +
 
-  # Конфиг nginx иначе проверялся бы только деплоем: с ошибкой контейнер не
-  # стартует, и стенд ложится. Проверяем собранный образ, а не файлы из
-  # репозитория: важны версия nginx, подключённый модуль ACME и конфиг,
-  # который скрипт выбора режима собирает из шаблона. Сертификат и адрес API
-  # подставляются переменными, поэтому nginx -t не нужны ни файлы
+  # Образ интерфейса — так, как его собирает деплой: те же build-args, что у
+  # build-push-action в deploy.yml (держать в синхроне), и одна сборка на все
+  # проверки. Иначе CI проверял бы не тот бандл: без VITE_USE_MOCK_API в нём
+  # mock adapter, а на стенд едет HTTP-клиент. Образ не публикуется.
+  #
+  # По порядку: hadolint — правила Dockerfile; в бандл не попал мок входа (он
+  # нужен только dev-серверу: плагин с apply: 'serve' в vite.config.ts) — ловит
+  # импорт src/build/mockAuth.ts из кода приложения по строке фикстуры, которая
+  # переживает минификацию; nginx -t в обоих режимах — с ошибкой в конфиге
+  # контейнер не стартует, и стенд ложится; маршруты в режиме HTTP — nginx -t
+  # их не ловит; trivy — пакеты ОС образа. Важны версия nginx, подключённый
+  # модуль ACME и конфиг, который скрипт выбора режима собирает из шаблона,
+  # поэтому проверяется собранный образ, а не файлы репозитория. Сертификат и
+  # адрес API подставляются переменными: nginx -t не нужны ни файлы
   # сертификата, ни сеть.
-  nginx:
+  #
+  # trivy падает на HIGH и CRITICAL, у которых есть исправление: ignore-unfixed
+  # не даёт красному CI из-за CVE, которую нечем закрыть, — такие видны в
+  # отчёте, но решения от нас не ждут. Перед деплоем trivy ещё раз сканирует
+  # опубликованный digest (deploy.yml): тот образ собран заново.
+  image:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - run: docker build -t dmc268-ui:ci .
+      - uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
+        with:
+          dockerfile: Dockerfile
+      - name: Собрать образ с build-args деплоя
+        env:
+          PUBLIC_ORIGIN: https://${{ vars.VPS_DMC268_IP_T1 }}
+          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
+          OTEL_EXPORTER_URL: ${{ vars.VITE_OTEL_EXPORTER_URL }}
+        run: >-
+          docker build -t dmc268-ui:ci
+          --build-arg PUBLIC_ORIGIN="$PUBLIC_ORIGIN"
+          --build-arg VITE_USE_MOCK_API="$USE_MOCK_API"
+          --build-arg VITE_OTEL_EXPORTER_URL="$OTEL_EXPORTER_URL"
+          --build-arg VITE_OTEL_ENVIRONMENT=production
+          --build-arg VITE_APP_VERSION="$GITHUB_SHA"
+          .
+      - name: Мока входа нет в образе
+        run: |
+          rc=0
+          docker run --rm --entrypoint grep dmc268-ui:ci \
+            -rl 'Локальный пользователь' /usr/share/nginx/html || rc=$?
+          # grep: 0 — нашёл, 1 — не нашёл, 2 и выше — сам не отработал
+          # (например, статики нет по этому пути); последнее — не «чисто».
+          case "$rc" in
+            1) echo 'мока входа в образе нет' ;;
+            0) echo '::error::мок входа попал в образ'; exit 1 ;;
+            *) echo "::error::поиск мока в образе не выполнен (grep: ${rc})"; exit 1 ;;
+          esac
       - name: nginx -t в режиме HTTP
         run: >-
           docker run --rm --network none --entrypoint sh dmc268-ui:ci
@@ -156,8 +178,7 @@ jobs:
           docker run --rm --network none -e PUBLIC_HOST=ci.invalid
           --entrypoint sh dmc268-ui:ci
           -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
-      # nginx -t не ловит ошибки маршрутизации: поднимаем образ в режиме HTTP
-      # и проверяем лендинг, приложение под /app/, редирект и 404.
+      # Лендинг, приложение под /app/, редирект и 404 — в режиме HTTP.
       - name: Маршруты в режиме HTTP
         run: |
           docker run -d --name ui-routes -p 8080:80 dmc268-ui:ci
@@ -167,6 +188,13 @@ jobs:
             sleep 1
           done
           scripts/check-routes.sh http://localhost:8080
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: dmc268-ui:ci
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          format: table
 
   # Конфигурация в infra/ перестала быть тривиальной: там backend.tf,
   # registry_auth и переменные, от которых зависит деплой. Без этого job'а
