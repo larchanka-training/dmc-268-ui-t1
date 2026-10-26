@@ -71,15 +71,17 @@ async function readProblem(response: Response): Promise<{
  * уход на `/login` по `401` работают и для данных кабинета: в обход `fetch` не ходим.
  */
 export function createHttpTransport(): ApiTransport {
+  const send = async (method: 'POST' | 'PUT', path: string, body: unknown) => {
+    const response = await apiFetch(path, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    return response.status === 204 ? null : (response.json() as Promise<unknown>)
+  }
   return {
     get: async (path) => (await apiFetch(path)).json() as Promise<unknown>,
-    post: async (path, body) => {
-      const response = await apiFetch(path, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
-      return response.status === 204 ? null : (response.json() as Promise<unknown>)
-    },
+    post: (path, body) => send('POST', path, body),
+    put: (path, body) => send('PUT', path, body),
   }
 }

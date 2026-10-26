@@ -1,0 +1,111 @@
+import { TextWithCode } from '@/shared/ui'
+import type { RepoRule, RejectedRule, RulesStatus } from '../model/settings'
+
+/**
+ * Любой исход без применимых правил — дефолтный фоллбэк (`RulesStatusResponse` контракта).
+ * У отсутствующего файла есть предложение создать его.
+ */
+const FALLBACK_TEXT: Record<Exclude<RulesStatus['status'], 'loaded' | 'empty'>, string> = {
+  absent: 'Используются дефолтные правила, создайте `.review/rules.md`',
+  too_large: 'Файл `.review/rules.md` больше лимита — ревью идёт по стандартным критериям',
+  unavailable: 'Не удалось получить `.review/rules.md` — ревью идёт по стандартным критериям',
+}
+
+/** `empty`: файл разобран, но ни один раздел не стал правилом. */
+const EMPTY_RULES_TEXT =
+  'Из `.review/rules.md` не собралось ни одного правила — ревью идёт по стандартным критериям'
+
+/** Общий вид предупреждающего сообщения статуса правил. */
+const NOTE_CLASS = 'rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'
+
+/** Паттерн области действия правила: моноширинный чип вида «pattern: …». */
+function GlobChip({ kind, value }: { kind: 'pattern' | 'exclude'; value: string }) {
+  return (
+    <span className="inline-flex rounded bg-slate-100 px-1.5 py-px font-mono text-xs text-slate-600">
+      {kind}: {value}
+    </span>
+  )
+}
+
+/**
+ * Списки превью read-only и не сортируются, а содержимое `.review/rules.md` может
+ * повторяться (одноимённые разделы, одинаковые проверки и паттерны) — поэтому ключ по
+ * индексу, а не по содержимому.
+ */
+function RuleBlock({ rule }: { rule: RepoRule }) {
+  return (
+    <section>
+      <h4 className="mb-1 text-sm font-semibold text-slate-700">{rule.name}</h4>
+      <div className="mb-2 flex flex-wrap gap-1.5">
+        {rule.patterns.map((pattern, index) => (
+          <GlobChip key={index} kind="pattern" value={pattern} />
+        ))}
+        {rule.excludes.map((exclude, index) => (
+          <GlobChip key={index} kind="exclude" value={exclude} />
+        ))}
+      </div>
+      <ol className="flex list-decimal flex-col gap-1 pl-5 text-sm text-slate-600">
+        {rule.checks.map((check, index) => (
+          <li key={index}>
+            <TextWithCode text={check} />
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+}
+
+/** Разделы, не ставшие правилом: бэкенд отклонил их с причиной — показываем как есть. */
+function RejectedRules({ rejected }: { rejected: RejectedRule[] }) {
+  if (rejected.length === 0) return null
+
+  return (
+    <div className={NOTE_CLASS}>
+      <p className="font-medium">Отклонённые разделы — не применяются:</p>
+      <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+        {rejected.map((rule, index) => (
+          <li key={index}>
+            {rule.name} — {rule.reason}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Превью распарсенных правил `.review/rules.md` в режиме read-only: правило — имя, паттерны
+ * области действия и нумерованные проверки; отклонённые разделы — с причиной. Если файл
+ * загружен, но применимых правил нет (`empty`), — сообщение про стандартные критерии,
+ * отклонённые разделы остаются видны. Парсинга markdown во фронтенде нет — ручка отдаёт
+ * готовые правила. Read-only достигается отсутствием полей ввода.
+ */
+export function RulesPreview({ status }: { status: RulesStatus }) {
+  if (status.status === 'empty') {
+    return (
+      <div className="flex flex-col gap-4">
+        <p role="note" className={NOTE_CLASS}>
+          <TextWithCode text={EMPTY_RULES_TEXT} />
+        </p>
+        <RejectedRules rejected={status.rejected} />
+      </div>
+    )
+  }
+
+  if (status.status !== 'loaded') {
+    return (
+      <p role="note" className={NOTE_CLASS}>
+        <TextWithCode text={FALLBACK_TEXT[status.status]} />
+      </p>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {status.rules.map((rule, index) => (
+        <RuleBlock key={index} rule={rule} />
+      ))}
+      <RejectedRules rejected={status.rejected} />
+    </div>
+  )
+}

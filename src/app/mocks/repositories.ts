@@ -23,6 +23,7 @@ const installation: InstallationRepository[] = [
   ['102', 'larchanka-training/docs', 'main'],
   ['103', 'larchanka-training/mobile-app', 'develop'],
   ['104', 'larchanka-training/infra', 'main'],
+  ['105', 'larchanka-training/design-system', 'main'],
 ].map(([provider_id, full_name, default_branch]) => ({
   provider: 'github',
   provider_id,
@@ -48,7 +49,10 @@ const registered = (repo: InstallationRepository, n: number, at: string): Reposi
 export function createRepositoryStore() {
   let connected: Repository[] = [
     registered(installation[0], 1, '2026-09-20T10:00:00Z'),
-    registered(installation[1], 2, '2026-09-22T14:15:00Z'),
+    // `auto_review_enabled` выключен, как в фикстуре настроек: список и экран настроек сходятся.
+    { ...registered(installation[1], 2, '2026-09-22T14:15:00Z'), auto_review_enabled: false },
+    // Третий репозиторий — сценарий «файл правил есть, но применимых правил нет» (repositorySettings).
+    registered(installation[4], 3, '2026-09-25T09:00:00Z'),
   ]
   const isConnected = (repo: InstallationRepository) =>
     connected.some((r) => r.provider === repo.provider && r.provider_id === repo.provider_id)
@@ -58,6 +62,20 @@ export function createRepositoryStore() {
     available: () => ({
       items: installation.map((repo) => ({ ...repo, already_connected: isConnected(repo) })),
     }),
+    /** Подключённый репозиторий по id — граница блока настроек (#29). */
+    find: (repositoryId: string) => connected.find((repo) => repo.id === repositoryId),
+    /** Один репозиторий `GET /repositories/{id}`: как бэкенд, 404 для чужого id. */
+    get: (repositoryId: string): Repository => {
+      const repo = connected.find((item) => item.id === repositoryId)
+      if (!repo) throw new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
+      return { ...repo }
+    },
+    /** Флаг авто-ревью — колонка репозитория: сохранение настроек меняет и её. */
+    setAutoReviewEnabled: (repositoryId: string, enabled: boolean) => {
+      connected = connected.map((repo) =>
+        repo.id === repositoryId ? { ...repo, auto_review_enabled: enabled } : repo,
+      )
+    },
     connect: ({ provider, provider_id }: ConnectRepositoryRequest): Repository => {
       const repo = installation.find(
         (r) => r.provider === provider && r.provider_id === provider_id,

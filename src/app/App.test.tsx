@@ -9,8 +9,12 @@ import { ME, stubFetch } from '@/test/api'
 import { createMockAdapter } from './mocks/mockAdapter'
 import { createScenarioEventStream } from './mocks/mockEventStream'
 import { createMockServer, FAILED_SCENARIO } from './mocks/mockServer'
+import { mockRepositoryId } from './mocks/repositories'
 
 const STEP_MS = 4_000
+
+/** Глубокая ссылка на настройки первого подключённого репозитория mock adapter. */
+const SETTINGS_URL = `/app/repositories/${mockRepositoryId(1)}/settings`
 
 /** Собирает приложение на mock adapter и mock-потоке с общим «сервером» и считает обращения. */
 function setup(scenario?: Parameters<typeof createMockServer>[0], url = '/app/reviews/run-42') {
@@ -111,6 +115,30 @@ describe('App', () => {
 
     expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
     expect(window.location.pathname).toBe('/app/repositories')
+  })
+
+  it('без сессии уводит со страницы настроек на /login с возвратом на настройки', async () => {
+    window.history.pushState({}, '', SETTINGS_URL)
+    stubFetch({ 'GET /api/v1/auth/me': { status: 401 } })
+
+    render(<App />)
+
+    await waitFor(() =>
+      expect(navigation.assign).toHaveBeenCalledWith(
+        `/login?redirect=${encodeURIComponent(SETTINGS_URL)}`,
+      ),
+    )
+    expect(screen.queryByText('Настройки репозитория')).not.toBeInTheDocument()
+  })
+
+  it('с сессией глубокая ссылка на настройки репозитория открывает экран настроек', async () => {
+    window.history.pushState({}, '', SETTINGS_URL)
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+
+    render(<App />)
+
+    expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
+    expect(window.location.pathname).toBe(SETTINGS_URL)
   })
 
   it('неизвестный адрес под /app уводит на /app/', async () => {

@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, RouterProvider, createMemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, RouterProvider, createMemoryRouter } from 'react-router-dom'
 import type { Repository } from '@/entities/repository'
 import { ApiError } from '@/shared/api'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
+import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 import { fakeTransport, renderWithTransport } from '@/test/api'
 
 function repository(n: number, full_name: string, auto_review_enabled: boolean): Repository {
@@ -22,8 +23,11 @@ function repository(n: number, full_name: string, auto_review_enabled: boolean):
 
 function renderRepositoriesPage(get = fakeTransport().get) {
   return renderWithTransport(
-    <MemoryRouter>
-      <RepositoriesPage />
+    <MemoryRouter initialEntries={['/repositories']}>
+      <Routes>
+        <Route path="/repositories" element={<RepositoriesPage />} />
+        <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
+      </Routes>
     </MemoryRouter>,
     fakeTransport({ get }),
   )
@@ -104,6 +108,60 @@ describe('RepositoriesPage', () => {
       expect(screen.queryByText('Не удалось обновить репозитории')).not.toBeInTheDocument(),
     )
   })
+
+  it('ссылки-кнопки: настоящий `<a>` без кнопки внутри', async () => {
+    renderRepositoriesPage(async () => ({
+      items: [repository(1, 'larchanka-training/platform-api', true)],
+    }))
+
+    // Доступное имя по aria-label различает ссылки настроек разных репозиториев.
+    const settings = await screen.findByRole('link', {
+      name: 'Настройки larchanka-training/platform-api',
+    })
+    expect(settings).toHaveAttribute('href', '/repositories/repo-1/settings')
+    expect(screen.getByRole('link', { name: 'Подключить репозиторий' })).toHaveAttribute(
+      'href',
+      '/repositories/connect',
+    )
+    // Внутри ссылки нет вложенной кнопки — один интерактивный элемент.
+    expect(screen.queryByRole('button', { name: 'Настройки' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Подключить репозиторий' })).not.toBeInTheDocument()
+  })
+
+  it('из списка открывает экран настроек репозитория', async () => {
+    const user = userEvent.setup()
+    renderRepositoriesPage(async (path) => {
+      if (path === '/repositories?limit=200') {
+        return { items: [repository(1, 'larchanka-training/platform-api', true)] }
+      }
+      // Заголовок экрана настроек — отдельная ручка одного репозитория.
+      if (path === '/repositories/repo-1') {
+        return repository(1, 'larchanka-training/platform-api', true)
+      }
+      if (path === '/repositories/repo-1/settings') {
+        return { auto_review_enabled: true, branch_filter: ['feature/**'], min_severity: 'high' }
+      }
+      if (path === '/repositories/repo-1/rules') {
+        return {
+          status: 'loaded',
+          branch: 'main',
+          path: '.review/rules.md',
+          rules: [],
+          rejected: [],
+          fetched_at: '2026-10-11T09:40:00.000Z',
+        }
+      }
+      throw new Error(`неожиданный запрос ${path}`)
+    })
+
+    const settingsLink = await screen.findByRole('link', {
+      name: 'Настройки larchanka-training/platform-api',
+    })
+    await user.click(settingsLink)
+
+    expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
+    expect(screen.getByText('larchanka-training/platform-api')).toBeInTheDocument()
+  })
 })
 
 /** 25 подключённых репозиториев — три страницы по 10. */
@@ -165,7 +223,10 @@ describe('RepositoriesPage — страница в URL', () => {
     await visibleRepos()
 
     const two = screen.getByRole('link', { name: '2' })
-    for (let i = 0; i < 20 && document.activeElement !== two; i += 1) await user.tab()
+    // Строки таблицы с кнопками настроек удлиняют порядок табов, поэтому до номера доходим
+    // не более чем за число фокусируемых элементов страницы — дальше он был бы недостижим.
+    const focusable = document.querySelectorAll('a[href], button:not([disabled])').length
+    for (let i = 0; i < focusable && document.activeElement !== two; i += 1) await user.tab()
     expect(two).toHaveFocus()
     await user.keyboard('{Enter}')
 

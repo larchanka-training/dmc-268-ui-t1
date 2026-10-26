@@ -1,5 +1,6 @@
 export { ErrorBoundary } from './ErrorBoundary'
 export { EmptyState, ErrorState, LoadingState } from './states'
 export { TextWithCode } from './TextWithCode'
+export { LinkButton } from './LinkButton'
 export { PageNav } from './PageNav'
 export { RefreshErrorNotice } from './RefreshErrorNotice'
