@@ -74,6 +74,7 @@ export const STEPS = [
     'Подготовка: checkout, SSH, OpenTofu, туннель к хранилищу состояния',
     ['start', 'checkout', 'ssh', 'tofu', 'state'],
   ],
+  ['pull', 'Скачать образ на сервер', ['login', 'pull']],
   ['plan', 'Спланировать и проверить план', ['plan']],
   ['apply', 'Применить конфигурацию', ['apply']],
   ['check_site', 'Проверить, что по адресу отдаётся именно наш сайт', ['check_site']],

@@ -94,7 +94,12 @@ run "container_joins_only_backend_network" {
   }
 }
 
-run "image_tag_dropped_before_digest" {
+# Контейнер ссылается на образ по digest без тега и без ресурса docker_image:
+# замена docker_image.ui шла между удалением старого контейнера и созданием
+# нового, и pull из ghcr попадал в простой публичного входа (#89). Атрибут
+# image провайдер сравнивает строкой, поэтому тег (commit sha, новый на каждом
+# коммите) пересоздавал бы контейнер даже при том же digest.
+run "ui_runs_image_by_digest_without_tag" {
   command = plan
 
   variables {
@@ -102,8 +107,39 @@ run "image_tag_dropped_before_digest" {
   }
 
   assert {
-    condition     = docker_image.ui.name == "ghcr.io/larchanka-training/dmc-268-ui-t1@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
-    error_message = "Ресурс образа получает ссылку без тега: новый тег при том же digest не должен заменять образ и контейнер."
+    condition     = docker_container.ui.image == "ghcr.io/larchanka-training/dmc-268-ui-t1@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+    error_message = "Контейнер запускается из ui_image по digest, без тега: <репозиторий>@sha256:<digest>."
+  }
+}
+
+# Двоеточие порта реестра — не тег: срезается только тег после последнего «/».
+run "registry_port_is_not_a_tag" {
+  command = plan
+
+  variables {
+    ui_image = "localhost:5000/dmc-268-ui-t1:0123abc-api@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+  }
+
+  assert {
+    condition     = docker_container.ui.image == "localhost:5000/dmc-268-ui-t1@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+    error_message = "Из localhost:5000/<образ>:<тег>@sha256:<digest> срезается только тег, порт реестра остаётся."
+  }
+}
+
+# Без destroy_grace_seconds провайдер останавливает контейнер с таймаутом 0:
+# SIGKILL сразу за SIGQUIT, nginx не успевает ни закрыть соединения, ни
+# дописать файлы ACME на томе (#89).
+run "ui_stops_gracefully" {
+  command = plan
+
+  assert {
+    condition     = docker_container.ui.stop_signal == "SIGQUIT"
+    error_message = "nginx останавливается сигналом SIGQUIT — graceful shutdown, а не быстрый выход по SIGTERM."
+  }
+
+  assert {
+    condition     = docker_container.ui.destroy_grace_seconds == 10
+    error_message = "destroy_grace_seconds интерфейса — 10 с: nginx закрывает соединения за worker_shutdown_timeout 1 с, остаток — запас до SIGKILL."
   }
 }
 

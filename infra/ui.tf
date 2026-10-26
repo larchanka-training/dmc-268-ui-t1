@@ -1,17 +1,26 @@
+# Образ собирается и публикуется в CI, контейнер ссылается на него по digest.
+# Ресурса docker_image нет: его замена на каждом коммите шла между удалением
+# старого dmc268-ui и созданием нового, и pull из ghcr попадал в простой
+# публичного входа (#89). Скачивает образ шаг деплоя до apply, и провайдер
+# создаёт контейнер из готового: сам он тянет образ, только если того нет на
+# сервере.
+#
 # В ui_image деплой передаёт `имя:тег@digest` — тег для лога и summary, — а
-# ресурс образа получает ссылку без тега. name сравнивается строкой, и тег
-# (commit sha, новый на каждом коммите) заменял бы ресурс образа, а за ним и
-# контейнер, даже при том же digest.
+# контейнер получает ссылку без тега: image сравнивается строкой, и тег
+# (commit sha, новый на каждом коммите) пересоздавал бы контейнер даже при том
+# же digest.
 locals {
   ui_image_ref = join("@", regex("^(.+?)(?::[\\w][\\w.-]{0,127})?@(sha256:[0-9a-f]{64})$", var.ui_image))
 }
 
-resource "docker_image" "ui" {
-  # Образ собирается и публикуется в CI, здесь он только забирается по digest.
-  # Раньше он собирался прямо отсюда по хешу исходников; при удалённом
-  # docker_host такая сборка ушла бы на сервер — без контекста и без кеша.
-  name         = local.ui_image_ref
-  keep_locally = true
+# Ресурс образа жил в стеке до #89. Из состояния он уходит без уничтожения:
+# keep_locally у него и так не снимал образ с сервера.
+removed {
+  from = docker_image.ui
+
+  lifecycle {
+    destroy = false
+  }
 }
 
 # Ключ ACME-аккаунта и выпущенные сертификаты. Отдельный том, а не слой
@@ -34,8 +43,16 @@ resource "docker_volume" "acme" {
 
 resource "docker_container" "ui" {
   name    = "dmc268-ui"
-  image   = docker_image.ui.image_id
+  image   = local.ui_image_ref
   restart = "unless-stopped"
+
+  # Без destroy_grace_seconds провайдер останавливает контейнер с таймаутом 0 —
+  # SIGKILL сразу за сигналом остановки: рвутся запросы и запись файлов ACME на
+  # томе. SIGQUIT — graceful shutdown nginx (тот же сигнал у базового образа,
+  # здесь — явно). Поток SSE живёт часами, его nginx обрывает сам через
+  # worker_shutdown_timeout 1 с (Dockerfile); 10 с — запас до SIGKILL.
+  stop_signal           = "SIGQUIT"
+  destroy_grace_seconds = 10
 
   # Пустой PUBLIC_HOST — режим HTTP без обращения к ACME-серверу (см.
   # nginx/select-site.sh). acme_directory пустой — боевой Let's Encrypt.

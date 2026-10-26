@@ -33,9 +33,14 @@ FROM nginx:1.30-alpine
 # trivy (job image в CI, скан перед деплоем) находил бы CVE, исправленную в
 # Alpine, но ещё не попавшую в nginx:1.30-alpine (brotli-libs, CVE-2026-111497).
 # Модуль ACME лежит в образе, но не подключён: load_module допустим только
-# в главном конфиге, а не в conf.d.
+# в главном конфиге, а не в conf.d. Там же worker_shutdown_timeout: по
+# SIGQUIT nginx сразу закрывает приём новых соединений и ждёт открытые, а поток
+# SSE живёт часами и открыт почти у каждого в кабинете. Всё ожидание — отказ
+# новым запросам, поэтому через 1 с nginx обрывает оставшиеся сам и выходит
+# раньше, чем истечёт destroy_grace_seconds контейнера (infra/ui.tf).
 RUN apk upgrade --no-cache \
-    && sed -i '1i load_module modules/ngx_http_acme_module.so;' /etc/nginx/nginx.conf \
+    && sed -i -e '1i load_module modules/ngx_http_acme_module.so;' \
+       -e '1i worker_shutdown_timeout 1s;' /etc/nginx/nginx.conf \
     && mkdir -p /var/lib/nginx-acme
 COPY nginx/site.conf nginx/http.conf nginx/https.conf.template /etc/nginx/
 COPY --chmod=755 nginx/select-site.sh /docker-entrypoint.d/40-select-site.sh

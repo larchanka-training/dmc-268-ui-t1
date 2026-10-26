@@ -178,7 +178,8 @@ jobs:
     # отклоняется до первого шага. Секреты при этом остаются в репозитории и
     # организации — job с environment видит их как и раньше.
     environment: stand
-    # packages: read обязателен — образ тянет docker-провайдер тем же токеном.
+    # packages: read обязателен — образ из приватного пакета скачивает шаг
+    # pull через docker login тем же токеном.
     permissions:
       contents: read
       packages: read
@@ -227,6 +228,30 @@ jobs:
         id: state
         with:
           port: '9000'
+
+      # Образ — на сервер до apply: контейнер ссылается на него по digest
+      # (infra/ui.tf), и провайдер создаёт новый dmc268-ui из уже скачанного, а
+      # не тянет его из ghcr между удалением старого и созданием нового (#89).
+      # docker CLI раннера передаёт учётные данные удалённому демону вместе с
+      # запросом pull; на сервере токен не остаётся.
+      - id: login
+        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Потолок шага: подвисший pull или мёртвый master держали бы job до его
+      # 30 минут. Образ интерфейса — десятки МиБ, хватает с запасом.
+      - name: Скачать образ на сервер
+        id: pull
+        timeout-minutes: 5
+        env:
+          DOCKER_HOST: ssh://stand
+          IMAGE: ${{ needs.image.outputs.image }}
+        run: |
+          .github/scripts/deploy/mark.sh
+          docker pull --quiet "$IMAGE"
 
       # План — в файл, сторож тома ACME — до apply (plan.sh). HTTPS с
       # сертификатом Let's Encrypt на адрес стенда; порт 80 нужен и для
@@ -315,6 +340,8 @@ jobs:
             ssh ${{ steps.ssh.outcome }} ${{ steps.ssh.conclusion }}
             tofu ${{ steps.tofu.outcome }} ${{ steps.tofu.conclusion }}
             state ${{ steps.state.outcome }} ${{ steps.state.conclusion }}
+            login ${{ steps.login.outcome }} ${{ steps.login.conclusion }}
+            pull ${{ steps.pull.outcome }} ${{ steps.pull.conclusion }}
             plan ${{ steps.plan.outcome }} ${{ steps.plan.conclusion }}
             apply ${{ steps.apply.outcome }} ${{ steps.apply.conclusion }}
             check_site ${{ steps.check_site.outcome }} ${{ steps.check_site.conclusion }}
