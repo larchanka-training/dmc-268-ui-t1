@@ -1,0 +1,12 @@
+
+Error: Resource instance cannot be destroyed
+
+  on main.tf line 8:
+   8: resource "docker_volume" "acme" {
+
+Resource instance docker_volume.acme has prevent_destroy set, but the plan
+calls for it to be destroyed.
+
+To proceed, either disable prevent_destroy for this resource or exclude
+instances of this resource from this round using:
+    -exclude="docker_volume.acme"

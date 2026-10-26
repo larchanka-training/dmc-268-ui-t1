@@ -26,8 +26,19 @@ removed {
 # Ключ ACME-аккаунта и выпущенные сертификаты. Отдельный том, а не слой
 # контейнера: контейнер пересоздаётся на каждом деплое, и без тома каждый
 # деплой выпускал бы сертификат заново, упираясь в лимиты Let's Encrypt.
+#
+# prevent_destroy: план, уничтожающий или заменяющий том, OpenTofu отклоняет
+# сам — и в деплое, и в ручных `tofu apply` и `tofu destroy`. Мимо него проходит
+# только удаление блока из конфигурации: lifecycle уходит вместе с ним. Это
+# ловит сторож .github/scripts/deploy/plan.sh — по адресу и по имени тома.
+# Сменить том — новым ресурсом, а этот снять с учёта блоком
+# `removed { lifecycle { destroy = false } }`: сертификаты останутся на сервере.
 resource "docker_volume" "acme" {
   name = "dmc268-ui-acme"
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "docker_container" "ui" {

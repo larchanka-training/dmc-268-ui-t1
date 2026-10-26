@@ -35,7 +35,7 @@ describe('deploy.yml: образ интерфейса на сервере до a
   // apply — и прямой `tofu apply`, и скрипт `.github/scripts/deploy/apply.sh` (#90).
   const applyAt = steps.findIndex((s) => /\btofu apply\b|deploy\/apply\.sh/.test(s))
   const pullAt = steps.findIndex((s) => /\bdocker pull\b/.test(s))
-  const loginAt = steps.findIndex((s) => s.startsWith('uses: docker/login-action@'))
+  const loginAt = steps.findIndex((s) => /^\s*(?:- )?uses: docker\/login-action@/m.test(s))
 
   it('находит шаг apply', () => {
     expect(applyAt).toBeGreaterThan(-1)
