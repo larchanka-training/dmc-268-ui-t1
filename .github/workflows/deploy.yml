@@ -186,36 +186,54 @@ jobs:
     # ходят через хост `stand` из ~/.ssh/config (stand-ssh).
     env:
       HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+    # Шаги с id — для summary: исход каждого берёт шаг summary, а каждый шаг с
+    # `run` первой строкой ставит засечку (.github/scripts/deploy/mark.sh) —
+    # по ним считается длительность. Так время шагов видно без `actions: read`
+    # у токена. Раскладку сверяет .github/tests/deploy-report.test.mjs.
     steps:
+      # Засечка до checkout — скрипта ещё нет, поэтому строкой здесь, в том же
+      # формате, что у mark.sh. От неё считается подготовка и весь job.
+      - name: Засечь начало деплоя
+        id: start
+        run: mkdir -p "$RUNNER_TEMP/deploy-report" && echo "start $(date +%s.%N)" >> "$RUNNER_TEMP/deploy-report/marks"
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        id: checkout
         with:
           persist-credentials: false
           ref: ${{ needs.gate.outputs.sha }}
 
       # Ключ, known_hosts и хост `stand` в ~/.ssh/config для всех шагов ниже.
       - uses: ./.github/actions/stand-ssh
+        id: ssh
         with:
           ssh_key: ${{ secrets.VPS_DMC268_KEY_T1 }}
           ssh_user: ${{ secrets.VPS_DMC268_U }}
           host: ${{ vars.VPS_DMC268_IP_T1 }}
 
+      # Без обёртки: она копирует stdout каждого вызова tofu в выходы шага, а
+      # это `show -json` плана с токеном реестра открытым текстом. Коды
+      # возврата без неё те же.
       - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        id: tofu
         with:
           tofu_version: 1.13.2
+          tofu_wrapper: false
 
       # Хранилище состояния поднимает деплой бэкенда: по спеке он применяется
       # раньше. Здесь — только туннель к нему. Порт — тот же, что в endpoints
       # infra/backend.tf.
       - uses: ./.github/actions/state-tunnel
+        id: state
         with:
           port: '9000'
 
-      # HTTPS с сертификатом Let's Encrypt на адрес стенда. Порт 80 нужен и для
+      # План — в файл, сторож тома ACME — до apply (plan.sh). HTTPS с
+      # сертификатом Let's Encrypt на адрес стенда; порт 80 нужен и для
       # проверки HTTP-01, и для перенаправления на HTTPS.
-      - name: Применить конфигурацию
-        id: apply
-        working-directory: infra
-        env:
+      - name: Спланировать и проверить план
+        id: plan
+        env: &tofu-env
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_USER_DMC268_T1 }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.S3_PASSWORD_DMC268_T1 }}
           AWS_DEFAULT_REGION: us-east-1
@@ -230,39 +248,80 @@ jobs:
           TF_VAR_registry_username: ${{ github.actor }}
           TF_VAR_registry_password: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
-          tofu init -input=false -no-color
-          tofu apply -input=false -no-color -auto-approve
-          echo "ui_url=$(tofu output -raw ui_url)" >> "$GITHUB_OUTPUT"
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/plan.sh
+
+      # Применяется ровно проверенный план. Заодно apply.sh собирает события
+      # контейнера интерфейса и ответы пробника публичного входа (HOST) для
+      # разбивки простоя в summary и удаляет файл плана. Переменные — те же
+      # (якорь).
+      - name: Применить конфигурацию
+        id: apply
+        env: *tofu-env
+        run: |
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/apply.sh
 
       # Проверки стенда — .github/scripts/deploy/ (shellcheck в CI) и
-      # scripts/check-routes.sh, общий с CI.
+      # scripts/check-routes.sh, общий с CI. Первый ответ HTTPS и /api/v1/
+      # check-site.sh и check-api-proxy.sh записывают для summary.
       - name: Проверить, что по адресу отдаётся именно наш сайт
-        run: .github/scripts/deploy/check-site.sh
+        id: check_site
+        run: |
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/check-site.sh
 
       - name: Проверить маршруты
-        run: scripts/check-routes.sh "https://${HOST}"
+        id: check_routes
+        run: |
+          .github/scripts/deploy/mark.sh
+          scripts/check-routes.sh "https://${HOST}"
 
       - name: Проверить сжатие статики
-        run: .github/scripts/deploy/check-compression.sh "https://${HOST}"
+        id: check_compression
+        run: |
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/check-compression.sh "https://${HOST}"
 
       - name: Проверить HTTP/2 и HTTP/3
-        run: .github/scripts/deploy/check-protocols.sh
+        id: check_protocols
+        run: |
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/check-protocols.sh
 
       - name: Проверить, что API доступен через тот же адрес
-        run: .github/scripts/deploy/check-api-proxy.sh "https://${HOST}"
+        id: check_api_proxy
+        run: |
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/check-api-proxy.sh "https://${HOST}"
 
+      # Исход, шаг падения, простой публичного входа, план, диск и длительность
+      # шагов (summary.sh). Исходы шагов — списком, а не toJSON(steps): тот
+      # несёт и выходы шагов, а env шага печатается в лог. Строка на каждый
+      # шаг с id (сверяет .github/tests/deploy-report.test.mjs).
       - name: Записать результат в summary
+        id: summary
         if: always()
+        # ssh внутри — под `timeout 30` (summary.sh); это — потолок шага на
+        # случай, если повиснет что-то ещё: job ждал бы до своих 30 минут.
+        timeout-minutes: 3
         env:
           IMAGE: ${{ needs.image.outputs.image }}
-          UI_URL: ${{ steps.apply.outputs.ui_url || 'не получен' }}
+          SHA: ${{ needs.gate.outputs.sha }}
+          JOB_STATUS: ${{ job.status }}
+          STEP_RESULTS: |
+            start ${{ steps.start.outcome }} ${{ steps.start.conclusion }}
+            checkout ${{ steps.checkout.outcome }} ${{ steps.checkout.conclusion }}
+            ssh ${{ steps.ssh.outcome }} ${{ steps.ssh.conclusion }}
+            tofu ${{ steps.tofu.outcome }} ${{ steps.tofu.conclusion }}
+            state ${{ steps.state.outcome }} ${{ steps.state.conclusion }}
+            plan ${{ steps.plan.outcome }} ${{ steps.plan.conclusion }}
+            apply ${{ steps.apply.outcome }} ${{ steps.apply.conclusion }}
+            check_site ${{ steps.check_site.outcome }} ${{ steps.check_site.conclusion }}
+            check_routes ${{ steps.check_routes.outcome }} ${{ steps.check_routes.conclusion }}
+            check_compression ${{ steps.check_compression.outcome }} ${{ steps.check_compression.conclusion }}
+            check_protocols ${{ steps.check_protocols.outcome }} ${{ steps.check_protocols.conclusion }}
+            check_api_proxy ${{ steps.check_api_proxy.outcome }} ${{ steps.check_api_proxy.conclusion }}
         run: |
-          {
-            echo "## Деплой интерфейса"
-            echo
-            echo "| | |"
-            echo "| --- | --- |"
-            echo "| Образ | \`${IMAGE}\` |"
-            echo "| Адрес | ${UI_URL} |"
-          } >> "$GITHUB_STEP_SUMMARY"
+          .github/scripts/deploy/mark.sh
+          .github/scripts/deploy/summary.sh
