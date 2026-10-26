@@ -9,9 +9,14 @@
  * подложными `tofu`, `ssh`, `timeout`, `curl` и `sleep`, а вход — настоящие
  * данные из репетиции на `docker:29-dind` (Docker 29.9.2, OpenTofu 1.13.2):
  * `plan-*.json` — урезанный до `resource_changes` вывод `tofu show -json`
- * (замена образа и плана, где блок тома удалён из конфигурации), `ui-*`,
- * `clock`, `runner-clock`, `probes` — то, что собрали `apply.sh` и проверки
- * при замене образа.
+ * (замена образа и плана, где блок тома удалён из конфигурации),
+ * `plan-prevent-destroy.stderr` — stderr `tofu plan`, отклонённого
+ * `prevent_destroy` при смене имени тома, `ui-*`, `clock`, `runner-clock`,
+ * `probes` — то, что собрали `apply.sh` и проверки при замене образа. Замена
+ * образа снята до #89 / #91: в `plan-replace-ui.json` образ ещё отдельный
+ * ресурс `docker_image`, и `pull` в событиях приходится на простой. Пробника в
+ * репетиции не было: `ui-probe` составлен по её таймингам — шаг 0,25 с, отказы
+ * от `kill` до `StartedAt`, ответ после него.
  *
  * `prevent_destroy` у тома `tofu test` не проверит (уборка `run` с
  * `command = apply` на нём упала бы), поэтому его наличие сверяется чтением
@@ -44,10 +49,12 @@ import {
   durations,
   parseTime,
   planChanges,
+  preventedDestroys,
   protectedDeletes,
   readEvents,
   readMarks,
   readProbes,
+  readWatch,
 } from '../../scripts/deploy-report.mjs'
 
 const ROOT = process.cwd()
@@ -60,13 +67,17 @@ const IMAGE_B = 'e5fd7fb11a0571f2321929ebaf4821db809f7cf7ba24ee334b3580177949324
 const IMAGE = `ghcr.io/larchanka-training/dmc-268-ui-t1:0a83d25-mock@sha256:${IMAGE_B}`
 const SECRET = 'ghs_секрет-реестра'
 
-// Подложный tofu: `plan -out` создаёт файл плана, `show -json` отдаёт
-// фикстуру, `apply` падает, если велит тест. Вызовы — в журнал.
+// Подложный tofu: `plan -out` создаёт файл плана (и при ошибке — как
+// настоящий), с PLAN_EXIT падает и печатает в stderr PLAN_STDERR; `show -json`
+// отдаёт фикстуру, `apply` падает, если велит тест. Вызовы — в журнал.
 const FAKE_TOFU = `#!/usr/bin/env bash
 echo "tofu $*" >> "$CALLS"
 case "$*" in
   *" init "*) ;;
-  *" plan "*) touch infra/tfplan ;;
+  *" plan "*)
+    touch infra/tfplan
+    [ -z "\${PLAN_STDERR:-}" ] || cat "$PLAN_STDERR" >&2
+    exit "\${PLAN_EXIT:-0}" ;;
   *" show -json tfplan") cat "$PLAN_JSON" ;;
   *" apply "*) [ -e infra/tfplan ] || exit 3; exit "\${APPLY_EXIT:-0}" ;;
   *" output -raw ui_url") echo -n "https://203.0.113.7" ;;
@@ -97,10 +108,12 @@ exec "$@"
 `
 
 // Подложный curl для проверок стенда: CURL_FAILS первых запросов к телу
-// страницы не отвечают, дальше — лендинг или JSON API.
+// страницы не отвечают, дальше — лендинг или JSON API. Пробнику apply.sh
+// (`-w %{http_code}`) отвечает кодом PROBE_CODE.
 const FAKE_CURL = `#!/usr/bin/env bash
 echo "curl $*" >> "$CALLS"
 case "$*" in
+  *http_code*) printf '%s' "\${PROBE_CODE:-200}"; exit 0 ;;
   *redirect_url*) printf 'https://%s/' "$HOST"; exit 0 ;;
   *" -D "*) printf 'HTTP/2 200\\r\\nstrict-transport-security: max-age=86400\\r\\n'; exit 0 ;;
 esac
@@ -232,6 +245,61 @@ describe('сторож тома ACME', () => {
     expect(calls(box)).not.toContain(' apply ')
   })
 
+  it('называет причину, когда план отклонил сам OpenTofu: prevent_destroy у тома', () => {
+    const box = sandbox()
+    const result = run(box, 'plan.sh', {
+      PLAN_EXIT: '1',
+      PLAN_STDERR: join(FIXTURES, 'plan-prevent-destroy.stderr'),
+    })
+
+    expect(result.status).toBe(1)
+    // Ошибка tofu остаётся в логе шага.
+    expect(result.stderr).toContain('Error: Resource instance cannot be destroyed')
+    expect(JSON.parse(reportFile(box, 'plan.json'))).toEqual({
+      changes: null,
+      protected_deletes: ['docker_volume.acme'],
+      rejected: 'prevent_destroy',
+    })
+    // stderr tofu на диске не остаётся: в отчёт — только адреса.
+    expect(readdirSync(box.report)).toEqual(['plan.json'])
+    expect(existsSync(join(box.root, 'infra/tfplan'))).toBe(false)
+    expect(calls(box)).not.toContain('show -json')
+
+    const text = summary(box, { JOB_STATUS: 'failure' })
+    expect(text).toContain(
+      '> OpenTofu отклонил план до apply: план уничтожает или заменяет `docker_volume.acme`, а у тома `prevent_destroy`',
+    )
+    expect(text).not.toContain('Плана нет')
+  })
+
+  it('прочий отказ tofu plan: код сохраняется, плана в отчёте нет', () => {
+    const box = sandbox()
+    const stderr = join(box.tmp, 'plan.stderr')
+    writeFileSync(stderr, '\nError: Invalid value for variable\n')
+    const result = run(box, 'plan.sh', { PLAN_EXIT: '1', PLAN_STDERR: stderr })
+
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('Error: Invalid value for variable')
+    expect(existsSync(join(box.report, 'plan.json'))).toBe(false)
+    expect(existsSync(join(box.root, 'infra/tfplan'))).toBe(false)
+    expect(summary(box, { JOB_STATUS: 'failure' })).toContain(
+      'Плана нет: шаг планирования не дошёл до него.',
+    )
+  })
+
+  it('из ошибки prevent_destroy берутся только тома, адрес — и с переносом строки', () => {
+    expect(preventedDestroys(fixture('plan-prevent-destroy.stderr'))).toEqual([
+      'docker_volume.acme',
+    ])
+    expect(
+      preventedDestroys(
+        'Resource instance docker_container.ui has prevent_destroy set, but\n' +
+          'Resource instance\nmodule.ui.docker_volume.acme["a"] has prevent_destroy\nset, but',
+      ),
+    ).toEqual(['module.ui.docker_volume.acme["a"]'])
+    expect(preventedDestroys('Error: Invalid value for variable')).toEqual([])
+  })
+
   it('видит том по имени, если адрес ресурса сменили без moved', () => {
     const plan = {
       resource_changes: [
@@ -341,6 +409,53 @@ describe('apply.sh', () => {
     expect(log).toContain('--filter event=pull')
   })
 
+  it('since потока событий — по часам сервера, без ответа сервера — по часам раннера', () => {
+    const box = sandbox()
+    run(box, 'plan.sh')
+    run(box, 'apply.sh')
+    const serverSince = Math.floor(Number(fixture('clock'))) - 60
+    expect(calls(box)).toContain(`docker events --since ${serverSince} `)
+
+    const off = sandbox()
+    run(off, 'plan.sh')
+    const before = Math.floor(Date.now() / 1000) - 60
+    expect(run(off, 'apply.sh', { SSH_FAIL: 'date +%s' }).status).toBe(0)
+    const since = Number(/docker events --since (\d+) /.exec(calls(off))?.[1])
+    expect(since).toBeGreaterThanOrEqual(before)
+    expect(since).toBeLessThanOrEqual(Math.floor(Date.now() / 1000) - 60)
+  })
+
+  it('пробник: HTTPS снаружи с отметкой времени всё время apply, и шаг он не переживает', () => {
+    const box = sandbox()
+    run(box, 'plan.sh')
+    const result = run(box, 'apply.sh')
+
+    expect(result.status, result.stdout + result.stderr).toBe(0)
+    const lines = () => reportFile(box, 'ui-probe').trim().split('\n')
+    const seen = lines()
+    expect(seen.length).toBeGreaterThan(0)
+    for (const line of seen) expect(line).toMatch(/^\d+(\.\d+)? 200$/)
+    // Адрес — тот же, что у check-site.sh; ответ ждётся не дольше секунды.
+    expect(calls(box)).toContain(
+      'curl -s -o /dev/null --max-time 1 -w %{http_code} https://203.0.113.7/',
+    )
+    // Шаг кончился — пробник тоже: файл больше не растёт.
+    spawnSync('/bin/sleep', ['0.5'])
+    expect(lines()).toEqual(seen)
+
+    const script = readFileSync(join(SCRIPTS, 'apply.sh'), 'utf8')
+    expect(script).toMatch(/sleep 0\.25/)
+    expect(script.indexOf('probe &')).toBeGreaterThan(0)
+    expect(script.indexOf('probe &')).toBeLessThan(script.indexOf('tofu -chdir=infra apply'))
+  })
+
+  it('без HOST пробника нет, а выкат идёт', () => {
+    const box = sandbox()
+    run(box, 'plan.sh')
+    expect(run(box, 'apply.sh', { HOST: '' }).status).toBe(0)
+    expect(existsSync(join(box.report, 'ui-probe'))).toBe(false)
+  })
+
   it('сохраняет код tofu apply и всё равно собирает сырьё и убирает план', () => {
     const box = sandbox()
     run(box, 'plan.sh')
@@ -395,6 +510,7 @@ const breakdown = (changes = {}) =>
     events: EVENTS,
     current: NEW,
     probes: readProbes(fixture('probes')),
+    watch: readWatch(fixture('ui-probe')),
     clock: CLOCK,
     digest: `sha256:${IMAGE_B}`,
     ...changes,
@@ -411,11 +527,47 @@ describe('простой публичного входа', () => {
     expect(d.pull).toBeCloseTo(0.084, 2)
     expect(d.recreate).toBeCloseTo(0.105, 2)
     expect(d.start).toBeCloseTo(0.033, 2)
-    expect(d.ready).toBeCloseTo(0.16, 2)
-    expect(d.total).toBeCloseTo(0.515, 2)
-    expect(d.stop + d.pull + d.recreate + d.start + d.ready).toBeCloseTo(d.total, 2)
-    expect(d.failedTries).toBe(0)
-    expect(d.readyAfter).toBeNull()
+    // Готовность и простой — по пробнику apply.sh: первый отказ → первый 2xx
+    // после StartedAt.
+    expect(d.source).toBe('probe')
+    expect(d.ready).toBeCloseTo(0.171, 2)
+    expect(d.total).toBeCloseTo(0.507, 2)
+    expect(d.refused).toBeCloseTo(0.018, 2)
+    // Шаг пробника: простой не короче отказов подряд и не длиннее, чем между
+    // последним ответом старого и первым ответом нового.
+    expect(d.totalMin).toBeCloseTo(0.254, 2)
+    expect(d.totalMax).toBeCloseTo(0.761, 2)
+    // Этапы с сервера идут от сигнала старому, простой — от первого отказа.
+    expect(d.stop + d.pull + d.recreate + d.start + d.ready).toBeCloseTo(d.total + d.refused, 2)
+  })
+
+  it('простой не зависит от того, когда до сайта дошёл шаг проверки', () => {
+    const late = readProbes(fixture('probes'))
+    late.https = {
+      ...late.https,
+      first: late.https.first + 1.7,
+      answered: late.https.answered + 1.7,
+    }
+    expect(breakdown({ probes: late }).total).toBeCloseTo(breakdown().total, 3)
+  })
+
+  it('отказа пробник не застал — простой от сигнала старому; ответа нет — граница по проверке сайта', () => {
+    const allOk = readWatch(fixture('ui-probe').replace(/ 000$/gm, ' 200'))
+    const short = breakdown({ watch: allOk })
+    expect(short.source).toBe('probe')
+    expect(short.refused).toBeNull()
+    expect(short.total).toBeCloseTo(
+      short.stop + short.pull + short.recreate + short.start + short.ready,
+      2,
+    )
+    expect(short.totalMin).toBeNull()
+
+    const none = breakdown({ watch: [] })
+    expect(none.source).toBe('check')
+    expect(none.total).toBeCloseTo(0.515, 2)
+    expect(none.ready).toBeCloseTo(0.16, 2)
+    expect(none.failedTries).toBe(0)
+    expect(none.readyAfter).toBeNull()
   })
 
   it('время раннера переводится на часы сервера', () => {
@@ -455,13 +607,17 @@ describe('простой публичного входа', () => {
     const probes = readProbes(
       `https ${Number(answered) - 6.2} ${Number(answered) - 3.1} ${answered} 3\n`,
     )
-    const d = breakdown({ probes })
+    const d = breakdown({ probes, watch: [] })
     expect(d.failedTries).toBe(2)
     expect(d.readyAfter).toBeCloseTo(d.ready - 3.1, 1)
   })
 
   it('без ответа снаружи или без сверки часов готовность не выдумывается', () => {
-    expect(breakdown({ probes: {} })).toMatchObject({ ready: null, total: null, api: null })
+    expect(breakdown({ probes: {}, watch: [] })).toMatchObject({
+      ready: null,
+      total: null,
+      api: null,
+    })
     expect(breakdown({ clock: null })).toMatchObject({ ready: null, total: null })
     expect(breakdown({ clock: null }).stop).toBeCloseTo(0.133, 2)
   })
@@ -548,7 +704,7 @@ describe('summary', () => {
     deploy(box)
     // Часы и ответы снаружи — из той же репетиции, что события и inspect:
     // подложные проверки отвечают сейчас, а события фикстуры — в прошлом.
-    for (const name of ['clock', 'runner-clock', 'probes']) {
+    for (const name of ['clock', 'runner-clock', 'probes', 'ui-probe']) {
       writeFileSync(join(box.report, name), fixture(name))
     }
     writeFileSync(
@@ -564,8 +720,9 @@ describe('summary', () => {
       '| Удаление старого и скачивание образа: выход → `pull` | `dmc268.deploy.ui.downtime.pull` | 0.1 |',
     )
     expect(text).toContain(
-      '| **Простой: сигнал старому → первый ответ HTTPS снаружи** | `dmc268.deploy.ui.downtime` | **0.5** |',
+      '| **Простой: первый отказ HTTPS снаружи → первый ответ 2xx** | `dmc268.deploy.ui.downtime` | **0.5** |',
     )
+    expect(text).toContain('между 0.3 и 0.8 с')
     expect(text).toContain('точность ±0.003 с')
     expect(text).toContain('`/api/v1/` через прокси отвечает (не позже)')
     expect(text).toContain('проверки здоровья у контейнера нет')
@@ -577,6 +734,19 @@ describe('summary', () => {
     expect(text).toContain('`container.image.tags` | `0a83d25-mock`')
     expect(text).toContain('| Адрес | `url.full` | https://203.0.113.7 |')
     expect(text).not.toContain(SECRET)
+  })
+
+  it('без пробника простой — граница по шагу проверки сайта', () => {
+    const box = sandbox()
+    deploy(box)
+    for (const name of ['clock', 'runner-clock', 'probes']) {
+      writeFileSync(join(box.report, name), fixture(name))
+    }
+    rmSync(join(box.report, 'ui-probe'))
+
+    expect(summary(box)).toContain(
+      '| **Простой (не позже): сигнал старому → первый ответ HTTPS из проверки сайта** | `dmc268.deploy.ui.downtime` | **0.5** |',
+    )
   })
 
   it('называет упавший шаг и без отчёта', () => {

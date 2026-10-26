@@ -13,6 +13,14 @@
 # (infra/ui.tf); сторож — для summary и для случая, мимо которого
 # prevent_destroy проходит: блок тома удалён из конфигурации целиком.
 #
+# Отказ prevent_destroy — это код 1 у `tofu plan`, до `show`, и JSON плана нет.
+# Поэтому код и stderr `tofu plan` сохраняются: при «Resource instance cannot
+# be destroyed» у `docker_volume` `deploy-report.mjs rejected` пишет в
+# plan.json адреса томов, и summary называет причину. stderr — во временный
+# файл вне каталога отчёта (в ошибке бывает значение переменной), в лог шага
+# он печатается целиком, файл удаляется на выходе; tfplan tofu пишет и при
+# ошибке — его убирает тот же trap.
+#
 # `-lock-timeout=2m`: блокировку состояния держит и ручной `tofu apply` из
 # infra/README.md, идущий мимо concurrency деплоя, — подождать его, а не
 # упасть сразу. Деплой бэкенда блокирует другой ключ и не мешает.
@@ -29,12 +37,20 @@
 set -euo pipefail
 
 export REPORT_DIR="${REPORT_DIR:-${RUNNER_TEMP:-/tmp}/deploy-report}"
+errors="$(mktemp "${RUNNER_TEMP:-/tmp}/plan-stderr.XXXXXX")"
 drop_rejected_plan() {
   local status=$?
+  rm -f "$errors"
   [ "$status" -eq 0 ] || rm -f infra/tfplan
 }
 trap drop_rejected_plan EXIT
 
 tofu -chdir=infra init -input=false -no-color
-tofu -chdir=infra plan -input=false -no-color -lock-timeout=2m -out=tfplan
+status=0
+tofu -chdir=infra plan -input=false -no-color -lock-timeout=2m -out=tfplan 2> "$errors" || status=$?
+cat "$errors" >&2
+if [ "$status" -ne 0 ]; then
+  node scripts/deploy-report.mjs rejected < "$errors" || true
+  exit "$status"
+fi
 tofu -chdir=infra show -json tfplan | node scripts/deploy-report.mjs plan

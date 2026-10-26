@@ -9,16 +9,19 @@
  * `downtime`). JS, а не Python: стек фронта — Node, тесты — vitest
  * (`.github/tests/deploy-report.test.mjs`).
  *
- * Две команды, только стандартная библиотека Node (на ubuntu-latest он есть):
+ * Три команды, только стандартная библиотека Node (на ubuntu-latest он есть):
  *
  *   tofu -chdir=infra show -json tfplan | node scripts/deploy-report.mjs plan
+ *   node scripts/deploy-report.mjs rejected < <stderr tofu plan>
  *   node scripts/deploy-report.mjs render >> "$GITHUB_STEP_SUMMARY"
  *
  * `plan` читает план со stdin, пишет счётчики изменений в `plan.json` и падает,
  * если план уничтожает том ACME (спека `frontend-delivery`, «Развёртывание не
  * уничтожает том ACME»). Сам план на диск не пишется: в `tofu show -json`
  * значения переменных лежат открытым текстом, `registry_password` (токен
- * GITHUB_TOKEN) тоже.
+ * GITHUB_TOKEN) тоже. `rejected` — для `tofu plan`, упавшего до `show`: если
+ * план отклонил `prevent_destroy` тома, пишет в `plan.json` адреса томов и
+ * причину, иначе ничего не пишет.
  *
  * `render` собирает summary из того, что шаги деплоя сложили в каталог отчёта
  * (`REPORT_DIR`, по умолчанию `$RUNNER_TEMP/deploy-report`):
@@ -29,6 +32,7 @@
  *   серверу; `ui-old-id`, `ui-events.jsonl`, `ui-new.json` — контейнер до apply,
  *   события Docker во время apply и состояние нового (`apply.sh`); `<файл>.error`
  *   рядом — сервер не ответил (код ssh или timeout); `ui_url` — выход tofu;
+ * - `ui-probe` — ответы пробника публичного входа все время apply (`apply.sh`);
  * - `probes` — первый успешный ответ снаружи по HTTPS и `/api/v1/` через прокси
  *   (`check-site.sh`, `check-api-proxy.sh`);
  * - `disk.txt` — `df -Pk` корня и каталога Docker (`summary.sh`).
@@ -119,6 +123,20 @@ export function protectedDeletes(plan) {
     .map((rc) => rc.address)
 }
 
+/**
+ * Тома, план с уничтожением которых OpenTofu отклонил из-за `prevent_destroy`:
+ * адреса из stderr `tofu plan` (1.13.2: «Resource instance <адрес> has
+ * prevent_destroy set»). Текст переносится по словам — переносы сводятся к
+ * пробелам.
+ */
+export function preventedDestroys(stderr) {
+  const text = stderr.replace(/\s+/g, ' ')
+  const found = [...text.matchAll(/Resource instance (\S+) has prevent_destroy set/g)].map(
+    (m) => m[1],
+  )
+  return [...new Set(found.filter((a) => /(^|\.)docker_volume\./.test(a)))]
+}
+
 export function planTable(changes) {
   const used = new Set(Object.values(changes).flatMap((byType) => Object.keys(byType)))
   const columns = [...COLUMNS, ...[...used].filter((a) => !COLUMNS.includes(a)).sort()]
@@ -152,6 +170,28 @@ export function planCommand(reportDir, input, log = (line) => process.stdout.wri
     return 1
   }
   log('Том ACME план не уничтожает.')
+  return 0
+}
+
+export function rejectedCommand(
+  reportDir,
+  stderr,
+  log = (line) => process.stdout.write(`${line}\n`),
+) {
+  const deleted = preventedDestroys(stderr)
+  if (!deleted.length) return 0
+  mkdirSync(reportDir, { recursive: true })
+  writeFileSync(
+    join(reportDir, 'plan.json'),
+    JSON.stringify({ changes: null, protected_deletes: deleted, rejected: 'prevent_destroy' }),
+  )
+  for (const address of deleted) {
+    log(
+      `::error::OpenTofu отклонил план: он уничтожает или заменяет том ${address}, а у тома prevent_destroy. ` +
+        'Сменить том — новым ресурсом, а прежний снять с учёта блоком ' +
+        'removed { lifecycle { destroy = false } }; сертификаты останутся на сервере.',
+    )
+  }
   return 0
 }
 
@@ -191,6 +231,16 @@ export function readProbes(text) {
   return probes
 }
 
+/** Строки `ui-probe`: `<время отправки> <код HTTP>`, по времени; 000 — ответа нет. */
+export function readWatch(text) {
+  return text
+    .split('\n')
+    .map((line) => line.trim().split(/\s+/))
+    .filter(([t, code]) => code !== undefined && Number.isFinite(Number(t)))
+    .map(([t, code]) => ({ sent: Number(t), code }))
+    .sort((a, b) => a.sent - b.sent)
+}
+
 const round = (x) => Math.round(x * 1000) / 1000
 const span = (a, b) => (a != null && b != null ? round(b - a) : null)
 
@@ -199,15 +249,32 @@ const span = (a, b) => (a != null && b != null ? round(b - a) : null)
  *
  * С часов сервера (события Docker и inspect): сигнал старому (`kill`) → его
  * выход (`die`) → скачивание нового образа (`pull`, если оно пришлось на
- * простой: docker-провайдер заменяет образ между удалением старого контейнера
- * и созданием нового) → `Created` → `State.StartedAt`. Готовность — первый
- * успешный ответ HTTPS снаружи из шага проверки сайта, с часов раннера,
- * переведённых на часы сервера: проверки здоровья у контейнера нет, и сервер о
- * готовности nginx не сообщает. Опрос начинается после apply и идёт раз в 3 с,
- * поэтому готовность — верхняя граница («не позже»), а если до успешной
- * попытки были неуспешные — ещё и нижняя.
+ * простой: до #89 / #91 docker-провайдер заменял образ между удалением старого
+ * контейнера и созданием нового; после #91 образ скачан до apply, и `pull`
+ * сюда не попадает) → `Created` → `State.StartedAt`.
+ *
+ * Снаружи — пробник `apply.sh` (`watch`): запрос HTTPS раз в 0,25 с все время
+ * apply, время отправки с часов раннера, переведённых на часы сервера.
+ * Проверки здоровья у контейнера нет, и сервер о готовности nginx не сообщает.
+ * Готовность — первый 2xx, отправленный после `StartedAt`; простой — от
+ * первого отказа перед ним (не застал пробник отказа — от сигнала старому) до
+ * него. Шаг пробника даёт границы: простой не короче отказов подряд и не
+ * длиннее, чем от последнего ответа старого до первого ответа нового.
+ *
+ * Нет такого ответа пробника — граница по первому ответу из шага проверки
+ * сайта (`probes.https`): опрос после apply раз в 3 с, и в цифру входят хвост
+ * apply и переключение шагов, поэтому это «не позже», а если до успешной
+ * попытки были неуспешные — ещё и «не раньше».
  */
-export function downtime({ oldId, events, current, probes = {}, clock = null, digest = '' }) {
+export function downtime({
+  oldId,
+  events,
+  current,
+  probes = {},
+  watch = [],
+  clock = null,
+  digest = '',
+}) {
   if (!current) return { status: 'missing' }
   if (!oldId) return { status: 'created' }
   if (current.Id === oldId) return { status: 'kept' }
@@ -242,8 +309,26 @@ export function downtime({ oldId, events, current, probes = {}, clock = null, di
   const httpsAt = toServer(https?.answered)
   const api = probes.api
 
+  // Пробник: первый 2xx после StartedAt и отказы подряд перед ним.
+  const seen = clock ? watch.map((p) => ({ at: toServer(p.sent), ok: /^2\d\d$/.test(p.code) })) : []
+  const upIdx = started == null ? -1 : seen.findIndex((p) => p.ok && p.at >= started)
+  let refusedAt = null
+  let lastRefusedAt = null
+  let lastOkAt = null
+  for (let i = upIdx - 1; i >= 0; i--) {
+    if (seen[i].ok) {
+      lastOkAt = seen[i].at
+      break
+    }
+    lastRefusedAt ??= seen[i].at
+    refusedAt = seen[i].at
+  }
+  const upAt = upIdx >= 0 ? seen[upIdx].at : null
+  const probed = upAt != null
+
   return {
     status: 'replaced',
+    source: probed ? 'probe' : 'check',
     // Все сигналы старому до выхода: без destroy_grace_seconds провайдер
     // удаляет контейнер с force, и Docker шлёт SIGKILL следом за сигналом
     // остановки, не дожидаясь nginx.
@@ -255,11 +340,15 @@ export function downtime({ oldId, events, current, probes = {}, clock = null, di
     pull: span(diedAt, pulledAt),
     recreate: span(pulledAt ?? diedAt, created),
     start: span(created, started),
-    ready: span(started, httpsAt),
-    readyAfter: https?.failed != null ? span(started, toServer(https.failed)) : null,
-    firstTry: span(started, toServer(https?.first)),
-    failedTries: https ? https.tries - 1 : null,
-    total: span(killAt, httpsAt),
+    ready: probed ? span(started, upAt) : span(started, httpsAt),
+    readyAfter: !probed && https?.failed != null ? span(started, toServer(https.failed)) : null,
+    firstTry: probed ? null : span(started, toServer(https?.first)),
+    failedTries: !probed && https ? https.tries - 1 : null,
+    // Первый отказ — через сколько после сигнала старому.
+    refused: probed ? span(killAt, refusedAt) : null,
+    total: probed ? span(refusedAt ?? killAt, upAt) : span(killAt, httpsAt),
+    totalMin: probed ? span(refusedAt, lastRefusedAt) : null,
+    totalMax: probed ? span(lastOkAt, upAt) : null,
     api: span(killAt, toServer(api?.answered)),
     clockError: clock ? round(clock.error) : null,
   }
@@ -476,6 +565,7 @@ function downtimeSection(reportDir, digest) {
     events: readEvents(read(join(reportDir, 'ui-events.jsonl'))),
     current: readJson(join(reportDir, 'ui-new.json')),
     probes: readProbes(read(join(reportDir, 'probes'))),
+    watch: readWatch(read(join(reportDir, 'ui-probe'))),
     clock,
     digest,
   })
@@ -501,15 +591,29 @@ function downtimeSection(reportDir, digest) {
   out.push(
     `| ${d.pull != null ? 'Создание нового: `pull`' : 'Удаление старого и создание нового: выход'} → \`Created\` | \`dmc268.deploy.ui.downtime.recreate\` | ${seconds(d.recreate)} |`,
     `| Старт процесса: \`Created\` → \`State.StartedAt\` | \`dmc268.deploy.ui.downtime.start\` | ${seconds(d.start)} |`,
-    `| До первого ответа HTTPS снаружи (${bound}): \`StartedAt\` → ответ | \`dmc268.deploy.ui.downtime.ready\` | ${seconds(d.ready)} |`,
-    `| **Простой: сигнал старому → первый ответ HTTPS снаружи** | \`dmc268.deploy.ui.downtime\` | **${seconds(d.total)}** |`,
+    d.source === 'probe'
+      ? `| До первого ответа HTTPS снаружи: \`StartedAt\` → первый 2xx пробника | \`dmc268.deploy.ui.downtime.ready\` | ${seconds(d.ready)} |`
+      : `| До первого ответа HTTPS снаружи (${bound}): \`StartedAt\` → ответ | \`dmc268.deploy.ui.downtime.ready\` | ${seconds(d.ready)} |`,
+    `| **${totalLabel(d)}** | \`dmc268.deploy.ui.downtime\` | **${seconds(d.total)}** |`,
     `| \`/api/v1/\` через прокси отвечает (не позже): сигнал старому → ответ | \`dmc268.deploy.ui.downtime.api\` | ${seconds(d.api)} |`,
     '',
   )
-  const notes = [
-    'Готовность — первый успешный ответ HTTPS из шага «Проверить, что по адресу отдаётся именно наш сайт»: ' +
-      'проверки здоровья у контейнера нет, о готовности nginx сервер не сообщает.',
-  ]
+  const notes =
+    d.source === 'probe'
+      ? [
+          'Готовность и простой — по пробнику `apply.sh`: запрос HTTPS снаружи раз в 0,25 с все время apply, ' +
+            'время отправки; проверки здоровья у контейнера нет, о готовности nginx сервер не сообщает.',
+          d.totalMin != null
+            ? `С точностью до шага пробника простой — между ${seconds(d.totalMin)} и ${seconds(d.totalMax)} с.`
+            : `Отказа пробник не застал: простой короче его шага, считается от сигнала старому${
+                d.totalMax != null ? `, и не больше ${seconds(d.totalMax)} с` : ''
+              }.`,
+        ]
+      : [
+          'Готовность — первый успешный ответ HTTPS из шага «Проверить, что по адресу отдаётся именно наш сайт»: ' +
+            'пробник apply не получил 2xx после `StartedAt`, а проверки здоровья у контейнера нет. ' +
+            'В цифру входят хвост apply и переключение шагов, поэтому простой — верхняя граница.',
+        ]
   if (d.clockError != null) {
     notes.push(
       `Время раннера переведено на часы сервера по одному вопросу серверу, точность ±${d.clockError.toFixed(3)} с.`,
@@ -517,7 +621,11 @@ function downtimeSection(reportDir, digest) {
   } else {
     notes.push('Часы сервера не сверены: готовность и простой не посчитать.')
   }
-  if (d.ready != null) {
+  // Попытки шага проверки поясняются, только когда граница — по нему.
+  if (d.source === 'probe') {
+    if (d.stop == null && d.totalMin == null)
+      notes.push('Событий остановки старого контейнера нет: начало простоя неизвестно.')
+  } else if (d.ready != null) {
     if (d.readyAfter != null) {
       notes.push(
         `Неуспешных попыток: ${d.failedTries}, последняя — через ${seconds(d.readyAfter)} с после \`StartedAt\`: nginx стал отвечать между ней и успешной.`,
@@ -533,16 +641,34 @@ function downtimeSection(reportDir, digest) {
   notes.push(
     'Ответ `/api/v1/` — из шага «Проверить, что API доступен через тот же адрес», он идёт после проверок сайта: это время, когда до него дошла очередь, а не когда прокси ожил.',
   )
-  if (d.stop == null)
+  if (d.source !== 'probe' && d.stop == null)
     notes.push('Событий остановки старого контейнера нет: начало простоя неизвестно.')
   out.push(notes.join(' '))
   return out
+}
+
+/** Подпись итоговой строки простоя: откуда и докуда он посчитан. */
+function totalLabel(d) {
+  if (d.source !== 'probe')
+    return 'Простой (не позже): сигнал старому → первый ответ HTTPS из проверки сайта'
+  return d.refused != null
+    ? 'Простой: первый отказ HTTPS снаружи → первый ответ 2xx'
+    : 'Простой: сигнал старому → первый ответ 2xx снаружи'
 }
 
 function planSection(reportDir) {
   const out = ['### План OpenTofu', '']
   const plan = readJson(join(reportDir, 'plan.json'))
   if (!plan) return [...out, 'Плана нет: шаг планирования не дошёл до него.']
+  if (plan.rejected === 'prevent_destroy') {
+    return [
+      ...out,
+      'План не построен: `tofu plan` завершился ошибкой.',
+      '',
+      '> [!CAUTION]',
+      `> OpenTofu отклонил план до apply: план уничтожает или заменяет ${plan.protected_deletes.map((a) => `\`${a}\``).join(', ')}, а у тома \`prevent_destroy\` (\`dmc268.deploy.plan.protected_deletes\`). Сменить том — новым ресурсом, прежний снять с учёта блоком \`removed\`.`,
+    ]
+  }
   if (Object.keys(plan.changes).length) {
     out.push(
       ...planTable(plan.changes),
@@ -604,11 +730,13 @@ function main(argv) {
     process.env.REPORT_DIR || join(process.env.RUNNER_TEMP || '/tmp', 'deploy-report')
   if (argv.length === 1 && argv[0] === 'plan')
     return planCommand(reportDir, readFileSync(0, 'utf8'))
+  if (argv.length === 1 && argv[0] === 'rejected')
+    return rejectedCommand(reportDir, readFileSync(0, 'utf8'))
   if (argv.length === 1 && argv[0] === 'render') {
     process.stdout.write(render(reportDir, process.env))
     return 0
   }
-  process.stderr.write('использование: deploy-report.mjs plan|render\n')
+  process.stderr.write('использование: deploy-report.mjs plan|rejected|render\n')
   return 2
 }
 
