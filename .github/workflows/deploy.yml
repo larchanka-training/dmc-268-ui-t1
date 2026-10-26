@@ -222,7 +222,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Потолок шага: ssh через ControlMaster без ServerAlive (они приходят с
+      # #90) при мёртвом master или подвисший pull держали бы job до его 30
+      # минут. Образ интерфейса — десятки МиБ, хватает с запасом.
       - name: Скачать образ на сервер
+        timeout-minutes: 5
         env:
           DOCKER_HOST: ssh://stand
           IMAGE: ${{ needs.image.outputs.image }}

@@ -8,6 +8,7 @@
 - [x] 2.1 Провайдер 4.6.0: `findImage` тянет образ, только если его нет локально; удаление без `destroy_grace_seconds` — `ContainerStop` с таймаутом 0
 - [x] 2.2 `infra/ui.tf`: контейнер без `docker_image`, `removed` для `docker_image.ui`
 - [x] 2.3 `deploy.yml`: `docker/login-action` и шаг «Скачать образ на сервер» до apply; `infra/README.md`
+- [x] 2.4 Ревью #91: у шага «Скачать образ на сервер» `timeout-minutes: 5`; в `main.tftest.hcl` — `worker_shutdown_timeout 1 с`
 
 ## 3. Остановка
 

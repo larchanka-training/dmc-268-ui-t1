@@ -139,7 +139,7 @@ run "ui_stops_gracefully" {
 
   assert {
     condition     = docker_container.ui.destroy_grace_seconds == 10
-    error_message = "destroy_grace_seconds интерфейса — 10 с: nginx закрывает соединения за worker_shutdown_timeout 5 с, остаток — запас до SIGKILL."
+    error_message = "destroy_grace_seconds интерфейса — 10 с: nginx закрывает соединения за worker_shutdown_timeout 1 с, остаток — запас до SIGKILL."
   }
 }
 

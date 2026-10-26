@@ -50,6 +50,10 @@ describe('deploy.yml: образ интерфейса на сервере до a
     expect(pull).toMatch(/docker pull --quiet "\$IMAGE"/)
   })
 
+  it('pull ограничен по времени: подвисший ssh не держит job до его 30 минут', () => {
+    expect(steps[pullAt]).toMatch(/^ {8}timeout-minutes: 5$/m)
+  })
+
   it('входит в ghcr на раннере до pull: образ в приватном пакете', () => {
     expect(loginAt).toBeGreaterThan(-1)
     expect(loginAt).toBeLessThan(pullAt)
