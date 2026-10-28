@@ -130,19 +130,35 @@ describe('ConnectRepositoryPage', () => {
     expect(await screen.findByText('larchanka-training/mobile-app')).toBeInTheDocument()
   })
 
-  it('без прав admin или maintain кнопка неактивна, с подсказкой, и не подключает', async () => {
+  it('без прав admin или maintain вместо кнопки — причина текстом', async () => {
     renderConnectPage()
 
     const row = (await screen.findByText('larchanka-training/secrets')).closest('tr')
-    const button = within(row as HTMLElement).getByRole('button', { name: /подключить/i })
-    expect(button).toBeDisabled()
-    fireEvent.click(button)
-    fireEvent.pointerEnter(button)
-
+    expect(within(row as HTMLElement).queryByRole('button')).not.toBeInTheDocument()
     expect(
-      await screen.findByText('Нужны права admin или maintain в репозитории на GitHub'),
+      within(row as HTMLElement).getByText(
+        'Нужны права admin или maintain в репозитории на GitHub',
+      ),
     ).toBeInTheDocument()
     expect(backend.posted).toEqual([])
+  })
+
+  it('бэкенд без can_connect (откат до api#233) — список есть, кнопка активна', async () => {
+    const legacy: Partial<AvailableRepository> = {
+      ...available('2', 'mobile-app'),
+      already_connected: false,
+    }
+    delete legacy.can_connect
+    renderConnectPage(
+      fakeTransport({
+        get: async (path) => ({
+          items: path === '/repositories/available' ? [legacy] : [],
+        }),
+      }),
+    )
+
+    const row = (await screen.findByText('larchanka-training/mobile-app')).closest('tr')
+    expect(within(row as HTMLElement).getByRole('button', { name: /подключить/i })).toBeEnabled()
   })
 
   it('501 от бэкенда — понятное сообщение, что подключение ещё недоступно', async () => {

@@ -7,7 +7,7 @@
 ## What Changes
 
 - `pnpm api:sync` на коммит бэкенда с `can_connect`; zod-схема `AvailableRepositorySchema` — с полем.
-- `/repositories/connect`: при `can_connect = false` кнопка «Подключить» неактивна, подсказка — «Нужны права admin или maintain в репозитории на GitHub».
+- `/repositories/connect`: при `can_connect = false` вместо кнопки «Подключить» — текст «Нужны права admin или maintain в репозитории на GitHub»; без поля `can_connect` кнопка как раньше.
 - Синхронизация подтянула и `covered_by_finding_id` у находки прогона (`FindingResponse`, dmc-268-api-t1#186): поле в `ReviewFindingSchema`, чтобы разбор совпадал с контрактом. Интерфейс его пока не показывает.
 - Мок `GET /repositories/available` отдаёт `can_connect`, один репозиторий — без прав.
 

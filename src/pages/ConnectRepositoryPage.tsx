@@ -1,5 +1,5 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons'
-import { Button, Input, Table, Tag, Tooltip, Typography, message } from 'antd'
+import { Button, Input, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
@@ -121,23 +121,23 @@ export function ConnectRepositoryPage() {
           <Tag icon={<CheckOutlined />} color="success">
             Подключён
           </Tag>
+        ) : record.can_connect ? (
+          <Button
+            type="primary"
+            size="small"
+            icon={<LinkOutlined />}
+            loading={
+              connectMutation.isPending &&
+              connectMutation.variables?.provider_id === record.provider_id
+            }
+            onClick={() => void handleConnect(record)}
+          >
+            Подключить
+          </Button>
         ) : (
-          // Без прав бэкенд ответит 403 — кнопка неактивна сразу, а не после нажатия.
-          <Tooltip title={record.can_connect ? undefined : MANAGE_REQUIRED_HINT}>
-            <Button
-              type="primary"
-              size="small"
-              icon={<LinkOutlined />}
-              disabled={!record.can_connect}
-              loading={
-                connectMutation.isPending &&
-                connectMutation.variables?.provider_id === record.provider_id
-              }
-              onClick={() => void handleConnect(record)}
-            >
-              Подключить
-            </Button>
-          </Tooltip>
+          // Без прав бэкенд ответит 403. Причина текстом, а не подсказкой у неактивной
+          // кнопки: та не получает фокус, с клавиатуры и в скринридере её не видно.
+          <Typography.Text type="secondary">{MANAGE_REQUIRED_HINT}</Typography.Text>
         ),
     },
   ]
