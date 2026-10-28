@@ -8,7 +8,7 @@
 
 ## What Changes
 
-- `location = /otlp/v1/traces` в `nginx/site.conf`: только `POST`, прокси на `dmc268-otelcol:4318`,
+- `location = /otlp/v1/traces` в `nginx/site.conf`: только `POST`, прокси на приёмник браузера `dmc268-otelcol:4319`,
   cookie срезаются, тело до 512 КБ, частота — зона `otlp` (5 запросов в секунду с адреса, очередь 20) в `nginx/http.conf` и `nginx/https.conf.template`.
 - Контейнер интерфейса подключается к сети `dmc268-otlp` (`infra/network.tf`, `infra/ui.tf`).
 - `scripts/check-routes.sh`: `GET /otlp/v1/traces` — 403. Тест сетей в `infra/tests/main.tftest.hcl`.
