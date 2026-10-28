@@ -104,6 +104,7 @@ export function makeFinding(overrides: Partial<ReviewFinding> = {}): ReviewFindi
     suggestion: null,
     confidence: 0.8,
     rule: null,
+    covered_by_finding_id: null,
     ...overrides,
   }
 }

@@ -29,6 +29,8 @@ const installation: InstallationRepository[] = [
   provider_id,
   full_name,
   default_branch,
+  // `infra` — роль ниже maintain: кнопка «Подключить» неактивна (#45).
+  can_connect: provider_id !== '104',
 }))
 
 const registered = (repo: InstallationRepository, n: number, at: string): Repository => ({

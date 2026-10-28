@@ -24,6 +24,8 @@ export const ReviewFindingSchema = z.object({
       check_text: z.string(),
     })
     .nullable(),
+  /** Находка прошлого прогона, чей тред бота уже говорит об этой проблеме; `null` — своя публикация. */
+  covered_by_finding_id: z.string().nullable(),
 })
 
 export type ReviewFinding = z.infer<typeof ReviewFindingSchema>

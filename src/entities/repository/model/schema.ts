@@ -25,6 +25,8 @@ export const AvailableRepositorySchema = z.object({
   full_name: z.string(),
   default_branch: z.string(),
   already_connected: z.boolean(),
+  /** Роль admin или maintain: без неё подключение ответит отказом — кнопка неактивна (#45). */
+  can_connect: z.boolean(),
 })
 
 export const AvailableRepositoryListSchema = z.object({

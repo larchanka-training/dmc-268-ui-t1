@@ -1,5 +1,5 @@
 import { CheckOutlined, LinkOutlined } from '@ant-design/icons'
-import { Button, Input, Table, Tag, Typography, message } from 'antd'
+import { Button, Input, Table, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo, useState } from 'react'
 import { useLocation, useNavigate, useNavigationType, useSearchParams } from 'react-router-dom'
@@ -19,6 +19,8 @@ import { PageNav } from '@/shared/ui'
 /** Query-параметр поиска по имени. */
 const SEARCH_PARAM = 'q'
 const PAGE_SIZE = 8
+/** Подсказка у неактивной кнопки: подключать на бэкенде можно с ролью admin или maintain. */
+const MANAGE_REQUIRED_HINT = 'Нужны права admin или maintain в репозитории на GitHub'
 
 /** Метка в `location.state` у записей истории, которые создал сам ввод поиска. */
 const SEARCH_EDIT = { searchEdit: true }
@@ -120,18 +122,22 @@ export function ConnectRepositoryPage() {
             Подключён
           </Tag>
         ) : (
-          <Button
-            type="primary"
-            size="small"
-            icon={<LinkOutlined />}
-            loading={
-              connectMutation.isPending &&
-              connectMutation.variables?.provider_id === record.provider_id
-            }
-            onClick={() => void handleConnect(record)}
-          >
-            Подключить
-          </Button>
+          // Без прав бэкенд ответит 403 — кнопка неактивна сразу, а не после нажатия.
+          <Tooltip title={record.can_connect ? undefined : MANAGE_REQUIRED_HINT}>
+            <Button
+              type="primary"
+              size="small"
+              icon={<LinkOutlined />}
+              disabled={!record.can_connect}
+              loading={
+                connectMutation.isPending &&
+                connectMutation.variables?.provider_id === record.provider_id
+              }
+              onClick={() => void handleConnect(record)}
+            >
+              Подключить
+            </Button>
+          </Tooltip>
         ),
     },
   ]
