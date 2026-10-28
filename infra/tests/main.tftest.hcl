@@ -80,12 +80,12 @@ run "http_on_port_80_omits_port" {
   }
 }
 
-run "container_joins_only_backend_network" {
+run "container_joins_only_backend_networks" {
   command = plan
 
   assert {
-    condition     = [for n in docker_container.ui.networks_advanced : n.name] == ["dmc268"]
-    error_message = "Контейнер подключён ровно к сети dmc268 стека бэкенда: по ней nginx находит dmc268-api."
+    condition     = [for n in docker_container.ui.networks_advanced : n.name] == ["dmc268", "dmc268-otlp"]
+    error_message = "Контейнер подключён ровно к двум сетям стека бэкенда: dmc268 (там dmc268-api) и dmc268-otlp (там коллектор трейсов)."
   }
 
   assert {
