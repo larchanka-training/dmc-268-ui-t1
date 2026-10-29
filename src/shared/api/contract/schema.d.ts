@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Принять webhook-доставку от хостинга и поставить ревью в очередь
-         * @description Без сессии и без проверки Origin: доставку подтверждает подпись. ReviewJob создан или, если для этого коммита уже есть нетерминальный, возвращён существующий. Дубль — не ошибка: не-2xx хостинг считает неудачной доставкой и повторяет её, поэтому 409 здесь не отдаём.
+         * @description Без сессии и без проверки Origin: доставку подтверждает подпись. ReviewJob создан или, если для этого коммита уже есть нетерминальный или завершённый не-failed прогон по вебхуку, возвращён существующий. Дубль — не ошибка, поэтому 409 здесь не отдаём: не-2xx GitHub записывает неудавшейся доставкой, а такие доставки переотправляет воркер. У VCS приём запрашивает только метаданные PR, их сбой — 502; дифф с лимитом размера достаёт воркер, его сбой или превышение лимита — failed прогона, а не ответ доставки.
          */
         post: operations["receiveWebhook"];
         delete?: never;
@@ -64,6 +64,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/github/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Возврат с установки GitHub App
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED (задача #243). Setup URL GitHub App: сюда GitHub возвращает браузер после установки приложения, её изменения или запроса владельцу. При «Only select repositories» подключает выбранные репозитории, где у пользователя admin или maintain, при «All repositories» — ничего.
+         */
+        get: operations["finishGithubSetup"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/me": {
         parameters: {
             query?: never;
@@ -104,26 +124,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/repositories/available": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Репозитории, доступные для подключения
-         * @description Требует сессию. Репозитории установок GitHub App, доступные вошедшему пользователю, с отметкой `already_connected` — зарегистрирован ли репозиторий в сервисе. Список отдаёт GitHub по токену пользователя, сохранённому при входе (`GET /user/installations` и `GET /user/installations/{id}/repositories`): это пересечение «доступно приложению» и «доступно пользователю», остальные репозитории установок в ответ не попадают, это не ошибка. Публичный репозиторий, на котором у пользователя нет роли, тоже не попадает. Подключить из списка можно только с правом admin или maintain: с push или triage подключение ответит `403 REPOSITORY_MANAGE_REQUIRED`, как и на приватном только с правом чтения; на публичном только с правом чтения — `404 REPOSITORY_NOT_IN_INSTALLATION`. Токен пользователя отозван, истёк без возможности обновления или его нет (сессия открыта до хранения токенов) — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется: нужен новый вход. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
-         */
-        get: operations["listAvailableRepositories"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/repositories": {
         parameters: {
             query?: never;
@@ -132,14 +132,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Список зарегистрированных репозиториев
-         * @description Требует сессию. Только репозитории, которые пользователь видит на GitHub по своему токену, — то же правило, что у GET /reviews и GET /events. Постранично, по времени регистрации, затем по id. limit выше 200 не отклоняется, а приводится к 200. Общего числа записей в ответе нет: конец списка — страница короче limit.
+         * Список репозиториев
+         * @description Требует сессию. Все репозитории установок GitHub App, которые GitHub отдаёт пользователю по его токену, сохранённому при входе, подключённые и нет; публичный репозиторий, на котором у пользователя нет роли, в ответ не попадает. Ответ GitHub — из кэша видимости (по умолчанию 30 с, как у GET /reviews и GET /events), подключён ли репозиторий — из базы. Постранично, по `full_name` без учёта регистра; limit выше 200 приводится к 200, конец списка — страница короче limit. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
          */
         get: operations["listRepositories"];
         put?: never;
         /**
          * Подключить репозиторий
-         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App с `auto_review_enabled = true`; `full_name` и `default_branch` — из ответа GitHub. Два запроса к GitHub: репозиторий по id токеном пользователя (`GET /repositories/{id}`), затем установка приложения на нём (`GET /repos/{owner}/{repo}/installation`). Проверки по порядку: провайдер не `github`, репозиторий не виден пользователю или публичный виден только с правом чтения (так GitHub отдаёт любой публичный репозиторий), приложение на нём не установлено или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, один ответ без различия; у пользователя нет права admin или maintain на репозиторий в GitHub, в том числе роль read на приватном — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён — `409 REPOSITORY_ALREADY_CONNECTED`. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App с `auto_review_enabled = true`; `full_name` и `default_branch` — из ответа GitHub. Два запроса к GitHub: репозиторий по id токеном пользователя (`GET /repositories/{id}`), затем установка приложения на нём (`GET /repos/{owner}/{repo}/installation`). Проверки по порядку: провайдер не `github`, репозиторий не виден пользователю или публичный виден только с правом чтения (так GitHub отдаёт любой публичный репозиторий), приложение на нём не установлено или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, один ответ без различия; у пользователя нет права admin или maintain на репозиторий в GitHub, в том числе роль read на приватном — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён и включён — `409 REPOSITORY_ALREADY_CONNECTED`; интерфейс считает его успехом: ревью уже включено, в том числе параллельным запросом. Выключенный `DELETE` репозиторий включается обратно — `201` с прежним `id`, история прогонов сохраняется. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
          */
         post: operations["connectRepository"];
         delete?: never;
@@ -157,12 +157,16 @@ export interface paths {
         };
         /**
          * Зарегистрированный репозиторий
-         * @description Требует сессию. Один зарегистрированный репозиторий по id — та же форма, что строка GET /repositories. 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub — ответ один и тот же.
+         * @description Требует сессию. Один зарегистрированный репозиторий по id — тот же `id`, что у строки GET /repositories. 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub — ответ один и тот же.
          */
         get: operations["getRepository"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Выключить ревью репозитория
+         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED (задача #243). Выключает ревью мягко: запись и история прогонов остаются, повторный POST /repositories включает обратно; уже выключен — тоже `204`. Права — как у POST /repositories: без admin или maintain — `403 REPOSITORY_MANAGE_REQUIRED`.
+         */
+        delete: operations["disconnectRepository"];
         options?: never;
         head?: never;
         patch?: never;
@@ -241,7 +245,7 @@ export interface paths {
         };
         /**
          * Список прогонов ревью
-         * @description Требует сессию; параметры запроса проверяются раньше обращения к GitHub. Снимок списка прогонов ревью, сначала новые — по created_at по убыванию, при равном created_at — по id по убыванию. Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories/available. Фильтры складываются через «и»: status — один или несколько статусов (параметр повторяется); active=true — только активные (queued, building_context, analysing, publishing), active=false — только завершённые (completed, failed, cancelled), вместе со status — пересечение; repository_id — прогоны одного или нескольких репозиториев (параметр повторяется), невидимый или несуществующий репозиторий не даёт 404, его прогонов просто нет в списке; author — точное совпадение логина автора запроса на изменение; q — подстрока без учёта регистра в заголовке, авторе или исходной ветке запроса на изменение либо точное совпадение номера (42 или #42). У q и author пустая строка — без фильтра. created_from (включительно) и created_to (исключительно) — диапазон по created_at прогона, время с зоной (в ответах — UTC с Z); created_from позже created_to — 422 VALIDATION_ERROR в query.created_to. Постранично: limit выше 200 не отклоняется, а приводится к 200. total — сколько прогонов подходит под фильтры без учёта limit и offset. findings_count — то же, что число элементов findings в GET /reviews/{review_run_id}: находки, оставшиеся после отсева и верификатора, а не опубликованные комментарии. Самих находок и комментариев в строке нет. Изменения после снимка приходят потоком GET /events; поток фильтры не учитывает, поэтому при активных фильтрах или не на первой странице клиент на событие перезапрашивает страницу, а без фильтров на первой странице — делает upsert строки.
+         * @description Требует сессию; параметры запроса проверяются раньше обращения к GitHub. Снимок списка прогонов ревью, сначала новые — по created_at по убыванию, при равном created_at — по id по убыванию. Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories. Фильтры складываются через «и»: status — один или несколько статусов (параметр повторяется); active=true — только активные (queued, building_context, analysing, publishing), active=false — только завершённые (completed, failed, cancelled), вместе со status — пересечение; repository_id — прогоны одного или нескольких репозиториев (параметр повторяется), невидимый или несуществующий репозиторий не даёт 404, его прогонов просто нет в списке; author — точное совпадение логина автора запроса на изменение; q — подстрока без учёта регистра в заголовке, авторе или исходной ветке запроса на изменение либо точное совпадение номера (42 или #42). У q и author пустая строка — без фильтра. created_from (включительно) и created_to (исключительно) — диапазон по created_at прогона, время с зоной (в ответах — UTC с Z); created_from позже created_to — 422 VALIDATION_ERROR в query.created_to. Постранично: limit выше 200 не отклоняется, а приводится к 200. total — сколько прогонов подходит под фильтры без учёта limit и offset. findings_count — то же, что число элементов findings в GET /reviews/{review_run_id}: находки, оставшиеся после отсева и верификатора, а не опубликованные комментарии. Самих находок и комментариев в строке нет. Изменения после снимка приходят потоком GET /events; поток фильтры не учитывает, поэтому при активных фильтрах или не на первой странице клиент на событие перезапрашивает страницу, а без фильтров на первой странице — делает upsert строки.
          */
         get: operations["listReviews"];
         put?: never;
@@ -325,7 +329,7 @@ export interface paths {
         };
         /**
          * Поток событий кабинета (Server-Sent Events)
-         * @description Требует сессию. Один поток Server-Sent Events на весь кабинет, без параметров: сейчас для прогонов ревью, дальше и для других ресурсов. Заменил поток одного прогона: экран прогона берёт его события отсюда, отбирая их по id. Имя события — `<ресурс>.<действие>` в поле `event:`, значения — StreamEventType; данные — JSON модели своего типа в `data:` одной строкой, какая модель у какого типа — в `x-sse-events` ответа. Сейчас типы такие: `run.created` — прогон, созданный после подключения, при первом его событии в этом соединении; `run.status_changed` — прогон изменился, но не в итоговом статусе (в том числе только прогресс без смены статуса — клиент всё равно делает upsert по id); `run.finished` — прогон в итоговом статусе (completed, failed или cancelled), при переходе в итоговый статус приходит только `run.finished`, даже у прогона, созданного после подключения. Данные `run.*` — ReviewRunListItem, полная строка списка GET /reviews. `ping` с `data: {}` — в тишине, не реже раза в 15 секунд. Клиент игнорирует незнакомые типы событий: новые типы добавляются без правки клиентов. Фильтров у потока нет: клиент получает все видимые ему события и отбирает нужные сам. Видимость задаёт правило типа события, пользователь получает только видимые ему события. Для `run.*`: Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories/available. Набор видимых репозиториев считается при подключении тем же расчётом, что ответ GET /repositories/available, и до переподключения не пересчитывается: доступ, отобранный у провайдера, учитывается при переподключении. Набор считается по токену пользователя, сохранённому при входе, с теми же исходами, что у GET /repositories/available: токен отозван, истёк без возможности обновления или его нет — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется; GitHub не ответил или ответил ошибкой, в том числе при обновлении токена, — `502 SCM_UNAVAILABLE`. В обоих случаях поток не открывается. Клиент применяет любое событие прогона одинаково: upsert по id, из двух версий побеждает та, у которой updated_at больше, при равном — пришедшая позже. Источник событий — уведомление PostgreSQL NOTIFY при коммите записи прогона: событие приходит не позже чем через пару секунд после записи, несколько изменений прогона подряд могут прийти одним событием с последней версией. Если источник событий на сервере оборвался, поток закрывается — EventSource переподключится, и клиент перезапросит снимок. Истории поток не отдаёт: при подключении и после каждого переподключения клиент перезапрашивает снимок REST (GET /reviews/{review_run_id} или GET /reviews) после события `open` у EventSource; событие, пришедшее раньше снимка, не потеряется, а более старая версия строки проиграет по updated_at. Поток начинается со строки `retry: 3000`. Сессия проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
+         * @description Требует сессию. Один поток Server-Sent Events на весь кабинет, без параметров: сейчас для прогонов ревью, дальше и для других ресурсов. Заменил поток одного прогона: экран прогона берёт его события отсюда, отбирая их по id. Имя события — `<ресурс>.<действие>` в поле `event:`, значения — StreamEventType; данные — JSON модели своего типа в `data:` одной строкой, какая модель у какого типа — в `x-sse-events` ответа. Сейчас типы такие: `run.created` — прогон, созданный после подключения, при первом его событии в этом соединении; `run.status_changed` — прогон изменился, но не в итоговом статусе (в том числе только прогресс без смены статуса — клиент всё равно делает upsert по id); `run.finished` — прогон в итоговом статусе (completed, failed или cancelled), при переходе в итоговый статус приходит только `run.finished`, даже у прогона, созданного после подключения. Данные `run.*` — ReviewRunListItem, полная строка списка GET /reviews. `ping` с `data: {}` — в тишине, не реже раза в 15 секунд. Клиент игнорирует незнакомые типы событий: новые типы добавляются без правки клиентов. Фильтров у потока нет: клиент получает все видимые ему события и отбирает нужные сам. Видимость задаёт правило типа события, пользователь получает только видимые ему события. Для `run.*`: Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories. Набор видимых репозиториев считается при подключении тем же расчётом, что ответ GET /repositories, и до переподключения не пересчитывается: доступ, отобранный у провайдера, учитывается при переподключении. Набор считается по токену пользователя, сохранённому при входе, с теми же исходами, что у GET /repositories: токен отозван, истёк без возможности обновления или его нет — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется; GitHub не ответил или ответил ошибкой, в том числе при обновлении токена, — `502 SCM_UNAVAILABLE`. В обоих случаях поток не открывается. Клиент применяет любое событие прогона одинаково: upsert по id, из двух версий побеждает та, у которой updated_at больше, при равном — пришедшая позже. Источник событий — уведомление PostgreSQL NOTIFY при коммите записи прогона: событие приходит не позже чем через пару секунд после записи, несколько изменений прогона подряд могут прийти одним событием с последней версией. Если источник событий на сервере оборвался, поток закрывается — EventSource переподключится, и клиент перезапросит снимок. Истории поток не отдаёт: при подключении и после каждого переподключения клиент перезапрашивает снимок REST (GET /reviews/{review_run_id} или GET /reviews) после события `open` у EventSource; событие, пришедшее раньше снимка, не потеряется, а более старая версия строки проиграет по updated_at. Поток начинается со строки `retry: 3000`. Сессия проверяется при подключении и затем каждые 5 секунд, по её окончании поток закрывается.
          */
         get: operations["streamEvents"];
         put?: never;
@@ -345,55 +349,11 @@ export interface components {
          * @description Любая ошибка — по модели на код, выбор по `code`.
          *
          *     Коды, которые возможны на любом запросе: `ROUTE_NOT_FOUND` (такого пути нет),
-         *     `METHOD_NOT_ALLOWED` (метод не объявлен), `HTTP_ERROR` (прочий отказ фреймворка) и
-         *     `INTERNAL_ERROR` (сбой сервера). Остальные коды операция объявляет в своих ответах.
+         *     `METHOD_NOT_ALLOWED` (метод не объявлен), `REQUEST_BODY_TOO_LARGE` (тело больше лимита),
+         *     `HTTP_ERROR` (прочий отказ фреймворка) и `INTERNAL_ERROR` (сбой сервера). Остальные коды
+         *     операция объявляет в своих ответах; `413` — ещё и каждая операция с телом.
          */
-        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
-        /**
-         * AvailableRepositoryListResponse
-         * @description Репозитории, доступные для подключения.
-         */
-        AvailableRepositoryListResponse: {
-            /**
-             * Items
-             * @description Репозитории установок GitHub App, доступные пользователю.
-             */
-            items: components["schemas"]["AvailableRepositoryResponse"][];
-        };
-        /**
-         * AvailableRepositoryResponse
-         * @description Репозиторий у провайдера, который вошедший пользователь может подключить к сервису.
-         */
-        AvailableRepositoryResponse: {
-            /**
-             * @description Хостинг репозитория.
-             * @example github
-             */
-            provider: components["schemas"]["Provider"];
-            /**
-             * Provider Id
-             * @description Идентификатор репозитория у провайдера.
-             * @example 123456789
-             */
-            provider_id: string;
-            /**
-             * Full Name
-             * @description Полное имя у провайдера: владелец/репозиторий.
-             * @example octo-org/api
-             */
-            full_name: string;
-            /**
-             * Default Branch
-             * @description Ветка по умолчанию у провайдера.
-             * @example main
-             */
-            default_branch: string;
-            /**
-             * Already Connected
-             * @description Репозиторий уже зарегистрирован в сервисе.
-             */
-            already_connected: boolean;
-        };
+        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
         /**
          * CommentKind
          * @description Форма комментария, публикуемого обратно на хостинг.
@@ -412,7 +372,7 @@ export interface components {
             provider: components["schemas"]["Provider"];
             /**
              * Provider Id
-             * @description Идентификатор репозитория у провайдера (из списка доступных).
+             * @description Идентификатор репозитория у провайдера (из списка репозиториев): число без ведущих нулей.
              * @example 123456789
              */
             provider_id: string;
@@ -626,6 +586,11 @@ export interface components {
             confidence: number | null;
             /** @description Пункт правила владельца, по которому выпущена находка; null - находка по стандартным критериям. */
             rule: components["schemas"]["RuleRefResponse"] | null;
+            /**
+             * Covered By Finding Id
+             * @description Находка прошлого прогона того же запроса на изменение, чей тред бота уже говорит об этой проблеме: своего комментария у находки нет, повтор не публиковался. null - находка опубликована своим комментарием или прогон её ещё не публиковал.
+             */
+            covered_by_finding_id: string | null;
         };
         /**
          * FindingSeverity
@@ -1257,15 +1222,74 @@ export interface components {
             trace_id: string;
         };
         /**
+         * RepositoryListItem
+         * @description Репозиторий установки GitHub App, видимый пользователю: подключённый или нет.
+         *
+         *     Подключённый — ревью включено, его запросы на изменение ревьюятся; неподключённый можно
+         *     подключить, если `can_connect`.
+         */
+        RepositoryListItem: {
+            /**
+             * @description Хостинг репозитория.
+             * @example github
+             */
+            provider: components["schemas"]["Provider"];
+            /**
+             * Provider Id
+             * @description Идентификатор репозитория у провайдера.
+             * @example 123456789
+             */
+            provider_id: string;
+            /**
+             * Full Name
+             * @description Полное имя у провайдера: владелец/репозиторий, из ответа GitHub.
+             * @example octo-org/api
+             */
+            full_name: string;
+            /**
+             * Default Branch
+             * @description Ветка по умолчанию у провайдера, из ответа GitHub.
+             * @example main
+             */
+            default_branch: string;
+            /**
+             * Connected
+             * @description Ревью включено: репозиторий подключён к сервису и не выключен.
+             */
+            connected: boolean;
+            /**
+             * Id
+             * @description Идентификатор репозитория в сервисе — для настроек, прогонов и DELETE /repositories/{id}. Есть и у выключенного: история остаётся; `null`, если репозиторий не подключали.
+             */
+            id: string | null;
+            /**
+             * Can Connect
+             * @description У пользователя на репозитории роль admin или maintain — то же правило, что у POST и DELETE /repositories. Подсказка интерфейсу: без неё переключатель «Ревью» неактивен; ручки проверяют права сами.
+             */
+            can_connect: boolean;
+            /**
+             * Connected At
+             * @description Когда ревью включено последний раз; `null`, если ревью не включено.
+             */
+            connected_at: string | null;
+        };
+        /**
          * RepositoryListResponse
-         * @description Страница списка репозиториев.
+         * @description Страница списка репозиториев и адрес установки приложения.
          */
         RepositoryListResponse: {
             /**
              * Items
              * @description Репозитории страницы; меньше limit — значит, страница последняя.
              */
-            items: components["schemas"]["RepositoryResponse"][];
+            items: components["schemas"]["RepositoryListItem"][];
+            /**
+             * Install Url
+             * Format: uri
+             * @description Экран установки GitHub App (`https://github.com/apps/<slug>/installations/new`): выбрать аккаунт и репозитории. `null`, если slug приложения узнать не удалось: нет ключа приложения или GitHub не ответил на `GET /app`.
+             * @example https://github.com/apps/dmc-268-review/installations/new
+             */
+            install_url: string | null;
         };
         /**
          * RepositoryManageRequiredProblem
@@ -1560,6 +1584,67 @@ export interface components {
             full_name: string;
         };
         /**
+         * RequestBodyTooLargeProblem
+         * @description `413 REQUEST_BODY_TOO_LARGE`: тело запроса больше лимита.
+         *
+         *     Лимит: `WEBHOOK_BODY_MAX_BYTES` (2 МиБ) у приёма вебхука, `REQUEST_BODY_MAX_BYTES`
+         *     (1 МиБ) у остальных ручек; `detail` называет сработавший.
+         *
+         *     Отказ — до разбора тела, сессии и подписи вебхука: по `Content-Length` тело не читается
+         *     вовсе, поток без него обрывается на лимите. Соединение после ответа закрывается.
+         * @example {
+         *       "code": "REQUEST_BODY_TOO_LARGE",
+         *       "detail": "Тело запроса больше лимита 2097152 байт.",
+         *       "instance": "/api/v1/webhooks/github",
+         *       "status": 413,
+         *       "title": "Тело запроса слишком большое",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:request-body-too-large"
+         *     }
+         */
+        RequestBodyTooLargeProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:request-body-too-large
+             * @constant
+             */
+            type: "urn:dmc-268:problem:request-body-too-large";
+            /**
+             * Title
+             * @default Тело запроса слишком большое
+             * @constant
+             */
+            title: "Тело запроса слишком большое";
+            /**
+             * Status
+             * @default 413
+             * @constant
+             */
+            status: 413;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "REQUEST_BODY_TOO_LARGE";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
          * ReviewAlreadyActiveProblem
          * @description `409 REVIEW_ALREADY_ACTIVE`: ручной запуск, когда прогон по этому коммиту уже идёт.
          *
@@ -1640,7 +1725,7 @@ export interface components {
              * @example LLM_TIMEOUT
              * @enum {string}
              */
-            code: "SCM_AUTH_ERROR" | "PR_NOT_FOUND" | "REPOSITORY_NOT_FOUND" | "SCM_UNAVAILABLE" | "CONTEXT_PARSING_ERROR" | "LLM_RATE_LIMITED" | "LLM_TIMEOUT" | "LLM_UNAVAILABLE" | "LLM_INVALID_OUTPUT" | "PROMPT_TOO_LARGE" | "REVIEW_RUN_STALE" | "INTERNAL_ERROR";
+            code: "SCM_AUTH_ERROR" | "PR_NOT_FOUND" | "REPOSITORY_NOT_FOUND" | "SCM_UNAVAILABLE" | "CONTEXT_PARSING_ERROR" | "LLM_RATE_LIMITED" | "LLM_TIMEOUT" | "LLM_UNAVAILABLE" | "LLM_INVALID_OUTPUT" | "PROMPT_TOO_LARGE" | "DIFF_TOO_LARGE" | "REVIEW_RUN_STALE" | "INTERNAL_ERROR";
             /**
              * Message
              * @description Что случилось — по-русски, для показа пользователю.
@@ -2671,6 +2756,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["WebhookSignatureInvalidProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -2701,7 +2796,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2748,7 +2843,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProviderNotSupportedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2799,7 +2894,63 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProviderNotSupportedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    finishGithubSetup: {
+        parameters: {
+            query: {
+                /** @description Id установки от GitHub; не доверяется, сверяется с установками пользователя. Нет при `request`. */
+                installation_id?: number | null;
+                /** @description Что сделал пользователь на GitHub: установил, изменил установку или запросил её у владельца. */
+                setup_action: "install" | "update" | "request";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Редирект на /app/repositories с итогом: `?connected=<N>`, `?requested=true`, `?setup_error=installation_not_found` или `?setup_error=provider_unavailable`. Без сессии — на /login?redirect=/app/repositories, недействительная cookie session удаляется. */
+            302: {
+                headers: {
+                    /** @description Куда перенаправлен браузер. */
+                    Location?: string;
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2840,7 +2991,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2879,58 +3030,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["OriginForbiddenProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
-            default: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["AnyProblem"];
-                };
-            };
-        };
-    };
-    listAvailableRepositories: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Репозитории установок GitHub App, доступные пользователю. */
-            200: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AvailableRepositoryListResponse"];
-                };
-            };
-            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
-            401: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
-                };
-            };
-            /** @description GitHub не ответил или ответил ошибкой; репозиторий не подключён. */
-            502: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
-                };
-            };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2956,7 +3056,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Страница репозиториев. */
+            /** @description Страница репозиториев и адрес установки приложения. */
             200: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2996,7 +3096,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3071,6 +3171,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["RepositoryAlreadyConnectedProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3091,7 +3201,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3165,7 +3275,99 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    disconnectRepository: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Идентификатор репозитория в сервисе. */
+                repository_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Ревью выключено или уже было выключено. */
+            204: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — у пользователя нет прав admin или maintain на репозиторий у провайдера. */
+            403: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RepositoryManageRequiredProblem"];
+                };
+            };
+            /** @description Репозитория с таким id нет. */
+            404: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"];
+                };
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Ручка ещё не реализована. */
+            501: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                };
+            };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3239,7 +3441,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3307,6 +3509,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3327,7 +3539,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3401,7 +3613,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3480,7 +3692,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3560,7 +3772,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3625,6 +3837,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ReviewAlreadyActiveProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3645,7 +3867,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3719,7 +3941,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3803,7 +4025,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3877,7 +4099,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3931,7 +4153,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];

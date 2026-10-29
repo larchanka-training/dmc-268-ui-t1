@@ -209,7 +209,11 @@ const rawDiffFiles: DiffFile[] = [
   },
 ]
 
-const finding = (fields: ReviewFinding): ReviewFinding => fields
+/** Находки фикстуры опубликованы своими комментариями: повторов прошлого прогона нет. */
+const finding = (fields: Omit<ReviewFinding, 'covered_by_finding_id'>): ReviewFinding => ({
+  ...fields,
+  covered_by_finding_id: null,
+})
 
 const findings: ReviewFinding[] = [
   finding({
