@@ -5,6 +5,7 @@ import {
   GithubOutlined,
   GitlabOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { Menu } from 'antd'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -15,6 +16,7 @@ const navItems = [
   { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
   { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
   { key: '/repositories/connect', icon: <PlusOutlined />, label: 'Подключить репозиторий' },
+  { key: '/help', icon: <QuestionCircleOutlined />, label: 'Помощь' },
 ]
 
 export function AppSidebar() {

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/features/auth'
 import { AppLayout } from '@/widgets/app-shell'
 import { ConnectRepositoryPage } from '@/pages/ConnectRepositoryPage'
+import { HelpPage } from '@/pages/HelpPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
@@ -13,6 +14,8 @@ export function AppRouter() {
     // Приложение живёт под `/app` (#25); вход — статичная `/login` вне SPA.
     <BrowserRouter basename="/app">
       <Routes>
+        {/* Помощь — статичный текст без данных: открыта без сессии, nginx пускает гостя на /app/help. */}
+        <Route path="/help" element={<HelpPage />} />
         {/* Экран прогона — маршрут кабинета: сессия нужна, но шапки и меню у него нет. */}
         <Route
           path="/reviews/:reviewId"

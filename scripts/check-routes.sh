@@ -125,6 +125,11 @@ location_is '/login?redirect=/app/' || fail "адрес с переводом с
 fetch '/app/a%20b'
 location_is '/login?redirect=/app/a%2520b' || fail "/app/a%20b без cookie сессии не уводит на /login?redirect=/app/a%2520b"
 
+# Помощь открыта гостю: HTML приложения без редиректа на вход.
+fetch /app/help
+[ "$status" = 200 ] || fail "/app/help без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/help нет id=\"root\": это не приложение"
+
 fetch /login
 [ "$status" = 200 ] || fail "/login вернул ${status}, ожидался 200"
 if has "$body" 'id="root"'; then fail "/login отдаёт приложение вместо статичной страницы"; fi
