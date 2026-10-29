@@ -5,7 +5,7 @@
 - [ ] 1.1 `pnpm api:sync 8366bc9691989549ab676467093ed2bf652f78d0` (голова стопки PR бэкенда #247, #248, #252); после мёржа бэкенда — `pnpm api:sync` с головы `develop`
 - [x] 1.2 `entities/repository`: `RepositoryListItemSchema` и `RepositoryListSchema` по `RepositoryListResponse` с `MatchesContract`; `fetchRepositories`, `disconnectRepository`; удалить `AvailableRepository*` и `fetchAvailableRepositories`
 - [x] 1.3 `ApiTransport.delete` в HTTP-клиенте, mock adapter и `fakeTransport`
-- [x] 1.4 `features/repository`: `useRepositories`, `useConnectRepository` (`409` — успех), `useDisconnectRepository`, инвалидация списка в `onSettled`; удалить `useAvailableRepositories`
+- [x] 1.4 `features/repository`: `useRepositories`, `useConnectRepository` (`409` с `REPOSITORY_ALREADY_CONNECTED` — успех), `useDisconnectRepository`, инвалидация списка в `onSettled`; удалить `useAvailableRepositories`
 - [x] 1.5 Схема находки — поле `covered_by_finding_id` из контракта
 - [x] 1.6 `fetchRepositories` собирает страницы по `offset += 200`; мутации с `mutationKey`, спиннер строки — `useMutationState` (`usePendingReviewToggles`)
 
@@ -20,5 +20,5 @@
 ## 3. Моки и тесты
 
 - [x] 3.1 Моки списка: подключён, не подключён, нет прав, выключен с `id`; `POST`/`DELETE` как в контракте
-- [x] 3.2 Тесты: переключатель вкл/выкл, `409` и `204` — успех, `501` у `DELETE`, неактивный без прав, кнопка по `install_url`, пустое состояние, итог возврата и очистка URL, нет страницы подключения и пункта меню, нет свитчера «Авто-ревью», поиск и фильтр в URL
+- [x] 3.2 Тесты: переключатель вкл/выкл, `409` с `REPOSITORY_ALREADY_CONNECTED` и `204` — успех, другой `409` — ошибка, `501` у `DELETE`, неактивный без прав, кнопка по `install_url`, пустое состояние, итог возврата и очистка URL, нет страницы подключения и пункта меню, нет свитчера «Авто-ревью», поиск и фильтр в URL
 - [ ] 3.3 `pnpm run typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`; `openspec validate --all --strict`

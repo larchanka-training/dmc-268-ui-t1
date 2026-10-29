@@ -145,8 +145,9 @@ export function RepositoriesPage() {
   useNormalizeUrlPage(urlPage, pageCount)
   const page = clampPage(urlPage.page, pageCount)
 
-  // Возврат с GitHub: итог и чистый URL. Успех — тостом, ошибка — плашкой на странице. Список перезапрашивается при открытии
-  // страницы (данные в кэше сразу устаревают), отдельного запроса не нужно.
+  // Возврат с GitHub: итог и чистый URL. Успех тостом, ошибка плашкой на странице. Список
+  // перезапрашивается при открытии страницы (данные в кэше сразу устаревают), отдельного
+  // запроса не нужно.
   useEffect(() => {
     if (!SETUP_PARAMS.some((name) => searchParams.has(name))) return
     const result = setupResultOf(searchParams)

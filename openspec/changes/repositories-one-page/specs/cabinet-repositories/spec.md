@@ -174,8 +174,13 @@ SHALL добавлять запись в историю, следующие SHAL
 
 #### Scenario: Уже подключён
 
-- **WHEN** `POST /api/v1/repositories` отвечает `409`
+- **WHEN** `POST /api/v1/repositories` отвечает `409` с `code = REPOSITORY_ALREADY_CONNECTED`
 - **THEN** ошибка не показывается, после перезапроса переключатель включён
+
+#### Scenario: Другой 409
+
+- **WHEN** `POST /api/v1/repositories` отвечает `409` с другим `code`
+- **THEN** показывается сообщение об ошибке, переключатель остаётся «выкл»
 
 #### Scenario: Выключение с подтверждением
 
