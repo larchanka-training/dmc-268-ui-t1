@@ -18,6 +18,9 @@ export const REPOSITORIES_PATH = '/repositories'
 
 /** Больше 200 за страницу бэкенд не отдаёт; страница короче — последняя. */
 const PAGE_LIMIT = 200
+// shortcut: не больше 50 страниц (10 000 репозиториев) — защита от бэкенда, который перестал
+// учитывать `offset` и отдаёт одну и ту же полную страницу.
+const MAX_PAGES = 50
 
 /**
  * Все репозитории установок, видимые пользователю, подключённые и нет: страницы подряд, пока
@@ -30,9 +33,12 @@ export async function fetchRepositories(transport: ApiTransport): Promise<Reposi
   }
   const first = await fetchPage(0)
   const items = [...first.items]
-  for (let page = first; page.items.length === PAGE_LIMIT;) {
+  let page = first
+  let pages = 1
+  while (page.items.length === PAGE_LIMIT && pages < MAX_PAGES) {
     page = await fetchPage(items.length)
     items.push(...page.items)
+    pages += 1
   }
   return { items, install_url: first.install_url }
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ContractError } from '@/shared/api'
+import { ApiError, ContractError } from '@/shared/api'
 import { fakeTransport } from '@/test/api'
 import type { Repository } from '../model/schema'
 import type { RepositorySettings, RepositorySettingsUpdate, RulesStatus } from '../model/settings'
@@ -135,5 +135,25 @@ describe('fetchRepositories', () => {
 
     expect((await fetchRepositories(fakeTransport({ get }))).items).toHaveLength(200)
     expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('упала вторая страница: ошибка всего запроса, а не неполный список', async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.endsWith('offset=200')) throw new ApiError(502, 'GitHub не ответил')
+      return { items: Array.from({ length: 200 }, (_, n) => row(n + 1)), install_url: null }
+    })
+
+    await expect(fetchRepositories(fakeTransport({ get }))).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('бэкенд игнорирует offset: не больше 50 страниц', async () => {
+    const get = vi.fn(async () => ({
+      items: Array.from({ length: 200 }, (_, n) => row(n + 1)),
+      install_url: null,
+    }))
+
+    await fetchRepositories(fakeTransport({ get }))
+
+    expect(get).toHaveBeenCalledTimes(50)
   })
 })
