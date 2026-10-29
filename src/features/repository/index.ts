@@ -2,6 +2,7 @@ export {
   repositoryKeys,
   useConnectRepository,
   useDisconnectRepository,
+  usePendingReviewToggles,
   useRepositories,
   useRepository,
   useRepositorySettings,

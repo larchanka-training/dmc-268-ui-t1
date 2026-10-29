@@ -7,6 +7,7 @@
 - [x] 1.3 `ApiTransport.delete` в HTTP-клиенте, mock adapter и `fakeTransport`
 - [x] 1.4 `features/repository`: `useRepositories`, `useConnectRepository` (`409` — успех), `useDisconnectRepository`, инвалидация списка в `onSettled`; удалить `useAvailableRepositories`
 - [x] 1.5 Схема находки — поле `covered_by_finding_id` из контракта
+- [x] 1.6 `fetchRepositories` собирает страницы по `offset += 200`; мутации с `mutationKey`, спиннер строки — `useMutationState` (`usePendingReviewToggles`)
 
 ## 2. Страницы
 

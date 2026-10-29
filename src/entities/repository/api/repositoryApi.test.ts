@@ -5,6 +5,7 @@ import { fakeTransport } from '@/test/api'
 import type { Repository } from '../model/schema'
 import type { RepositorySettings, RepositorySettingsUpdate, RulesStatus } from '../model/settings'
 import {
+  fetchRepositories,
   fetchRepository,
   fetchRepositorySettings,
   fetchRulesStatus,
@@ -91,5 +92,48 @@ describe('валидация на границе', () => {
     const transport = fakeTransport({ get: async () => ({ status: 'half-loaded' }) })
 
     await expect(fetchRulesStatus(transport, 'repo-1')).rejects.toBeInstanceOf(ContractError)
+  })
+})
+
+describe('fetchRepositories', () => {
+  const row = (n: number) => ({
+    provider: 'github',
+    provider_id: String(n),
+    full_name: `acme/repo-${String(n).padStart(3, '0')}`,
+    default_branch: 'main',
+    connected: false,
+    id: null,
+    can_connect: true,
+    connected_at: null,
+  })
+
+  it('больше 200: страницы по offset, пока страница полная; install_url — из первой', async () => {
+    const all = Array.from({ length: 250 }, (_, n) => row(n + 1))
+    const get = vi.fn(async (path: string) => {
+      const offset = Number(new URLSearchParams(path.split('?')[1]).get('offset'))
+      return {
+        items: all.slice(offset, offset + 200),
+        install_url: offset === 0 ? 'https://github.com/apps/x/installations/new' : null,
+      }
+    })
+
+    const list = await fetchRepositories(fakeTransport({ get }))
+
+    expect(list.items).toHaveLength(250)
+    expect(list.install_url).toBe('https://github.com/apps/x/installations/new')
+    expect(get.mock.calls.map(([path]) => path)).toEqual([
+      '/repositories?limit=200&offset=0',
+      '/repositories?limit=200&offset=200',
+    ])
+  })
+
+  it('ровно 200: следующая страница пустая — конец списка', async () => {
+    const get = vi.fn(async (path: string) => ({
+      items: path.endsWith('offset=0') ? Array.from({ length: 200 }, (_, n) => row(n + 1)) : [],
+      install_url: null,
+    }))
+
+    expect((await fetchRepositories(fakeTransport({ get }))).items).toHaveLength(200)
+    expect(get).toHaveBeenCalledTimes(2)
   })
 })

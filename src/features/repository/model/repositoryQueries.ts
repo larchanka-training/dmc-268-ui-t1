@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useMutationState, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   connectRepository,
   disconnectRepository,
@@ -14,6 +14,8 @@ import { ApiError, useTransport } from '@/shared/api'
 
 export const repositoryKeys = {
   list: ['repositories', 'list'] as const,
+  connect: ['repositories', 'connect'] as const,
+  disconnect: ['repositories', 'disconnect'] as const,
   repository: (repositoryId: string) => ['repositories', repositoryId] as const,
   settings: (repositoryId: string) => ['repositories', repositoryId, 'settings'] as const,
   rules: (repositoryId: string) => ['repositories', repositoryId, 'rules'] as const,
@@ -36,6 +38,7 @@ export function useConnectRepository() {
   const transport = useTransport()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: repositoryKeys.connect,
     mutationFn: async (request: ConnectRepositoryRequest) => {
       try {
         await connectRepository(transport, request)
@@ -52,9 +55,27 @@ export function useDisconnectRepository() {
   const transport = useTransport()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: repositoryKeys.disconnect,
     mutationFn: (repositoryId: string) => disconnectRepository(transport, repositoryId),
     onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
   })
+}
+
+/**
+ * Строки, у которых переключатель ждёт ответа. Из кэша мутаций, а не из `useMutation`: новый
+ * вызов `mutate` у того же хука забывает предыдущий, и спиннер первой строки пропал бы.
+ */
+export function usePendingReviewToggles() {
+  const connecting = useMutationState({
+    filters: { mutationKey: repositoryKeys.connect, status: 'pending' },
+    // Переменные мутации с этим ключом — всегда тело `useConnectRepository`.
+    select: (mutation) => (mutation.state.variables as ConnectRepositoryRequest).provider_id,
+  })
+  const disconnecting = useMutationState({
+    filters: { mutationKey: repositoryKeys.disconnect, status: 'pending' },
+    select: (mutation) => mutation.state.variables as string,
+  })
+  return { connecting, disconnecting }
 }
 
 /** Заголовок экрана настроек: один репозиторий `GET /repositories/{id}`, без списка. */

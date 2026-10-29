@@ -6,6 +6,7 @@ import type { RepositoryListItem } from '@/entities/repository'
 import {
   useConnectRepository,
   useDisconnectRepository,
+  usePendingReviewToggles,
   useRepositories,
 } from '@/features/repository'
 import { isNotImplemented } from '@/shared/api'
@@ -14,10 +15,14 @@ import { ErrorState, LinkButton, PageNav, RefreshErrorNotice } from '@/shared/ui
 
 const PAGE_SIZE = 10
 
-/** Установки приложения пользователя на GitHub: снять с репозитория или удалить установку. */
-const MANAGE_ACCESS_URL = 'https://github.com/settings/installations'
+/**
+ * Установки приложения пользователя на GitHub, если `install_url` неизвестен. С ним «Управлять
+ * доступом» ведёт на экран установки: там аккаунты, где приложение уже стоит, с Configure.
+ */
+const INSTALLATIONS_URL = 'https://github.com/settings/installations'
 
-const NO_RIGHTS_HINT = 'Включить ревью может участник с ролью admin или maintain в этом репозитории'
+const NO_RIGHTS_HINT =
+  'Включать и выключать ревью может участник с ролью admin или maintain в этом репозитории'
 
 /** Итог возврата с GitHub — query-параметры, с которыми Setup URL бэкенда уводит сюда. */
 const SETUP_PARAMS = ['connected', 'requested', 'setup_error']
@@ -62,6 +67,7 @@ export function RepositoriesPage() {
   const { data, isLoading, isLoadingError, isRefetchError, error, refetch } = useRepositories()
   const connect = useConnectRepository()
   const disconnect = useDisconnectRepository()
+  const pending = usePendingReviewToggles()
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -75,8 +81,8 @@ export function RepositoriesPage() {
   // Возврат с GitHub: сообщение и чистый URL. Список перезапрашивается при открытии
   // страницы (данные в кэше сразу устаревают), отдельного запроса не нужно.
   useEffect(() => {
-    const result = setupResultOf(searchParams)
     if (!SETUP_PARAMS.some((name) => searchParams.has(name))) return
+    const result = setupResultOf(searchParams)
     // Ключ: повторный вызов (StrictMode) заменяет сообщение, а не дублирует его.
     if (result) void messageApi.open({ key: 'github-setup', ...result })
     setSearchParams(
@@ -91,15 +97,15 @@ export function RepositoriesPage() {
 
   const toggleReview = (repo: RepositoryListItem, enable: boolean) => {
     if (enable) {
-      connect.mutate(
-        { provider: repo.provider, provider_id: repo.provider_id },
-        {
-          onError: (err) =>
-            void messageApi.error(
-              errorText(err, 'Включение ревью пока недоступно', 'Не удалось включить ревью'),
-            ),
-        },
-      )
+      // `mutateAsync`, а не колбэк `mutate`: следующий вызов `mutate` снял бы колбэк этой
+      // строки, и её ошибка не показалась бы.
+      void connect
+        .mutateAsync({ provider: repo.provider, provider_id: repo.provider_id })
+        .catch((err: unknown) => {
+          void messageApi.error(
+            errorText(err, 'Включение ревью пока недоступно', 'Не удалось включить ревью'),
+          )
+        })
       return
     }
     const repositoryId = repo.id
@@ -109,13 +115,13 @@ export function RepositoriesPage() {
       content: 'Бот перестанет приходить в PR этого репозитория, история прогонов сохранится.',
       okText: 'Выключить',
       cancelText: 'Отмена',
-      onOk: () =>
-        disconnect.mutate(repositoryId, {
-          onError: (err) =>
-            void messageApi.error(
-              errorText(err, 'Выключение ревью пока недоступно', 'Не удалось выключить ревью'),
-            ),
-        }),
+      onOk: () => {
+        void disconnect.mutateAsync(repositoryId).catch((err: unknown) => {
+          void messageApi.error(
+            errorText(err, 'Выключение ревью пока недоступно', 'Не удалось выключить ревью'),
+          )
+        })
+      },
     })
   }
 
@@ -136,25 +142,30 @@ export function RepositoriesPage() {
     {
       title: 'Ревью',
       key: 'review',
-      render: (_, record) => (
-        <Space>
-          <Switch
-            aria-label={`Ревью ${record.full_name}`}
-            checked={record.connected}
-            disabled={!record.can_connect}
-            loading={
-              (connect.isPending && connect.variables?.provider_id === record.provider_id) ||
-              (disconnect.isPending && disconnect.variables === record.id)
-            }
-            onChange={(checked) => toggleReview(record, checked)}
-          />
-          {!record.can_connect && (
-            <Typography.Text type="secondary" className="text-meta">
-              {NO_RIGHTS_HINT}
-            </Typography.Text>
-          )}
-        </Space>
-      ),
+      render: (_, record) => {
+        const hintId = `no-rights-${record.provider}-${record.provider_id}`
+        const loading =
+          pending.connecting.includes(record.provider_id) ||
+          (record.id !== null && pending.disconnecting.includes(record.id))
+        return (
+          <Space>
+            <Switch
+              aria-label={`Ревью ${record.full_name}`}
+              aria-describedby={record.can_connect ? undefined : hintId}
+              aria-busy={loading}
+              checked={record.connected}
+              disabled={!record.can_connect}
+              loading={loading}
+              onChange={(checked) => toggleReview(record, checked)}
+            />
+            {!record.can_connect && (
+              <Typography.Text id={hintId} type="secondary" className="text-meta">
+                {NO_RIGHTS_HINT}
+              </Typography.Text>
+            )}
+          </Space>
+        )
+      },
     },
     {
       title: 'Действия',
@@ -192,7 +203,7 @@ export function RepositoriesPage() {
               Добавить репозитории из GitHub
             </Button>
           )}
-          <Typography.Link href={MANAGE_ACCESS_URL} target="_blank" rel="noreferrer">
+          <Typography.Link href={installUrl ?? INSTALLATIONS_URL}>
             Управлять доступом в GitHub
           </Typography.Link>
         </Space>
@@ -208,11 +219,18 @@ export function RepositoriesPage() {
               <strong>Ревью</strong> включается и выключается переключателем в строке. Когда ревью
               выключено, бот перестаёт приходить в PR, а история прогонов сохраняется.
             </p>
-            <p>
-              <strong>Доступ бота к коду</strong> настраивается в GitHub. Кнопка «Добавить
-              репозитории из GitHub» даёт доступ к новым репозиториям, ссылка «Управлять доступом в
-              GitHub» его убирает. Репозитории без доступа пропадают из этого списка.
-            </p>
+            {installUrl ? (
+              <p>
+                <strong>Доступ бота к коду</strong> настраивается в GitHub. Кнопка «Добавить
+                репозитории из GitHub» даёт доступ к новым репозиториям, ссылка «Управлять доступом
+                в GitHub» его убирает. Репозитории без доступа пропадают из этого списка.
+              </p>
+            ) : (
+              <p>
+                <strong>Доступ бота к коду</strong> настраивается в GitHub по ссылке «Управлять
+                доступом в GitHub». Репозитории без доступа пропадают из этого списка.
+              </p>
+            )}
           </>
         }
       />
@@ -225,7 +243,13 @@ export function RepositoriesPage() {
         />
       ) : repos?.length === 0 ? (
         <div className="app-content-card">
-          <Empty description="Приложение пока не установлено ни на один ваш репозиторий. Нажмите «Добавить репозитории из GitHub» и отметьте нужные.">
+          <Empty
+            description={
+              installUrl
+                ? 'Приложение пока не установлено ни на один ваш репозиторий. Нажмите «Добавить репозитории из GitHub» и отметьте нужные.'
+                : 'Приложение пока не установлено ни на один ваш репозиторий. Адрес установки сейчас неизвестен, обновите страницу позже.'
+            }
+          >
             {installUrl && (
               <Button type="primary" size="large" href={installUrl}>
                 Добавить
@@ -239,7 +263,7 @@ export function RepositoriesPage() {
           {isRefetchError && (
             <RefreshErrorNotice
               title="Не удалось обновить репозитории"
-              description="В таблице — последний полученный список."
+              description="Показан последний полученный список."
               onRetry={() => void refetch()}
             />
           )}

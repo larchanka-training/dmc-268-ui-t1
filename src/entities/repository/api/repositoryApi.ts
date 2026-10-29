@@ -16,13 +16,25 @@ import { parseResponse, type ApiTransport } from '@/shared/api'
 
 export const REPOSITORIES_PATH = '/repositories'
 
-/** Первая страница списка: больше 200 бэкенд всё равно не отдаст. */
-const PAGE = '?limit=200'
+/** Больше 200 за страницу бэкенд не отдаёт; страница короче — последняя. */
+const PAGE_LIMIT = 200
 
-/** Все репозитории установок, видимые пользователю, подключённые и нет, и `install_url`. */
+/**
+ * Все репозитории установок, видимые пользователю, подключённые и нет: страницы подряд, пока
+ * страница полная. `install_url` — из первой.
+ */
 export async function fetchRepositories(transport: ApiTransport): Promise<RepositoryList> {
-  const path = REPOSITORIES_PATH + PAGE
-  return parseResponse(RepositoryListSchema, path, await transport.get(path))
+  const fetchPage = async (offset: number) => {
+    const path = `${REPOSITORIES_PATH}?limit=${PAGE_LIMIT}&offset=${offset}`
+    return parseResponse(RepositoryListSchema, path, await transport.get(path))
+  }
+  const first = await fetchPage(0)
+  const items = [...first.items]
+  for (let page = first; page.items.length === PAGE_LIMIT;) {
+    page = await fetchPage(items.length)
+    items.push(...page.items)
+  }
+  return { items, install_url: first.install_url }
 }
 
 /** Включает ревью. `409 REPOSITORY_ALREADY_CONNECTED` вызывающий считает успехом. */

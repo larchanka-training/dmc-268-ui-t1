@@ -9,7 +9,8 @@ import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 import { fakeTransport, renderWithTransport } from '@/test/api'
 
 const INSTALL_URL = 'https://github.com/apps/dmc-268-review/installations/new'
-const NO_RIGHTS = 'Включить ревью может участник с ролью admin или maintain в этом репозитории'
+const NO_RIGHTS =
+  'Включать и выключать ревью может участник с ролью admin или maintain в этом репозитории'
 
 /** Строка списка: подключённый (по умолчанию), `connected: false` — выключенный или новый. */
 function repository(
@@ -70,7 +71,7 @@ function renderRepositoriesPage(
 function listBackend(items: RepositoryListItem[], install_url: string | null = INSTALL_URL) {
   const state = { items, install_url }
   const get = vi.fn(async (path: string) => {
-    if (path !== '/repositories?limit=200') throw new Error(`неожиданный запрос ${path}`)
+    if (path !== '/repositories?limit=200&offset=0') throw new Error(`неожиданный запрос ${path}`)
     return structuredClone(state)
   })
   return { state, get }
@@ -103,7 +104,7 @@ describe('RepositoriesPage', () => {
     ).not.toBeInTheDocument()
     // Авто-ревью вернётся с запуском по вызову: колонки нет.
     expect(screen.queryByText('Автоматическое ревью')).not.toBeInTheDocument()
-    expect(get).toHaveBeenCalledWith('/repositories?limit=200')
+    expect(get).toHaveBeenCalledWith('/repositories?limit=200&offset=0')
   })
 
   it('выключенный репозиторий с id: переключатель выкл, «Настройки» есть', async () => {
@@ -127,9 +128,10 @@ describe('RepositoriesPage', () => {
     expect(
       await screen.findByRole('link', { name: 'Добавить репозитории из GitHub' }),
     ).toHaveAttribute('href', INSTALL_URL)
+    // Экран установки показывает и аккаунты, где приложение уже стоит, с Configure.
     expect(screen.getByRole('link', { name: 'Управлять доступом в GitHub' })).toHaveAttribute(
       'href',
-      'https://github.com/settings/installations',
+      INSTALL_URL,
     )
     expect(screen.getByText(/включается и выключается переключателем в строке/)).toBeInTheDocument()
     expect(
@@ -138,14 +140,26 @@ describe('RepositoriesPage', () => {
     expect(screen.queryByRole('link', { name: 'Подключить репозиторий' })).not.toBeInTheDocument()
   })
 
-  it('install_url: null — кнопки «Добавить» нет, ссылка на доступ в GitHub остаётся', async () => {
+  it('install_url: null — кнопки «Добавить» нет и подсказка о ней молчит, доступ — на установки GitHub', async () => {
     renderRepositoriesPage(listBackend([ON], null).get)
 
     expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
     expect(
       screen.queryByRole('link', { name: 'Добавить репозитории из GitHub' }),
     ).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Управлять доступом в GitHub' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Управлять доступом в GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/settings/installations',
+    )
+    expect(screen.queryByText(/Добавить репозитории из GitHub/)).not.toBeInTheDocument()
+  })
+
+  it('пустой список при install_url: null — без кнопки и без упоминания её', async () => {
+    renderRepositoriesPage(listBackend([], null).get)
+
+    expect(await screen.findByText(/Адрес установки сейчас неизвестен/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Добавить' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/Добавить репозитории из GitHub/)).not.toBeInTheDocument()
   })
 
   it('пустой список — подсказка и крупная кнопка «Добавить» вместо таблицы', async () => {
@@ -211,7 +225,7 @@ describe('RepositoriesPage', () => {
   it('ссылка «Настройки» — настоящий `<a>` без кнопки внутри и ведёт на экран настроек', async () => {
     const user = userEvent.setup()
     renderRepositoriesPage(async (path) => {
-      if (path === '/repositories?limit=200') return list([ON])
+      if (path === '/repositories?limit=200&offset=0') return list([ON])
       if (path === '/repositories/repo-1') {
         return {
           id: 'repo-1',
@@ -317,8 +331,60 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
 
     expect(reviewSwitch('colleague/pet')).toBeDisabled()
     expect(reviewSwitch('colleague/pet')).not.toBeChecked()
-    expect(screen.getByText(NO_RIGHTS)).toBeInTheDocument()
+    expect(reviewSwitch('colleague/pet')).toHaveAccessibleDescription(NO_RIGHTS)
     expect(post).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    [404, 'Репозитория нет в установке GitHub App', 'REPOSITORY_NOT_IN_INSTALLATION'],
+    [502, 'GitHub не ответил', 'SCM_UNAVAILABLE'],
+  ])('вкл: %i — виден detail, переключатель остаётся «выкл»', async (status, detail, code) => {
+    const user = userEvent.setup()
+    const post = vi.fn(async () => {
+      throw new ApiError(status, detail, code)
+    })
+    renderRepositoriesPage({ get: listBackend([OFF]).get, post })
+
+    await screen.findByText('larchanka-training/docs')
+    await user.click(reviewSwitch('larchanka-training/docs'))
+
+    expect(await screen.findByText(detail)).toBeInTheDocument()
+    expect(reviewSwitch('larchanka-training/docs')).not.toBeChecked()
+  })
+
+  it('две строки подряд: у первой спиннер, пока ждёт, и её ошибка не теряется', async () => {
+    const user = userEvent.setup()
+    const OTHER = repository(5, 'larchanka-training/mobile', {
+      connected: false,
+      id: null,
+      connected_at: null,
+    })
+    let rejectFirst: (error: Error) => void = () => {}
+    const post = vi.fn((_path: string, body: unknown) => {
+      if ((body as ConnectRepositoryRequest).provider_id === OFF.provider_id) {
+        return new Promise<unknown>((_, reject) => {
+          rejectFirst = reject
+        })
+      }
+      return Promise.resolve(null)
+    })
+    renderRepositoriesPage({ get: listBackend([OFF, OTHER]).get, post })
+
+    await screen.findByText('larchanka-training/docs')
+    await user.click(reviewSwitch('larchanka-training/docs'))
+    await user.click(reviewSwitch('larchanka-training/mobile'))
+
+    await waitFor(() => expect(post).toHaveBeenCalledTimes(2))
+    expect(reviewSwitch('larchanka-training/docs')).toHaveAttribute('aria-busy', 'true')
+
+    act(() =>
+      rejectFirst(new ApiError(403, 'Нужна роль admin или maintain', 'REPOSITORY_MANAGE_REQUIRED')),
+    )
+
+    expect(await screen.findByText('Нужна роль admin или maintain')).toBeInTheDocument()
+    await waitFor(() =>
+      expect(reviewSwitch('larchanka-training/docs')).toHaveAttribute('aria-busy', 'false'),
+    )
   })
 
   it('выкл — подтверждение, затем DELETE /repositories/{id}; 204 — успех', async () => {
@@ -379,6 +445,29 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
   })
 })
 
+describe('RepositoriesPage — ошибки выключения', () => {
+  it.each([
+    [403, 'Нужна роль admin или maintain', 'REPOSITORY_MANAGE_REQUIRED'],
+    [404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND'],
+    [502, 'GitHub не ответил', 'SCM_UNAVAILABLE'],
+  ])('выкл: %i — виден detail, переключатель остаётся «вкл»', async (status, detail, code) => {
+    const user = userEvent.setup()
+    const del = vi.fn(async () => {
+      throw new ApiError(status, detail, code)
+    })
+    renderRepositoriesPage({ get: listBackend([ON]).get, delete: del })
+
+    await screen.findByText('larchanka-training/platform-api')
+    await user.click(reviewSwitch('larchanka-training/platform-api'))
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Выключить' }),
+    )
+
+    expect(await screen.findByText(detail)).toBeInTheDocument()
+    expect(reviewSwitch('larchanka-training/platform-api')).toBeChecked()
+  })
+})
+
 describe('RepositoriesPage — возврат с GitHub', () => {
   it.each([
     ['?connected=2', 'Подключено репозиториев: 2'],
@@ -397,7 +486,7 @@ describe('RepositoriesPage — возврат с GitHub', () => {
     expect(await screen.findByText(text)).toBeInTheDocument()
     await waitFor(() => expect(router.state.location.search).toBe(''))
     expect(router.state.historyAction).toBe('REPLACE')
-    expect(backend.get).toHaveBeenCalledWith('/repositories?limit=200')
+    expect(backend.get).toHaveBeenCalledWith('/repositories?limit=200&offset=0')
     expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
   })
 

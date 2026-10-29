@@ -65,7 +65,7 @@ describe('App', () => {
     window.history.pushState({}, '', '/app/repositories')
     const calls = stubFetch({
       'GET /api/v1/auth/me': { status: 200, body: ME },
-      'GET /api/v1/repositories?limit=200': {
+      'GET /api/v1/repositories?limit=200&offset=0': {
         status: 200,
         body: { items: [], install_url: null },
       },
@@ -74,7 +74,7 @@ describe('App', () => {
     render(<App useMockApi={false} />)
 
     await waitFor(() =>
-      expect(calls.map((call) => call.url)).toContain('/api/v1/repositories?limit=200'),
+      expect(calls.map((call) => call.url)).toContain('/api/v1/repositories?limit=200&offset=0'),
     )
   })
 
