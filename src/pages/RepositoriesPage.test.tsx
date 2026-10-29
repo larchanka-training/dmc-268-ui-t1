@@ -592,7 +592,7 @@ describe('RepositoriesPage — страница в URL', () => {
     const two = screen.getByRole('link', { name: '2' })
     // Строки таблицы с кнопками настроек удлиняют порядок табов, поэтому до номера доходим
     // не более чем за число фокусируемых элементов страницы — дальше он был бы недостижим.
-    const focusable = document.querySelectorAll('a[href], button:not([disabled])').length
+    const focusable = document.querySelectorAll('a[href], button:not([disabled]), input').length
     for (let i = 0; i < focusable && document.activeElement !== two; i += 1) await user.tab()
     expect(two).toHaveFocus()
     await user.keyboard('{Enter}')
@@ -638,5 +638,153 @@ describe('RepositoriesPage — страница в URL', () => {
 
     await act(() => router.navigate(1))
     expect(await visibleRepos()).toEqual([21, 22, 23, 24, 25])
+  })
+})
+
+/** 24 репозитория: `front-01…12` с включённым ревью и `back-01…12` без него, три страницы по 10. */
+const mixed = [
+  ...Array.from({ length: 12 }, (_, i) =>
+    repository(i + 1, `larchanka-training/front-${String(i + 1).padStart(2, '0')}`),
+  ),
+  ...Array.from({ length: 12 }, (_, i) =>
+    repository(i + 13, `larchanka-training/back-${String(i + 1).padStart(2, '0')}`, {
+      connected: false,
+      id: null,
+      connected_at: null,
+    }),
+  ),
+]
+
+function renderFilteredAt(url: string) {
+  const router = createMemoryRouter([{ path: '/repositories', element: <RepositoriesPage /> }], {
+    initialEntries: [url],
+  })
+  renderWithTransport(
+    <RouterProvider router={router} />,
+    fakeTransport({ get: async () => list(mixed) }),
+  )
+  return router
+}
+
+/** Имена на видимой странице таблицы, без префикса организации. */
+async function visibleNames() {
+  await screen.findAllByText(/^larchanka-training\//)
+  return screen
+    .getAllByText(/^larchanka-training\//)
+    .map((el) => el.textContent?.replace('larchanka-training/', ''))
+}
+
+const searchBox = () => screen.getByRole('searchbox', { name: 'Поиск по имени' })
+
+describe('RepositoriesPage — поиск и фильтр', () => {
+  it('поиск по имени без учёта регистра фильтрует и сбрасывает страницу', async () => {
+    const router = renderFilteredAt('/repositories?page=3')
+    expect(await visibleNames()).toEqual(['back-09', 'back-10', 'back-11', 'back-12'])
+
+    fireEvent.change(searchBox(), { target: { value: 'FRONT' } })
+
+    await waitFor(() => expect(router.state.location.search).toBe('?q=FRONT'))
+    const names = await visibleNames()
+    expect(names).toHaveLength(10)
+    expect(names.every((name) => name?.startsWith('front-'))).toBe(true)
+    expect(screen.getByRole('link', { name: '2' })).toHaveAttribute(
+      'href',
+      '/repositories?q=FRONT&page=2',
+    )
+  })
+
+  it('q из URL при открытии: стоит в поле, список отфильтрован', async () => {
+    renderFilteredAt('/repositories?q=back-1')
+
+    expect(await visibleNames()).toEqual(['back-10', 'back-11', 'back-12'])
+    expect(searchBox()).toHaveValue('back-1')
+  })
+
+  it('«назад» после серии правок возвращает прежний поиск и страницу', async () => {
+    const router = renderFilteredAt('/repositories?q=back&page=2')
+    expect(await visibleNames()).toEqual(['back-11', 'back-12'])
+
+    // Серия правок поиска — одна запись в истории.
+    for (const value of ['back-0', 'back-01']) {
+      fireEvent.change(searchBox(), { target: { value } })
+      await waitFor(() => expect(router.state.location.search).toBe(`?q=${value}`))
+    }
+    expect(await visibleNames()).toEqual(['back-01'])
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?q=back&page=2')
+    expect(searchBox()).toHaveValue('back')
+    expect(await visibleNames()).toEqual(['back-11', 'back-12'])
+  })
+
+  it('переход на тот же маршрут без q (меню) очищает поле и фильтр', async () => {
+    const router = renderFilteredAt('/repositories?q=back')
+    expect(await visibleNames()).toHaveLength(10)
+
+    // Как пункт бокового меню: PUSH на тот же маршрут без перемонтирования.
+    await act(() => router.navigate('/repositories'))
+
+    expect(searchBox()).toHaveValue('')
+    expect((await visibleNames())[0]).toBe('front-01')
+  })
+
+  it('правка после возврата на запись поиска — новая запись, а не замена', async () => {
+    const router = renderFilteredAt('/repositories')
+    await visibleNames()
+
+    fireEvent.change(searchBox(), { target: { value: 'front' } })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front'))
+    await act(() => router.navigate(-1))
+    await act(() => router.navigate(1))
+    expect(searchBox()).toHaveValue('front')
+
+    fireEvent.change(searchBox(), { target: { value: 'back' } })
+    await waitFor(() => expect(router.state.location.search).toBe('?q=back'))
+
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?q=front')
+    expect(searchBox()).toHaveValue('front')
+  })
+
+  it('«Только включённые» оставляет строки с включённым ревью, в URL only=enabled', async () => {
+    const user = userEvent.setup()
+    const router = renderFilteredAt('/repositories?page=3')
+    await visibleNames()
+
+    await user.click(screen.getByText('Только включённые'))
+
+    await waitFor(() => expect(router.state.location.search).toBe('?only=enabled'))
+    expect((await visibleNames()).every((name) => name?.startsWith('front-'))).toBe(true)
+    screen.getAllByRole('switch').forEach((el) => expect(el).toBeChecked())
+
+    await user.click(screen.getByText('Все'))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    expect(await visibleNames()).toHaveLength(10)
+  })
+
+  it('only=enabled из URL вместе с поиском', async () => {
+    renderFilteredAt('/repositories?only=enabled&q=back')
+
+    expect(await screen.findByText('Ничего не найдено')).toBeInTheDocument()
+  })
+
+  it('фильтр ничего не оставил — «Ничего не найдено», а не подсказка про установку', async () => {
+    renderFilteredAt('/repositories')
+    await visibleNames()
+
+    fireEvent.change(searchBox(), { target: { value: 'нет-такого' } })
+
+    expect(await screen.findByText('Ничего не найдено')).toBeInTheDocument()
+    expect(screen.queryByText(/Приложение пока не установлено/)).not.toBeInTheDocument()
+    expect(searchBox()).toHaveValue('нет-такого')
+  })
+
+  it('итог возврата с GitHub убирается из URL, q и only остаются', async () => {
+    const router = renderFilteredAt('/repositories?connected=1&q=front-0&only=enabled')
+
+    expect(await screen.findByText('Подключено репозиториев: 1')).toBeInTheDocument()
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front-0&only=enabled'))
+    expect(searchBox()).toHaveValue('front-0')
+    expect(await visibleNames()).toHaveLength(9)
   })
 })

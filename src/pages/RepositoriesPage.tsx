@@ -1,7 +1,19 @@
-import { Alert, Button, Empty, Modal, Space, Switch, Table, Typography, message } from 'antd'
+import {
+  Alert,
+  Button,
+  Empty,
+  Input,
+  Modal,
+  Segmented,
+  Space,
+  Switch,
+  Table,
+  Typography,
+  message,
+} from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { RepositoryListItem } from '@/entities/repository'
 import {
   useConnectRepository,
@@ -10,10 +22,39 @@ import {
   useRepositories,
 } from '@/features/repository'
 import { isNotImplemented } from '@/shared/api'
-import { clampPage, pageCountOf, pageSlice, useNormalizeUrlPage, useUrlPage } from '@/shared/lib'
+import {
+  PAGE_PARAM,
+  clampPage,
+  pageCountOf,
+  pageSlice,
+  useNormalizeUrlPage,
+  useUrlPage,
+} from '@/shared/lib'
 import { ErrorState, LinkButton, PageNav, RefreshErrorNotice } from '@/shared/ui'
 
 const PAGE_SIZE = 10
+
+/** Query-параметр поиска по имени. */
+const SEARCH_PARAM = 'q'
+
+/**
+ * Query-параметр фильтра: `only=enabled` оставляет строки с включённым ревью. Не `connected`:
+ * это имя занято итогом возврата с GitHub.
+ */
+const ONLY_PARAM = 'only'
+const ONLY_ENABLED = 'enabled'
+
+const ONLY_OPTIONS = [
+  { label: 'Все', value: 'all' },
+  { label: 'Только включённые', value: ONLY_ENABLED },
+]
+
+/** Метка в `location.state` у записей истории, которые создал сам ввод поиска. */
+const SEARCH_EDIT = { searchEdit: true }
+
+function isSearchEdit(state: unknown): boolean {
+  return typeof state === 'object' && state !== null && 'searchEdit' in state
+}
 
 /**
  * Установки приложения пользователя на GitHub, если `install_url` неизвестен. С ним «Управлять
@@ -71,6 +112,19 @@ export function RepositoriesPage() {
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
   const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const navigationType = useNavigationType()
+  const search = searchParams.get(SEARCH_PARAM) ?? ''
+  const onlyEnabled = searchParams.get(ONLY_PARAM) === ONLY_ENABLED
+  // Текст в поле живёт в своём состоянии: роутер обновляет URL в transition, и поле, связанное
+  // с URL напрямую, теряло бы символы при быстром наборе. Пока пользователь печатает, URL
+  // догоняет поле. Любой другой переход («назад», «вперёд», ссылка, меню) ставит в поле `q`.
+  const [searchText, setSearchText] = useState(search)
+  const [seenKey, setSeenKey] = useState(location.key)
+  if (location.key !== seenKey) {
+    setSeenKey(location.key)
+    if (navigationType === 'POP' || !isSearchEdit(location.state)) setSearchText(search)
+  }
   // Ошибка установки живёт до закрытия: тост на три секунды легко пропустить, а в нём инструкция.
   // С GitHub возвращаются загрузкой страницы, поэтому параметры читаются при монтировании.
   const [setupError, setSetupError] = useState(() => {
@@ -79,8 +133,15 @@ export function RepositoriesPage() {
   })
   const repos = data?.items
   const installUrl = data?.install_url
+  // Список загружен целиком, поэтому фильтруем на клиенте.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return repos?.filter(
+      (repo) => (!onlyEnabled || repo.connected) && repo.full_name.toLowerCase().includes(q),
+    )
+  }, [repos, search, onlyEnabled])
   const urlPage = useUrlPage({ pageSize: PAGE_SIZE })
-  const pageCount = repos && pageCountOf(repos.length, PAGE_SIZE)
+  const pageCount = filtered && pageCountOf(filtered.length, PAGE_SIZE)
   useNormalizeUrlPage(urlPage, pageCount)
   const page = clampPage(urlPage.page, pageCount)
 
@@ -100,6 +161,37 @@ export function RepositoriesPage() {
       { replace: true },
     )
   }, [searchParams, setSearchParams, messageApi])
+
+  const handleSearchChange = (value: string) => {
+    // Первая правка серии добавляет запись в историю, чтобы «назад» вернул прежний поиск и
+    // страницу. Следующие правки её заменяют. Серия идёт, пока текущая запись создана поиском
+    // или URL ещё не догнал поле. На запись поиска вернулись «назад» или «вперёд»: серию она
+    // не продолжает, иначе правка затёрла бы её.
+    const continuesSeries =
+      (isSearchEdit(location.state) && navigationType !== 'POP') || searchText !== search
+    setSearchText(value)
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set(SEARCH_PARAM, value)
+        else next.delete(SEARCH_PARAM)
+        // Новый поиск начинается с первой страницы.
+        next.delete(PAGE_PARAM)
+        return next
+      },
+      { replace: continuesSeries, state: SEARCH_EDIT },
+    )
+  }
+
+  const handleOnlyChange = (value: string) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value === ONLY_ENABLED) next.set(ONLY_PARAM, ONLY_ENABLED)
+      else next.delete(ONLY_PARAM)
+      next.delete(PAGE_PARAM)
+      return next
+    })
+  }
 
   const toggleReview = (repo: RepositoryListItem, enable: boolean) => {
     if (enable) {
@@ -275,26 +367,46 @@ export function RepositoriesPage() {
           </Empty>
         </div>
       ) : (
-        <div className="app-content-card">
-          {/* Упал перезапрос — список остаётся, сверху плашка. */}
-          {isRefetchError && (
-            <RefreshErrorNotice
-              title="Не удалось обновить репозитории"
-              description="Показан последний полученный список."
-              onRetry={() => void refetch()}
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <Input.Search
+              className="w-full max-w-sm"
+              aria-label="Поиск по имени"
+              placeholder="Поиск по имени…"
+              allowClear
+              value={searchText}
+              onChange={(e) => handleSearchChange(e.target.value)}
             />
-          )}
-          <Table
-            rowKey={(record) => `${record.provider}:${record.provider_id}`}
-            loading={isLoading}
-            columns={columns}
-            dataSource={pageSlice(repos ?? [], page, PAGE_SIZE)}
-            pagination={false}
-          />
-          {pageCount !== undefined && (
-            <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
-          )}
-        </div>
+            <Segmented
+              aria-label="Какие репозитории показать"
+              options={ONLY_OPTIONS}
+              value={onlyEnabled ? ONLY_ENABLED : 'all'}
+              onChange={handleOnlyChange}
+            />
+          </div>
+          <div className="app-content-card">
+            {/* Упал перезапрос — список остаётся, сверху плашка. */}
+            {isRefetchError && (
+              <RefreshErrorNotice
+                title="Не удалось обновить репозитории"
+                description="Показан последний полученный список."
+                onRetry={() => void refetch()}
+              />
+            )}
+            <Table
+              rowKey={(record) => `${record.provider}:${record.provider_id}`}
+              loading={isLoading}
+              columns={columns}
+              dataSource={pageSlice(filtered ?? [], page, PAGE_SIZE)}
+              pagination={false}
+              // Список не пуст, а фильтр ничего не оставил: подсказка про установку тут не к месту.
+              locale={filtered && { emptyText: <Empty description="Ничего не найдено" /> }}
+            />
+            {pageCount !== undefined && (
+              <PageNav page={page} pageCount={pageCount} toPage={urlPage.toPage} />
+            )}
+          </div>
+        </>
       )}
     </div>
   )
