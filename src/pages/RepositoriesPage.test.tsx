@@ -487,7 +487,7 @@ describe('RepositoriesPage — возврат с GitHub', () => {
     ['?connected=2', 'Подключено репозиториев: 2'],
     [
       '?connected=0',
-      'Приложение установлено. Включите ревью переключателем в нужных репозиториях.',
+      'Доступ в GitHub обновлён. Включите ревью переключателем в нужных репозиториях.',
     ],
     ['?requested=true', 'Запрос на установку отправлен владельцу'],
   ])('%s — сообщение, итог убран из URL, список запрошен', async (query, text) => {
@@ -691,6 +691,11 @@ describe('RepositoriesPage — поиск и фильтр', () => {
       'href',
       '/repositories?q=FRONT&page=2',
     )
+
+    // «Назад после поиска»: прежняя страница и пустое поле.
+    await act(() => router.navigate(-1))
+    await waitFor(() => expect(router.state.location.search).toBe('?page=3'))
+    expect(searchBox()).toHaveValue('')
   })
 
   it('страница больше числа страниц после поиска — URL заменяется на последнюю отфильтрованную', async () => {
