@@ -131,6 +131,16 @@ fetch /app/help
 has "$body" 'id="root"' || fail "в /app/help нет id=\"root\": это не приложение"
 security_headers "/app/help без cookie сессии"
 
+fetch /app/help/
+[ "$status" = 200 ] || fail "/app/help/ без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/help/ нет id=\"root\": это не приложение"
+
+# Исключение только для самой помощи: глубже и рядом гостя уводят на вход.
+for path in /app/help/x /app/helpx /app/repositories; do
+  fetch "$path"
+  [ "$status" = 302 ] || fail "$path без cookie сессии вернул ${status}, ожидался 302 на /login"
+done
+
 fetch /login
 [ "$status" = 200 ] || fail "/login вернул ${status}, ожидался 200"
 if has "$body" 'id="root"'; then fail "/login отдаёт приложение вместо статичной страницы"; fi

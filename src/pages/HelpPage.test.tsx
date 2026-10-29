@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, useLocation } from 'react-router-dom'
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { App } from '@/app/App'
 import { ThemeProvider } from '@/features/theme'
 import { HelpPage } from '@/pages/HelpPage'
@@ -67,6 +67,43 @@ describe('HelpPage', () => {
     )
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
     expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('toggle-disabled'))
+  })
+})
+
+describe('«В кабинет» на помощи', () => {
+  function Path() {
+    return <output>{useLocation().pathname}</output>
+  }
+  function renderAt(initialEntries: string[]) {
+    render(
+      <ThemeProvider>
+        <MemoryRouter initialEntries={initialEntries}>
+          <Routes>
+            <Route path="/help" element={<HelpPage />} />
+            <Route path="*" element={<Link to="/help">Помощь</Link>} />
+          </Routes>
+          <Path />
+        </MemoryRouter>
+      </ThemeProvider>,
+    )
+  }
+
+  it('один landmark main: Layout.Content antd, внутри него div', () => {
+    renderAt(['/help'])
+    expect(screen.getAllByRole('main')).toHaveLength(1)
+  })
+
+  it('пришли из кабинета — возвращает туда же', async () => {
+    renderAt(['/repositories'])
+    await userEvent.click(screen.getByRole('link', { name: 'Помощь' }))
+    await userEvent.click(screen.getByRole('link', { name: 'В кабинет' }))
+    expect(screen.getByRole('status')).toHaveTextContent('/repositories')
+  })
+
+  it('открыли помощь напрямую — ведёт на «Обзор»', async () => {
+    renderAt(['/help'])
+    await userEvent.click(screen.getByRole('link', { name: 'В кабинет' }))
+    expect(screen.getByRole('status')).toHaveTextContent(/^\/$/)
   })
 })
 

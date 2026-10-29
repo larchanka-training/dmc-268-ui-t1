@@ -1,7 +1,7 @@
 import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { Button, Layout, Space, Typography } from 'antd'
 import { useEffect, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAppTheme } from '@/features/theme'
 
 const { Title, Paragraph, Text } = Typography
@@ -127,7 +127,8 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
  */
 export function HelpPage() {
   const { mode, toggleMode } = useAppTheme()
-  const { hash } = useLocation()
+  const { hash, key } = useLocation()
+  const navigate = useNavigate()
 
   // Роутер сам не прокручивает к якорю: делаем это при открытии и при смене `#…`.
   useEffect(() => {
@@ -140,7 +141,18 @@ export function HelpPage() {
       <Layout.Header className="app-shell-header-bar app-main-header">
         <a href="/">DMC Console</a>
         <Space>
-          <Link to="/">В кабинет</Link>
+          {/* Пришли из кабинета (в истории приложения есть запись до помощи) — возвращаемся
+              туда же. Открыли помощь по ссылке или с входа — на «Обзор». */}
+          <Link
+            to="/"
+            onClick={(event) => {
+              if (key === 'default') return
+              event.preventDefault()
+              void navigate(-1)
+            }}
+          >
+            В кабинет
+          </Link>
           <Button
             type="text"
             icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}
@@ -150,7 +162,7 @@ export function HelpPage() {
         </Space>
       </Layout.Header>
       <Layout.Content className="app-layout-content">
-        <main className="help-content">
+        <div className="help-content">
           <Title level={1} className="page-title">
             Помощь
           </Title>
@@ -171,8 +183,9 @@ export function HelpPage() {
                 нажмите <Text strong>Install</Text>.
               </li>
               <li>
-                GitHub вернёт вас в сервис. Отмеченные репозитории уже в списке. Где у вас роль
-                admin или maintain, ревью включено; в остальных его включит администратор.
+                GitHub вернёт вас в сервис. Отмеченные репозитории уже в списке. Если приложение
+                ставится на аккаунт впервые, ревью сразу включено там, где у вас роль admin или
+                maintain. В остальных его включит администратор.
               </li>
               <li>
                 Откройте PR в одном из них: бот пришлёт ревью комментариями, а прогон будет виден во
@@ -180,8 +193,10 @@ export function HelpPage() {
               </li>
             </ol>
             <Paragraph>
-              Если на GitHub выбрать «All repositories», репозитории появятся выключенными. Включите
-              нужные переключателем «Ревью».
+              Само ревью включается только при первой установке и только для отмеченных
+              репозиториев. Если на GitHub выбрать «All repositories» или позже добавить репозитории
+              в уже установленное приложение, они появятся выключенными. Включите нужные
+              переключателем «Ревью».
             </Paragraph>
           </section>
 
@@ -198,7 +213,7 @@ export function HelpPage() {
               </article>
             ))}
           </section>
-        </main>
+        </div>
       </Layout.Content>
     </Layout>
   )
