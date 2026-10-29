@@ -1,5 +1,5 @@
 import { MoonOutlined, SunOutlined } from '@ant-design/icons'
-import { Button, Layout, Typography } from 'antd'
+import { Button, Layout, Space, Typography } from 'antd'
 import { useEffect, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAppTheme } from '@/features/theme'
@@ -117,7 +117,7 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
   {
     id: 'who-sees',
     question: 'Кто видит мои прогоны?',
-    answer: <Paragraph>Участники репозитория, у которых есть к нему доступ на GitHub.</Paragraph>,
+    answer: <Paragraph>Только те, у кого есть доступ к репозиторию на GitHub.</Paragraph>,
   },
 ]
 
@@ -139,13 +139,15 @@ export function HelpPage() {
     <Layout className="app-layout-root">
       <Layout.Header className="app-shell-header-bar app-main-header">
         <a href="/">DMC Console</a>
-        <Link to="/">В кабинет</Link>
-        <Button
-          type="text"
-          icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}
-          onClick={toggleMode}
-          aria-label="Переключить тему"
-        />
+        <Space>
+          <Link to="/">В кабинет</Link>
+          <Button
+            type="text"
+            icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}
+            onClick={toggleMode}
+            aria-label="Переключить тему"
+          />
+        </Space>
       </Layout.Header>
       <Layout.Content className="app-layout-content">
         <main className="help-content">
