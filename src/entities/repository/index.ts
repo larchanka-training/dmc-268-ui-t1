@@ -1,7 +1,8 @@
 export type {
-  AvailableRepository,
   ConnectRepositoryRequest,
   Repository,
+  RepositoryList,
+  RepositoryListItem,
 } from '@/entities/repository/model/schema'
 export type {
   RejectedRule,
@@ -13,10 +14,9 @@ export type {
   SeverityLevel,
 } from '@/entities/repository/model/settings'
 export {
-  AVAILABLE_REPOSITORIES_PATH,
   connectRepository,
-  fetchAvailableRepositories,
-  fetchConnectedRepositories,
+  disconnectRepository,
+  fetchRepositories,
   fetchRepository,
   fetchRepositorySettings,
   fetchRulesStatus,

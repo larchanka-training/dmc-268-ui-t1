@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   connectRepository,
-  fetchAvailableRepositories,
-  fetchConnectedRepositories,
+  disconnectRepository,
+  fetchRepositories,
   fetchRepository,
   fetchRepositorySettings,
   fetchRulesStatus,
@@ -10,41 +10,50 @@ import {
   type ConnectRepositoryRequest,
   type RepositorySettingsUpdate,
 } from '@/entities/repository'
-import { useTransport } from '@/shared/api'
+import { ApiError, useTransport } from '@/shared/api'
 
 export const repositoryKeys = {
-  connected: ['repositories', 'connected'] as const,
-  available: ['repositories', 'available'] as const,
+  list: ['repositories', 'list'] as const,
   repository: (repositoryId: string) => ['repositories', repositoryId] as const,
   settings: (repositoryId: string) => ['repositories', repositoryId, 'settings'] as const,
   rules: (repositoryId: string) => ['repositories', repositoryId, 'rules'] as const,
 }
 
-export function useConnectedRepositories() {
+/** Страница «Репозитории» и её соседи: все репозитории установок и `install_url`. */
+export function useRepositories() {
   const transport = useTransport()
   return useQuery({
-    queryKey: repositoryKeys.connected,
-    queryFn: () => fetchConnectedRepositories(transport),
+    queryKey: repositoryKeys.list,
+    queryFn: () => fetchRepositories(transport),
   })
 }
 
-export function useAvailableRepositories() {
-  const transport = useTransport()
-  return useQuery({
-    queryKey: repositoryKeys.available,
-    queryFn: () => fetchAvailableRepositories(transport),
-  })
-}
-
+/**
+ * Переключатель «Ревью» — вкл. `409` — успех: ревью уже включено, в том числе параллельным
+ * запросом. Список перезапрашивается и после ошибки: строка могла измениться на сервере.
+ */
 export function useConnectRepository() {
   const transport = useTransport()
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (request: ConnectRepositoryRequest) => connectRepository(transport, request),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: repositoryKeys.connected })
-      await queryClient.invalidateQueries({ queryKey: repositoryKeys.available })
+    mutationFn: async (request: ConnectRepositoryRequest) => {
+      try {
+        await connectRepository(transport, request)
+      } catch (error) {
+        if (!(error instanceof ApiError && error.status === 409)) throw error
+      }
     },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+  })
+}
+
+/** Переключатель «Ревью» — выкл. Уже выключенный бэкенд тоже отвечает `204`. */
+export function useDisconnectRepository() {
+  const transport = useTransport()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (repositoryId: string) => disconnectRepository(transport, repositoryId),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
   })
 }
 
@@ -84,9 +93,6 @@ export function useSaveRepositorySettings(repositoryId: string) {
       // при живом баннере «Настройки сохранены».
       queryClient.setQueryData(repositoryKeys.settings(repositoryId), saved)
       await queryClient.invalidateQueries({ queryKey: repositoryKeys.settings(repositoryId) })
-      // Флаг авто-ревью — та же колонка репозитория: список и заголовок обновляются тоже.
-      await queryClient.invalidateQueries({ queryKey: repositoryKeys.repository(repositoryId) })
-      await queryClient.invalidateQueries({ queryKey: repositoryKeys.connected })
     },
   })
 }

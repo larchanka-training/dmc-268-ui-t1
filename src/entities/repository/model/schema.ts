@@ -16,32 +16,36 @@ export const RepositorySchema = z.object({
   updated_at: z.string(),
 })
 
-export const RepositoryListSchema = z.object({ items: z.array(RepositorySchema) })
-
-/** Репозиторий установки GitHub App, который можно подключить (`AvailableRepositoryResponse`). */
-export const AvailableRepositorySchema = z.object({
+/**
+ * Строка списка `GET /repositories` (`RepositoryListItem`): репозиторий установки GitHub App,
+ * подключённый или нет. `id` есть, если запись в сервисе есть, в том числе у выключенного.
+ */
+export const RepositoryListItemSchema = z.object({
   provider: ProviderSchema,
   provider_id: z.string(),
   full_name: z.string(),
   default_branch: z.string(),
-  already_connected: z.boolean(),
+  connected: z.boolean(),
+  id: z.string().nullable(),
+  can_connect: z.boolean(),
+  connected_at: z.string().nullable(),
 })
 
-export const AvailableRepositoryListSchema = z.object({
-  items: z.array(AvailableRepositorySchema),
+/** Список и адрес экрана установки приложения; `install_url` — `null`, если slug неизвестен. */
+export const RepositoryListSchema = z.object({
+  items: z.array(RepositoryListItemSchema),
+  install_url: z.string().nullable(),
 })
 
 export type Repository = z.infer<typeof RepositorySchema>
-export type AvailableRepository = z.infer<typeof AvailableRepositorySchema>
+export type RepositoryListItem = z.infer<typeof RepositoryListItemSchema>
+export type RepositoryList = z.infer<typeof RepositoryListSchema>
 /** Тело подключения — тип контракта как есть: его собирает фронт, проверять нечего. */
 export type ConnectRepositoryRequest = ApiSchemas['ConnectRepositoryRequest']
 
 // Разбор ответов совпадает с контрактом поле в поле; разойдутся — упадёт typecheck.
 const contractCheck: [
+  MatchesContract<z.infer<typeof RepositorySchema>, ApiSchemas['RepositoryResponse']>,
   MatchesContract<z.infer<typeof RepositoryListSchema>, ApiSchemas['RepositoryListResponse']>,
-  MatchesContract<
-    z.infer<typeof AvailableRepositoryListSchema>,
-    ApiSchemas['AvailableRepositoryListResponse']
-  >,
 ] = [true, true]
 void contractCheck

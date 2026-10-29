@@ -9,7 +9,7 @@ import { ApiError } from '@/shared/api'
 import { fakeTransport, ME, renderWithTransport, stubFetch } from '@/test/api'
 
 /** Профиль — из `fetch` (`RequireAuth`), список репозиториев — через `ApiTransport`. */
-const noRepositories = fakeTransport({ get: async () => ({ items: [] }) })
+const noRepositories = fakeTransport({ get: async () => ({ items: [], install_url: null }) })
 
 describe('OverviewPage', () => {
   afterEach(() => vi.unstubAllGlobals())
@@ -47,6 +47,37 @@ describe('OverviewPage', () => {
     expect(await screen.findByText('С возвращением, The Octocat')).toBeInTheDocument()
   })
 
+  it('считает только подключённые и не ведёт на удалённую страницу подключения', async () => {
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+    const row = (n: number, connected: boolean) => ({
+      provider: 'github',
+      provider_id: String(n),
+      full_name: `acme/repo-${n}`,
+      default_branch: 'main',
+      connected,
+      id: connected ? `repo-${n}` : null,
+      can_connect: true,
+      connected_at: connected ? '2026-10-01T10:00:00Z' : null,
+    })
+
+    renderWithTransport(
+      <MemoryRouter>
+        <RequireAuth>
+          <OverviewPage />
+        </RequireAuth>
+      </MemoryRouter>,
+      fakeTransport({
+        get: async () => ({
+          items: [row(1, true), row(2, false), row(3, true)],
+          install_url: null,
+        }),
+      }),
+    )
+
+    expect(await screen.findByText('2')).toBeInTheDocument()
+    expect(screen.queryByText('Подключить репозиторий')).not.toBeInTheDocument()
+  })
+
   it('репозитории не загрузились (502) — не «0», а ошибка с повтором', async () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
     let githubDown = true
@@ -59,7 +90,7 @@ describe('OverviewPage', () => {
       fakeTransport({
         get: async () => {
           if (githubDown) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
-          return { items: [] }
+          return { items: [], install_url: null }
         },
       }),
     )
