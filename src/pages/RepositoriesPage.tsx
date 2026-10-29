@@ -11,6 +11,7 @@ import {
   Typography,
   message,
 } from 'antd'
+import { SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
@@ -370,11 +371,13 @@ export function RepositoriesPage() {
       ) : (
         <>
           <div className="mb-4 flex flex-wrap items-center gap-3">
-            <Input.Search
+            <Input
+              type="search"
               className="w-full max-w-sm"
               aria-label="Поиск по имени"
               placeholder="Поиск по имени…"
               allowClear
+              prefix={<SearchOutlined aria-hidden />}
               value={searchText}
               onChange={(e) => handleSearchChange(e.target.value)}
             />

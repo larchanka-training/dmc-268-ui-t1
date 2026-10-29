@@ -693,6 +693,16 @@ describe('RepositoriesPage — поиск и фильтр', () => {
     )
   })
 
+  it('страница больше числа страниц после поиска — URL заменяется на последнюю отфильтрованную', async () => {
+    // Строк 24, это три страницы, а с `front` их 12, это две.
+    const router = renderFilteredAt('/repositories?q=front&page=3')
+
+    expect(await visibleNames()).toEqual(['front-11', 'front-12'])
+    await waitFor(() => expect(router.state.location.search).toBe('?q=front&page=2'))
+    expect(router.state.historyAction).toBe('REPLACE')
+    expect(screen.queryByRole('link', { name: '3' })).not.toBeInTheDocument()
+  })
+
   it('q из URL при открытии: стоит в поле, список отфильтрован', async () => {
     renderFilteredAt('/repositories?q=back-1')
 
@@ -735,6 +745,7 @@ describe('RepositoriesPage — поиск и фильтр', () => {
     fireEvent.change(searchBox(), { target: { value: 'front' } })
     await waitFor(() => expect(router.state.location.search).toBe('?q=front'))
     await act(() => router.navigate(-1))
+    expect(searchBox()).toHaveValue('')
     await act(() => router.navigate(1))
     expect(searchBox()).toHaveValue('front')
 
@@ -756,6 +767,13 @@ describe('RepositoriesPage — поиск и фильтр', () => {
     await waitFor(() => expect(router.state.location.search).toBe('?only=enabled'))
     expect((await visibleNames()).every((name) => name?.startsWith('front-'))).toBe(true)
     screen.getAllByRole('switch').forEach((el) => expect(el).toBeChecked())
+
+    // Переключение фильтра добавляет запись в историю: «назад» возвращает прежний адрес.
+    await act(() => router.navigate(-1))
+    expect(router.state.location.search).toBe('?page=3')
+    expect(await visibleNames()).toEqual(['back-09', 'back-10', 'back-11', 'back-12'])
+    await act(() => router.navigate(1))
+    expect(router.state.location.search).toBe('?only=enabled')
 
     await user.click(screen.getByText('Все'))
     await waitFor(() => expect(router.state.location.search).toBe(''))
