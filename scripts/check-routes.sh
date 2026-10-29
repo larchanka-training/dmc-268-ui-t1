@@ -181,6 +181,6 @@ fetch /sitemap.xml
 [ "$status" = 200 ] || fail "/sitemap.xml вернул ${status}, ожидался 200"
 
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help и /app/help/ (гость), /app/help/x и /app/helpx (гость на вход), /nope, /robots.txt, /sitemap.xml"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help и /app/help/ (гость), /app/help/x, /app/helpx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml"
 fi
 exit "$failed"
