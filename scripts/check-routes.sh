@@ -163,7 +163,12 @@ security_headers /robots.txt
 fetch /sitemap.xml
 [ "$status" = 200 ] || fail "/sitemap.xml вернул ${status}, ожидался 200"
 
+# Приём трейсов открыт только на POST: GET доказывает, что location есть, и
+# ничего не шлёт в коллектор стенда.
+fetch /otlp/v1/traces
+[ "$status" = 403 ] || fail "GET /otlp/v1/traces вернул ${status}, ожидался 403: приём трейсов — только POST"
+
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /nope, /robots.txt, /sitemap.xml"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
 fi
 exit "$failed"

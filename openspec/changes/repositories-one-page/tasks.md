@@ -2,7 +2,7 @@
 
 ## 1. Контракт и данные
 
-- [x] 1.1 `pnpm api:sync 853c9824fa35dbbce28cf39d07856db176c2cf33` (PR бэкенда #247); после мёржа бэкенда — `pnpm api:sync` с головы `develop`
+- [ ] 1.1 `pnpm api:sync 8366bc9691989549ab676467093ed2bf652f78d0` (голова стопки PR бэкенда #247, #248, #252); после мёржа бэкенда — `pnpm api:sync` с головы `develop`
 - [x] 1.2 `entities/repository`: `RepositoryListItemSchema` и `RepositoryListSchema` по `RepositoryListResponse` с `MatchesContract`; `fetchRepositories`, `disconnectRepository`; удалить `AvailableRepository*` и `fetchAvailableRepositories`
 - [x] 1.3 `ApiTransport.delete` в HTTP-клиенте, mock adapter и `fakeTransport`
 - [x] 1.4 `features/repository`: `useRepositories`, `useConnectRepository` (`409` — успех), `useDisconnectRepository`, инвалидация списка в `onSettled`; удалить `useAvailableRepositories`
@@ -20,4 +20,4 @@
 
 - [x] 3.1 Моки списка: подключён, не подключён, нет прав, выключен с `id`; `POST`/`DELETE` как в контракте
 - [x] 3.2 Тесты: переключатель вкл/выкл, `409` и `204` — успех, `501` у `DELETE`, неактивный без прав, кнопка по `install_url`, пустое состояние, итог возврата и очистка URL, нет страницы подключения и пункта меню, нет свитчера «Авто-ревью»
-- [x] 3.3 `pnpm run typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`; `openspec validate --all --strict`
+- [ ] 3.3 `pnpm run typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`; `openspec validate --all --strict`

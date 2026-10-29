@@ -209,7 +209,7 @@ const rawDiffFiles: DiffFile[] = [
   },
 ]
 
-/** Находки фикстуры опубликованы своими комментариями: повторов прошлого прогона нет. */
+// Повторов прошлых прогонов в фикстуре нет: каждая находка публикуется своим комментарием.
 const finding = (fields: Omit<ReviewFinding, 'covered_by_finding_id'>): ReviewFinding => ({
   ...fields,
   covered_by_finding_id: null,

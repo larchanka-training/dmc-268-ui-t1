@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * Возврат с установки GitHub App
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED (задача #243). Setup URL GitHub App: сюда GitHub возвращает браузер после установки приложения, её изменения или запроса владельцу. При «Only select repositories» подключает выбранные репозитории, где у пользователя admin или maintain, при «All repositories» — ничего.
+         * @description Setup URL GitHub App: сюда GitHub возвращает браузер после установки приложения, её изменения или запроса владельцу. Требует сессию; без неё или с недействительной cookie session — на вход. `setup_action=request` — ничего не подключает. Иначе нужен `state` из `install_url` списка GET /repositories, выданный этой сессии: без него или с чужим — ничего не подключает (`?connected=0`), к GitHub не обращается. `installation_id` не доверяется: ищется среди установок пользователя по его токену (`GET /user/installations`), свежий список видимых репозиториев пишется в кэш. При «Only select repositories» подключает репозитории установки, где у пользователя admin или maintain и которых в сервисе ещё нет; выключенные не включает. При «All repositories» — ничего. Токен пользователя непригоден — сессия закрывается, редирект на вход.
          */
         get: operations["finishGithubSetup"];
         put?: never;
@@ -164,7 +164,7 @@ export interface paths {
         post?: never;
         /**
          * Выключить ревью репозитория
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED (задача #243). Выключает ревью мягко: запись и история прогонов остаются, повторный POST /repositories включает обратно; уже выключен — тоже `204`. Права — как у POST /repositories: без admin или maintain — `403 REPOSITORY_MANAGE_REQUIRED`.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии. Выключает ревью мягко: запись, запросы на изменение и история прогонов остаются, вебхуки по репозиторию игнорируются, повторный POST /repositories включает обратно; уже выключен — тоже `204`. Прогон, поставленный в очередь до выключения, доводится до конца. Проверки по порядку: репозитория нет или пользователь не видит его на GitHub (кэш видимости, как у GET /repositories/{id}) — `404 REPOSITORY_NOT_FOUND`, ответ один и тот же; права — как у POST /repositories, запросом к GitHub мимо кэша: без admin или maintain — `403 REPOSITORY_MANAGE_REQUIRED`. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, ревью не выключено.
          */
         delete: operations["disconnectRepository"];
         options?: never;
@@ -1286,8 +1286,8 @@ export interface components {
             /**
              * Install Url
              * Format: uri
-             * @description Экран установки GitHub App (`https://github.com/apps/<slug>/installations/new`): выбрать аккаунт и репозитории. `null`, если slug приложения узнать не удалось: нет ключа приложения или GitHub не ответил на `GET /app`.
-             * @example https://github.com/apps/dmc-268-review/installations/new
+             * @description Экран установки GitHub App (`https://github.com/apps/<slug>/installations/new?state=<state>`): выбрать аккаунт и репозитории. `state` привязан к сессии, GitHub возвращает его на Setup URL (GET /auth/github/setup): без него возврат ничего не подключает. `null`, если slug приложения узнать не удалось: нет ключа приложения или GitHub не ответил на `GET /app`.
+             * @example https://github.com/apps/dmc-268-review/installations/new?state=3f2a9c0e
              */
             install_url: string | null;
         };
@@ -1458,7 +1458,8 @@ export interface components {
         };
         /**
          * RepositoryResponse
-         * @description Репозиторий, зарегистрированный в сервисе: его запросы на изменение ревьюятся.
+         * @description Репозиторий, зарегистрированный в сервисе, в том числе выключенный: его запросы на изменение ревьюятся,
+         *     пока ревью включено.
          */
         RepositoryResponse: {
             /**
@@ -2913,6 +2914,8 @@ export interface operations {
                 installation_id?: number | null;
                 /** @description Что сделал пользователь на GitHub: установил, изменил установку или запросил её у владельца. */
                 setup_action: "install" | "update" | "request";
+                /** @description `state` из `install_url`, который GitHub возвращает на Setup URL; привязан к сессии. */
+                state?: string | null;
             };
             header?: never;
             path?: never;
@@ -2938,16 +2941,6 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
-                };
-            };
-            /** @description Ручка ещё не реализована. */
-            501: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -3345,16 +3338,6 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
-                };
-            };
-            /** @description Ручка ещё не реализована. */
-            501: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
             /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */

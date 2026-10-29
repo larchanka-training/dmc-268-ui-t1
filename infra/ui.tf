@@ -65,6 +65,10 @@ resource "docker_container" "ui" {
     name = data.docker_network.dmc268.name
   }
 
+  networks_advanced {
+    name = data.docker_network.otlp.name
+  }
+
   volumes {
     volume_name    = docker_volume.acme.name
     container_path = "/var/lib/nginx-acme"

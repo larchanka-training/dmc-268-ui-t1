@@ -24,7 +24,7 @@ export const ReviewFindingSchema = z.object({
       check_text: z.string(),
     })
     .nullable(),
-  /** Повтор находки прошлого прогона, о которой уже говорит тред бота; свой комментарий не публиковался. */
+  /** Находка прошлого прогона, чей тред бота уже говорит об этой проблеме; `null` — своя публикация. */
   covered_by_finding_id: z.string().nullable(),
 })
 
