@@ -2,7 +2,7 @@
 
 ## 1. Контракт и данные
 
-- [ ] 1.1 `pnpm api:sync 168a8ece8d90a849d51187365b9a9319945aeac4` (голова стопки PR бэкенда #247, #248, #252); после мёржа бэкенда — `pnpm api:sync` с головы `develop`
+- [ ] 1.1 `pnpm api:sync 61fa8d4eded5b4f5996c9c19283ffe2fac7020da` (голова стопки PR бэкенда #247, #248, #252); после мёржа бэкенда — `pnpm api:sync` с головы `develop`
 - [x] 1.2 `entities/repository`: `RepositoryListItemSchema` и `RepositoryListSchema` по `RepositoryListResponse` с `MatchesContract`; `fetchRepositories`, `disconnectRepository`; удалить `AvailableRepository*` и `fetchAvailableRepositories`
 - [x] 1.3 `ApiTransport.delete` в HTTP-клиенте, mock adapter и `fakeTransport`
 - [x] 1.4 `features/repository`: `useRepositories`, `useConnectRepository` (`409` с `REPOSITORY_ALREADY_CONNECTED` — успех), `useDisconnectRepository`, инвалидация списка в `onSettled`; удалить `useAvailableRepositories`
