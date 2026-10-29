@@ -47,9 +47,9 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
         <li>Ревью у репозитория включено (переключатель «Ревью»).</li>
         <li>
           Это новый PR или новый пуш в открытый: бот реагирует на открытие PR и на каждый пуш в
-          него.
+          него. Повторное открытие закрытого PR ревью не запускает.
         </li>
-        <li>Статус прогона во вкладке «Ревью»: если он упал, там видна причина.</li>
+        <li>Откройте прогон во вкладке «Ревью»: если он упал, причина видна в его шапке.</li>
       </ul>
     ),
   },
@@ -96,7 +96,9 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
           <code>{RULES_EXAMPLE}</code>
         </pre>
         <Paragraph>
-          Правила берутся из целевой ветки PR. Без файла бот работает по правилам по умолчанию.
+          Правила берутся из целевой ветки PR, поэтому правка файла в самом PR начнёт действовать
+          после мёржа. Правило без <Text code>pattern:</Text> или без пунктов проверок бот
+          пропустит. Без файла бот работает по правилам по умолчанию.
         </Paragraph>
       </>
     ),
@@ -115,7 +117,7 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
   {
     id: 'who-sees',
     question: 'Кто видит мои прогоны?',
-    answer: <Paragraph>Только те, кто видит репозиторий на GitHub.</Paragraph>,
+    answer: <Paragraph>Участники репозитория, у которых есть к нему доступ на GitHub.</Paragraph>,
   },
 ]
 
@@ -130,13 +132,14 @@ export function HelpPage() {
   // Роутер сам не прокручивает к якорю: делаем это при открытии и при смене `#…`.
   useEffect(() => {
     if (!hash) return
-    document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView()
+    document.getElementById(hash.slice(1))?.scrollIntoView()
   }, [hash])
 
   return (
     <Layout className="app-layout-root">
-      <Layout.Header className="app-shell-header-bar app-main-header help-header">
-        <Link to="/">DMC Console</Link>
+      <Layout.Header className="app-shell-header-bar app-main-header">
+        <a href="/">DMC Console</a>
+        <Link to="/">В кабинет</Link>
         <Button
           type="text"
           icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}
@@ -150,7 +153,7 @@ export function HelpPage() {
             Помощь
           </Title>
 
-          <section aria-labelledby="start" className="page-section">
+          <section className="page-section">
             <Title level={2} id="start" className="help-anchor">
               Как начать
             </Title>
@@ -166,8 +169,8 @@ export function HelpPage() {
                 нажмите <Text strong>Install</Text>.
               </li>
               <li>
-                GitHub вернёт вас в сервис. Отмеченные репозитории уже в списке, ревью в них
-                включено.
+                GitHub вернёт вас в сервис. Отмеченные репозитории уже в списке. Где у вас роль
+                admin или maintain, ревью включено; в остальных его включит администратор.
               </li>
               <li>
                 Откройте PR в одном из них: бот пришлёт ревью комментариями, а прогон будет виден во
@@ -180,12 +183,12 @@ export function HelpPage() {
             </Paragraph>
           </section>
 
-          <section aria-labelledby="faq" className="page-section">
+          <section className="page-section">
             <Title level={2} id="faq">
               Вопросы и ответы
             </Title>
             {FAQ.map(({ id, question, answer }) => (
-              <article key={id} aria-labelledby={id}>
+              <article key={id}>
                 <Title level={3} id={id} className="help-anchor">
                   {question}
                 </Title>

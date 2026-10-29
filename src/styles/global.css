@@ -170,13 +170,7 @@ body {
   border-color: transparent;
 }
 
-/* Помощь: якоря не прячутся под прокрутку, пример правил — моноширинным блоком. */
-.help-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
+/* Помощь: отступ над якорем при прокрутке, пример правил моноширинным блоком. */
 .help-content {
   max-width: 800px;
   margin: 0 auto;

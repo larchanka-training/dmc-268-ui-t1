@@ -129,6 +129,7 @@ location_is '/login?redirect=/app/a%2520b' || fail "/app/a%20b без cookie с�
 fetch /app/help
 [ "$status" = 200 ] || fail "/app/help без cookie сессии вернул ${status}, ожидался 200"
 has "$body" 'id="root"' || fail "в /app/help нет id=\"root\": это не приложение"
+security_headers "/app/help без cookie сессии"
 
 fetch /login
 [ "$status" = 200 ] || fail "/login вернул ${status}, ожидался 200"
