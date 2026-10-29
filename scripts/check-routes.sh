@@ -139,6 +139,7 @@ has "$body" 'id="root"' || fail "в /app/help/ нет id=\"root\": это не �
 for path in /app/help/x /app/helpx /app/repositories; do
   fetch "$path"
   [ "$status" = 302 ] || fail "$path без cookie сессии вернул ${status}, ожидался 302 на /login"
+  location_is "/login?redirect=$path" || fail "$path без cookie сессии не уводит на /login?redirect=$path"
 done
 
 fetch /login
@@ -180,6 +181,6 @@ fetch /sitemap.xml
 [ "$status" = 200 ] || fail "/sitemap.xml вернул ${status}, ожидался 200"
 
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /nope, /robots.txt, /sitemap.xml"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help и /app/help/ (гость), /app/help/x и /app/helpx (гость на вход), /nope, /robots.txt, /sitemap.xml"
 fi
 exit "$failed"
