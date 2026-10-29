@@ -19,7 +19,7 @@ import { PageNav } from '@/shared/ui'
 /** Query-параметр поиска по имени. */
 const SEARCH_PARAM = 'q'
 const PAGE_SIZE = 8
-/** Подсказка у неактивной кнопки: подключать на бэкенде можно с ролью admin или maintain. */
+/** Причина вместо кнопки «Подключить»: подключать на бэкенде можно с ролью admin или maintain. */
 const MANAGE_REQUIRED_HINT = 'Нужны права admin или maintain в репозитории на GitHub'
 
 /** Метка в `location.state` у записей истории, которые создал сам ввод поиска. */

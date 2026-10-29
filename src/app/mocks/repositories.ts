@@ -29,7 +29,7 @@ const installation: InstallationRepository[] = [
   provider_id,
   full_name,
   default_branch,
-  // `infra` — роль ниже maintain: кнопка «Подключить» неактивна (#45).
+  // `infra`: роль ниже maintain, вместо кнопки «Подключить» причина (#45).
   can_connect: provider_id !== '104',
 }))
 
