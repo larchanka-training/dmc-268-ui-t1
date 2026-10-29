@@ -307,6 +307,20 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
     expect(screen.queryByText('Репозиторий уже подключён')).not.toBeInTheDocument()
   })
 
+  it('вкл: другой 409 — ошибка, переключатель остаётся «выкл»', async () => {
+    const user = userEvent.setup()
+    const post = vi.fn(async () => {
+      throw new ApiError(409, 'Конфликт установки', 'INSTALLATION_CONFLICT')
+    })
+    renderRepositoriesPage({ get: listBackend([OFF]).get, post })
+
+    await screen.findByText('larchanka-training/docs')
+    await user.click(reviewSwitch('larchanka-training/docs'))
+
+    expect(await screen.findByText('Конфликт установки')).toBeInTheDocument()
+    expect(reviewSwitch('larchanka-training/docs')).not.toBeChecked()
+  })
+
   it('вкл: 403 — сообщение об ошибке, переключатель остаётся «выкл»', async () => {
     const user = userEvent.setup()
     const post = vi.fn(async () => {
@@ -476,9 +490,6 @@ describe('RepositoriesPage — возврат с GitHub', () => {
       'Приложение установлено. Включите ревью переключателем в нужных репозиториях.',
     ],
     ['?requested=true', 'Запрос на установку отправлен владельцу'],
-    ['?setup_error=provider_unavailable', /GitHub не ответил/],
-    ['?setup_error=installation_not_found', /не нашёл эту установку/],
-    ['?setup_error=something_new', 'Не удалось завершить установку приложения на GitHub.'],
   ])('%s — сообщение, итог убран из URL, список запрошен', async (query, text) => {
     const backend = listBackend([ON])
     const { router } = renderRepositoriesPage(backend.get, `/repositories${query}`)
@@ -488,6 +499,25 @@ describe('RepositoriesPage — возврат с GitHub', () => {
     expect(router.state.historyAction).toBe('REPLACE')
     expect(backend.get).toHaveBeenCalledWith('/repositories?limit=200&offset=0')
     expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
+  })
+
+  it.each([
+    ['?setup_error=provider_unavailable', /GitHub не ответил/],
+    ['?setup_error=installation_not_found', /не нашёл эту установку/],
+    ['?setup_error=something_new', 'Не удалось завершить установку приложения на GitHub.'],
+  ])('%s — плашка с ошибкой остаётся до закрытия, итог убран из URL', async (query, text) => {
+    const user = userEvent.setup()
+    const { router } = renderRepositoriesPage(listBackend([ON]).get, `/repositories${query}`)
+
+    const alert = (await screen.findByText(text)).closest('[role="alert"]')
+    expect(alert).not.toBeNull()
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    expect(router.state.historyAction).toBe('REPLACE')
+    expect(await screen.findByText('larchanka-training/platform-api')).toBeInTheDocument()
+    expect(screen.getByText(text)).toBeInTheDocument()
+
+    await user.click(within(alert as HTMLElement).getByRole('button', { name: /close/i }))
+    await waitFor(() => expect(screen.queryByText(text)).not.toBeInTheDocument())
   })
 
   it('чужие параметры адреса остаются', async () => {

@@ -1,6 +1,6 @@
 import { Alert, Button, Empty, Modal, Space, Switch, Table, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import type { RepositoryListItem } from '@/entities/repository'
 import {
@@ -71,6 +71,12 @@ export function RepositoriesPage() {
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
   const [searchParams, setSearchParams] = useSearchParams()
+  // Ошибка установки живёт до закрытия: тост на три секунды легко пропустить, а в нём инструкция.
+  // С GitHub возвращаются загрузкой страницы, поэтому параметры читаются при монтировании.
+  const [setupError, setSetupError] = useState(() => {
+    const result = setupResultOf(searchParams)
+    return result?.type === 'error' ? result.content : null
+  })
   const repos = data?.items
   const installUrl = data?.install_url
   const urlPage = useUrlPage({ pageSize: PAGE_SIZE })
@@ -78,13 +84,13 @@ export function RepositoriesPage() {
   useNormalizeUrlPage(urlPage, pageCount)
   const page = clampPage(urlPage.page, pageCount)
 
-  // Возврат с GitHub: сообщение и чистый URL. Список перезапрашивается при открытии
+  // Возврат с GitHub: итог и чистый URL. Успех — тостом, ошибка — плашкой на странице. Список перезапрашивается при открытии
   // страницы (данные в кэше сразу устаревают), отдельного запроса не нужно.
   useEffect(() => {
     if (!SETUP_PARAMS.some((name) => searchParams.has(name))) return
     const result = setupResultOf(searchParams)
     // Ключ: повторный вызов (StrictMode) заменяет сообщение, а не дублирует его.
-    if (result) void messageApi.open({ key: 'github-setup', ...result })
+    if (result && result.type !== 'error') void messageApi.open({ key: 'github-setup', ...result })
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev)
@@ -208,6 +214,17 @@ export function RepositoriesPage() {
           </Typography.Link>
         </Space>
       </div>
+      {setupError && (
+        <Alert
+          className="page-error"
+          type="error"
+          showIcon
+          closable
+          message="Установка на GitHub не завершилась"
+          description={setupError}
+          onClose={() => setSetupError(null)}
+        />
+      )}
       {/* Подсказка, а не тревога: `role="alert"` по умолчанию у antd зачитывался бы сразу. */}
       <Alert
         role="note"

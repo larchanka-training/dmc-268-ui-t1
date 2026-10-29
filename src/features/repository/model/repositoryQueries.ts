@@ -31,8 +31,8 @@ export function useRepositories() {
 }
 
 /**
- * Переключатель «Ревью» — вкл. `409` — успех: ревью уже включено, в том числе параллельным
- * запросом. Список перезапрашивается и после ошибки: строка могла измениться на сервере.
+ * Переключатель «Ревью» — вкл. `409 REPOSITORY_ALREADY_CONNECTED` — успех: ревью уже
+ * включено, в том числе параллельным запросом. Другой `409` — ошибка. Список перезапрашивается и после ошибки: строка могла измениться на сервере.
  */
 export function useConnectRepository() {
   const transport = useTransport()
@@ -43,7 +43,11 @@ export function useConnectRepository() {
       try {
         await connectRepository(transport, request)
       } catch (error) {
-        if (!(error instanceof ApiError && error.status === 409)) throw error
+        const alreadyConnected =
+          error instanceof ApiError &&
+          error.status === 409 &&
+          error.code === 'REPOSITORY_ALREADY_CONNECTED'
+        if (!alreadyConnected) throw error
       }
     },
     onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
