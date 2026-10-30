@@ -160,3 +160,22 @@ body {
 .page-nav-link[aria-disabled='true']:hover {
   border-color: transparent;
 }
+
+/* Помощь: отступ над якорем при прокрутке, пример правил моноширинным блоком. */
+.help-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.help-anchor {
+  scroll-margin-top: 16px;
+}
+
+.help-code {
+  padding: 12px 16px;
+  overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+}

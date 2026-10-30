@@ -125,6 +125,24 @@ location_is '/login?redirect=/app/' || fail "адрес с переводом с
 fetch '/app/a%20b'
 location_is '/login?redirect=/app/a%2520b' || fail "/app/a%20b без cookie сессии не уводит на /login?redirect=/app/a%2520b"
 
+# Помощь открыта гостю: HTML приложения без редиректа на вход.
+fetch /app/help
+[ "$status" = 200 ] || fail "/app/help без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/help нет id=\"root\": это не приложение"
+security_headers "/app/help без cookie сессии"
+
+fetch /app/help/
+[ "$status" = 200 ] || fail "/app/help/ без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/help/ нет id=\"root\": это не приложение"
+security_headers "/app/help/ без cookie сессии"
+
+# Исключение только для самой помощи: глубже и рядом гостя уводят на вход.
+for path in /app/help/x /app/helpx /app/repositories; do
+  fetch "$path"
+  [ "$status" = 302 ] || fail "$path без cookie сессии вернул ${status}, ожидался 302 на /login"
+  location_is "/login?redirect=$path" || fail "$path без cookie сессии не уводит на /login?redirect=$path"
+done
+
 fetch /login
 [ "$status" = 200 ] || fail "/login вернул ${status}, ожидался 200"
 if has "$body" 'id="root"'; then fail "/login отдаёт приложение вместо статичной страницы"; fi
@@ -169,6 +187,6 @@ fetch /otlp/v1/traces
 [ "$status" = 403 ] || fail "GET /otlp/v1/traces вернул ${status}, ожидался 403: приём трейсов — только POST"
 
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help и /app/help/ (гость), /app/help/x, /app/helpx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
 fi
 exit "$failed"
