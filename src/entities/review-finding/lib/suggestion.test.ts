@@ -19,6 +19,12 @@ describe('parseSuggestion', () => {
     ],
     ['CRLF', '-a\r\n+b', [removed('a'), added('b')]],
     ['только вставка', '+a', [added('a')]],
+    [
+      'без перевода строки в конце файла',
+      '-a\n+b\n\\ No newline at end of file',
+      [removed('a'), added('b')],
+    ],
+    ['CRLF в конце', '-a\r\n+b\r\n', [removed('a'), added('b')]],
   ])('%s', (_name, suggestion, expected) => {
     expect(parseSuggestion(suggestion, 'строка замечания')).toEqual(expected)
   })
