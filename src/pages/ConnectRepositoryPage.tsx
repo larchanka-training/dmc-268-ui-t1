@@ -19,6 +19,8 @@ import { PageNav } from '@/shared/ui'
 /** Query-параметр поиска по имени. */
 const SEARCH_PARAM = 'q'
 const PAGE_SIZE = 8
+/** Причина вместо кнопки «Подключить»: подключать на бэкенде можно с ролью admin или maintain. */
+const MANAGE_REQUIRED_HINT = 'Нужны права admin или maintain в репозитории на GitHub'
 
 /** Метка в `location.state` у записей истории, которые создал сам ввод поиска. */
 const SEARCH_EDIT = { searchEdit: true }
@@ -119,7 +121,7 @@ export function ConnectRepositoryPage() {
           <Tag icon={<CheckOutlined />} color="success">
             Подключён
           </Tag>
-        ) : (
+        ) : record.can_connect ? (
           <Button
             type="primary"
             size="small"
@@ -132,6 +134,10 @@ export function ConnectRepositoryPage() {
           >
             Подключить
           </Button>
+        ) : (
+          // Без прав бэкенд ответит 403. Причина текстом, а не подсказкой у неактивной
+          // кнопки: та не получает фокус, с клавиатуры и в скринридере её не видно.
+          <Typography.Text type="secondary">{MANAGE_REQUIRED_HINT}</Typography.Text>
         ),
     },
   ]

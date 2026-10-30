@@ -4,3 +4,10 @@
 data "docker_network" "dmc268" {
   name = "dmc268"
 }
+
+# Сеть приёма трейсов браузера: в ней nginx находит коллектор dmc268-otelcol
+# (location = /otlp/v1/traces). Создаёт её стек бэкенда, и без флага стека
+# наблюдаемости тоже, поэтому поиск не падает и на стенде без коллектора.
+data "docker_network" "otlp" {
+  name = "dmc268-otlp"
+}

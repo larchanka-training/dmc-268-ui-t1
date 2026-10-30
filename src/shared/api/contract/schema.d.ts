@@ -15,7 +15,7 @@ export interface paths {
         put?: never;
         /**
          * Принять webhook-доставку от хостинга и поставить ревью в очередь
-         * @description Без сессии и без проверки Origin: доставку подтверждает подпись. ReviewJob создан или, если для этого коммита уже есть нетерминальный, возвращён существующий. Дубль — не ошибка: не-2xx хостинг считает неудачной доставкой и повторяет её, поэтому 409 здесь не отдаём.
+         * @description Без сессии и без проверки Origin: доставку подтверждает подпись. ReviewJob создан или, если для этого коммита уже есть нетерминальный или завершённый не-failed прогон по вебхуку, возвращён существующий. Дубль — не ошибка, поэтому 409 здесь не отдаём: не-2xx GitHub записывает неудавшейся доставкой, а такие доставки переотправляет воркер. У VCS приём запрашивает только метаданные PR, их сбой — 502; дифф с лимитом размера достаёт воркер, его сбой или превышение лимита — failed прогона, а не ответ доставки.
          */
         post: operations["receiveWebhook"];
         delete?: never;
@@ -113,7 +113,7 @@ export interface paths {
         };
         /**
          * Репозитории, доступные для подключения
-         * @description Требует сессию. Репозитории установок GitHub App, доступные вошедшему пользователю, с отметкой `already_connected` — зарегистрирован ли репозиторий в сервисе. Список отдаёт GitHub по токену пользователя, сохранённому при входе (`GET /user/installations` и `GET /user/installations/{id}/repositories`): это пересечение «доступно приложению» и «доступно пользователю», остальные репозитории установок в ответ не попадают, это не ошибка. Публичный репозиторий, на котором у пользователя нет роли, тоже не попадает. Подключить из списка можно только с правом admin или maintain: с push или triage подключение ответит `403 REPOSITORY_MANAGE_REQUIRED`, как и на приватном только с правом чтения; на публичном только с правом чтения — `404 REPOSITORY_NOT_IN_INSTALLATION`. Токен пользователя отозван, истёк без возможности обновления или его нет (сессия открыта до хранения токенов) — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется: нужен новый вход. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
+         * @description Требует сессию. Репозитории установок GitHub App, доступные вошедшему пользователю, с отметкой `already_connected` — зарегистрирован ли репозиторий в сервисе. Список отдаёт GitHub по токену пользователя, сохранённому при входе (`GET /user/installations` и `GET /user/installations/{id}/repositories`): это пересечение «доступно приложению» и «доступно пользователю», остальные репозитории установок в ответ не попадают, это не ошибка. Публичный репозиторий, на котором у пользователя нет роли, тоже не попадает. Подключить из списка можно только с правом admin или maintain, это показывает `can_connect` в каждой строке. С push или triage подключение ответит `403 REPOSITORY_MANAGE_REQUIRED`, как и на приватном только с правом чтения; на публичном только с правом чтения — `404 REPOSITORY_NOT_IN_INSTALLATION`. Токен пользователя отозван, истёк без возможности обновления или его нет (сессия открыта до хранения токенов) — `401 UNAUTHENTICATED`, сессия закрывается, cookie удаляется: нужен новый вход. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
          */
         get: operations["listAvailableRepositories"];
         put?: never;
@@ -345,10 +345,11 @@ export interface components {
          * @description Любая ошибка — по модели на код, выбор по `code`.
          *
          *     Коды, которые возможны на любом запросе: `ROUTE_NOT_FOUND` (такого пути нет),
-         *     `METHOD_NOT_ALLOWED` (метод не объявлен), `HTTP_ERROR` (прочий отказ фреймворка) и
-         *     `INTERNAL_ERROR` (сбой сервера). Остальные коды операция объявляет в своих ответах.
+         *     `METHOD_NOT_ALLOWED` (метод не объявлен), `REQUEST_BODY_TOO_LARGE` (тело больше лимита),
+         *     `HTTP_ERROR` (прочий отказ фреймворка) и `INTERNAL_ERROR` (сбой сервера). Остальные коды
+         *     операция объявляет в своих ответах; `413` — ещё и каждая операция с телом.
          */
-        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
+        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
         /**
          * AvailableRepositoryListResponse
          * @description Репозитории, доступные для подключения.
@@ -362,7 +363,7 @@ export interface components {
         };
         /**
          * AvailableRepositoryResponse
-         * @description Репозиторий у провайдера, который вошедший пользователь может подключить к сервису.
+         * @description Репозиторий у провайдера, доступный вошедшему пользователю; подключить его можно, если `can_connect`.
          */
         AvailableRepositoryResponse: {
             /**
@@ -393,6 +394,11 @@ export interface components {
              * @description Репозиторий уже зарегистрирован в сервисе.
              */
             already_connected: boolean;
+            /**
+             * Can Connect
+             * @description У пользователя на репозитории роль admin или maintain — то же правило, что у POST /repositories. Подсказка интерфейсу: POST /repositories проверяет права сам.
+             */
+            can_connect: boolean;
         };
         /**
          * CommentKind
@@ -412,7 +418,7 @@ export interface components {
             provider: components["schemas"]["Provider"];
             /**
              * Provider Id
-             * @description Идентификатор репозитория у провайдера (из списка доступных).
+             * @description Идентификатор репозитория у провайдера (из списка доступных): число без ведущих нулей.
              * @example 123456789
              */
             provider_id: string;
@@ -626,6 +632,11 @@ export interface components {
             confidence: number | null;
             /** @description Пункт правила владельца, по которому выпущена находка; null - находка по стандартным критериям. */
             rule: components["schemas"]["RuleRefResponse"] | null;
+            /**
+             * Covered By Finding Id
+             * @description Находка прошлого прогона того же запроса на изменение, чей тред бота уже говорит об этой проблеме: своего комментария у находки нет, повтор не публиковался. null - находка опубликована своим комментарием или прогон её ещё не публиковал.
+             */
+            covered_by_finding_id: string | null;
         };
         /**
          * FindingSeverity
@@ -1560,6 +1571,67 @@ export interface components {
             full_name: string;
         };
         /**
+         * RequestBodyTooLargeProblem
+         * @description `413 REQUEST_BODY_TOO_LARGE`: тело запроса больше лимита.
+         *
+         *     Лимит: `WEBHOOK_BODY_MAX_BYTES` (2 МиБ) у приёма вебхука, `REQUEST_BODY_MAX_BYTES`
+         *     (1 МиБ) у остальных ручек; `detail` называет сработавший.
+         *
+         *     Отказ — до разбора тела, сессии и подписи вебхука: по `Content-Length` тело не читается
+         *     вовсе, поток без него обрывается на лимите. Соединение после ответа закрывается.
+         * @example {
+         *       "code": "REQUEST_BODY_TOO_LARGE",
+         *       "detail": "Тело запроса больше лимита 2097152 байт.",
+         *       "instance": "/api/v1/webhooks/github",
+         *       "status": 413,
+         *       "title": "Тело запроса слишком большое",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:request-body-too-large"
+         *     }
+         */
+        RequestBodyTooLargeProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:request-body-too-large
+             * @constant
+             */
+            type: "urn:dmc-268:problem:request-body-too-large";
+            /**
+             * Title
+             * @default Тело запроса слишком большое
+             * @constant
+             */
+            title: "Тело запроса слишком большое";
+            /**
+             * Status
+             * @default 413
+             * @constant
+             */
+            status: 413;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "REQUEST_BODY_TOO_LARGE";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
          * ReviewAlreadyActiveProblem
          * @description `409 REVIEW_ALREADY_ACTIVE`: ручной запуск, когда прогон по этому коммиту уже идёт.
          *
@@ -1640,7 +1712,7 @@ export interface components {
              * @example LLM_TIMEOUT
              * @enum {string}
              */
-            code: "SCM_AUTH_ERROR" | "PR_NOT_FOUND" | "REPOSITORY_NOT_FOUND" | "SCM_UNAVAILABLE" | "CONTEXT_PARSING_ERROR" | "LLM_RATE_LIMITED" | "LLM_TIMEOUT" | "LLM_UNAVAILABLE" | "LLM_INVALID_OUTPUT" | "PROMPT_TOO_LARGE" | "REVIEW_RUN_STALE" | "INTERNAL_ERROR";
+            code: "SCM_AUTH_ERROR" | "PR_NOT_FOUND" | "REPOSITORY_NOT_FOUND" | "SCM_UNAVAILABLE" | "CONTEXT_PARSING_ERROR" | "LLM_RATE_LIMITED" | "LLM_TIMEOUT" | "LLM_UNAVAILABLE" | "LLM_INVALID_OUTPUT" | "PROMPT_TOO_LARGE" | "DIFF_TOO_LARGE" | "REVIEW_RUN_STALE" | "INTERNAL_ERROR";
             /**
              * Message
              * @description Что случилось — по-русски, для показа пользователю.
@@ -2671,6 +2743,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["WebhookSignatureInvalidProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -2701,7 +2783,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2748,7 +2830,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProviderNotSupportedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2799,7 +2881,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ProviderNotSupportedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2840,7 +2922,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2879,7 +2961,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["OriginForbiddenProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2930,7 +3012,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -2996,7 +3078,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3071,6 +3153,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["RepositoryAlreadyConnectedProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3091,7 +3183,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3165,7 +3257,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3239,7 +3331,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3307,6 +3399,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3327,7 +3429,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3401,7 +3503,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3480,7 +3582,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3560,7 +3662,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3625,6 +3727,16 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ReviewAlreadyActiveProblem"];
                 };
             };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
             422: {
                 headers: {
@@ -3645,7 +3757,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["NotImplementedProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3719,7 +3831,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3803,7 +3915,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3877,7 +3989,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3931,7 +4043,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
-            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
             default: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
