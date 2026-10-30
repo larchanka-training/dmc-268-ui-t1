@@ -7,7 +7,7 @@
 
 ## 2. Доставка
 
-- [x] 2.1 `nginx/site.conf`: `location = /app/help` без проверки cookie; `scripts/check-routes.sh`: гость получает `200` на `/app/help`
+- [x] 2.1 `nginx/site.conf`: `location ~ ^/app/help/?$` без проверки cookie; `scripts/check-routes.sh`: гость получает `200` на `/app/help`
 
 ## 3. Тесты
 

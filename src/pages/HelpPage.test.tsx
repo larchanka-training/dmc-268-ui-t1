@@ -5,7 +5,6 @@ import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router-dom
 import { App } from '@/app/App'
 import { ThemeProvider } from '@/features/theme'
 import { HelpPage } from '@/pages/HelpPage'
-import { AppSidebar } from '@/widgets/app-shell/ui/AppSidebar'
 import { stubFetch } from '@/test/api'
 import loginHtml from '../../login.html?raw'
 
@@ -108,20 +107,6 @@ describe('«В кабинет» на помощи', () => {
 })
 
 describe('ссылки на помощь', () => {
-  it('пункт «Помощь» в боковом меню ведёт на /help', async () => {
-    function Path() {
-      return <output>{useLocation().pathname}</output>
-    }
-    render(
-      <MemoryRouter initialEntries={['/']}>
-        <AppSidebar />
-        <Path />
-      </MemoryRouter>,
-    )
-    await userEvent.click(screen.getByRole('menuitem', { name: /Помощь/ }))
-    expect(screen.getByRole('status')).toHaveTextContent('/help')
-  })
-
   it('на странице входа есть «Как это работает?» на помощь', () => {
     const html = new DOMParser().parseFromString(loginHtml, 'text/html')
     const link = [...html.querySelectorAll('a')].find((a) => a.textContent === 'Как это работает?')

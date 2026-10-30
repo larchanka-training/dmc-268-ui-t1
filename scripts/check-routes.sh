@@ -134,6 +134,7 @@ security_headers "/app/help без cookie сессии"
 fetch /app/help/
 [ "$status" = 200 ] || fail "/app/help/ без cookie сессии вернул ${status}, ожидался 200"
 has "$body" 'id="root"' || fail "в /app/help/ нет id=\"root\": это не приложение"
+security_headers "/app/help/ без cookie сессии"
 
 # Исключение только для самой помощи: глубже и рядом гостя уводят на вход.
 for path in /app/help/x /app/helpx /app/repositories; do
