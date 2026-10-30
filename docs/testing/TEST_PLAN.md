@@ -2,8 +2,7 @@
 
 Стратегия и уровни тестирования интерфейса: просмотр одного прогона ревью, дифф, свёрнутый
 контекст, inline-замечания и технический trace прогона. Слои, компоненты и модели — в
-[`FRONTEND_ARCHITECTURE.md`](../../FRONTEND_ARCHITECTURE.md), ревизия 5.0 — готовится в
-[dmc-268-ui-t1#6](https://github.com/larchanka-training/dmc-268-ui-t1/pull/6). План правится в
+[`FRONTEND_ARCHITECTURE.md`](../../FRONTEND_ARCHITECTURE.md). План правится в
 том же PR, что меняет описанное там поведение.
 
 ## 1. Риски, ради которых существует план
