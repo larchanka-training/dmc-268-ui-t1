@@ -191,8 +191,9 @@ run "nginx_logs_go_to_the_logs_collector" {
     condition = (
       docker_container.ui.log_driver == "fluentd"
       && docker_container.ui.log_opts["fluentd-address"] == "tcp://127.0.0.1:24224"
+      && docker_container.ui.log_opts["fluentd-async"] == "true"
       && docker_container.ui.log_opts["tag"] == "{{.Name}}"
     )
-    error_message = "Логи nginx уходят драйвером fluentd в коллектор логов на петле хоста, тег — имя контейнера (service_name в Loki)."
+    error_message = "Логи nginx уходят драйвером fluentd в коллектор логов на петле хоста, тег — имя контейнера (service_name в Loki); async — без коллектора nginx всё равно стартует."
   }
 }
