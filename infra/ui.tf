@@ -54,6 +54,21 @@ resource "docker_container" "ui" {
   stop_signal           = "SIGQUIT"
   destroy_grace_seconds = 10
 
+  # Логи nginx — в Loki через коллектор логов бэкенда на петле хоста: он скрывает
+  # IP клиентов и query в URL (коды OAuth). Опции — те же, что local.fluentd_log_opts
+  # в infra бэкенда (dmc-268-api-t1, infra/README.md, «Логи контейнеров»): async —
+  # nginx стартует и без приёмника, буфер dockerd и кэш `docker logs` ограничены.
+  log_driver = "fluentd"
+  log_opts = {
+    "fluentd-address"              = "tcp://127.0.0.1:24224"
+    "fluentd-async"                = "true"
+    "fluentd-sub-second-precision" = "true"
+    "fluentd-buffer-limit"         = "10000"
+    "cache-max-size"               = "10m"
+    "cache-max-file"               = "3"
+    "tag"                          = "{{.Name}}"
+  }
+
   # Пустой PUBLIC_HOST — режим HTTP без обращения к ACME-серверу (см.
   # nginx/select-site.sh). acme_directory пустой — боевой Let's Encrypt.
   env = compact([
