@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  Alert,
-  Button,
-  Card,
-  Form,
-  Radio,
-  Result,
-  Select,
-  Skeleton,
-  Space,
-  Switch,
-  Typography,
-} from 'antd'
+import { Alert, Button, Card, Form, Radio, Result, Select, Skeleton, Space, Typography } from 'antd'
 import { useParams } from 'react-router-dom'
 import { isNotImplemented, ApiError, ContractError } from '@/shared/api'
 import { ErrorState, LinkButton } from '@/shared/ui'
@@ -106,8 +94,14 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
         onValuesChange={() => setIsDirty(true)}
         onFinish={(values) =>
           save.mutate(
+            // Свитчер убран до запуска ревью по вызову: без Form.Item поля нет в values,
+            // а контракт его требует — флаг уходит как был сохранён.
             // Нормализация под ограничения контракта: пустые и повторы не сохраняются.
-            { ...values, branch_filter: normalizeBranchFilter(values.branch_filter ?? []) },
+            {
+              ...values,
+              auto_review_enabled: data.auto_review_enabled,
+              branch_filter: normalizeBranchFilter(values.branch_filter ?? []),
+            },
             { onSuccess: () => setIsDirty(false) },
           )
         }
@@ -125,9 +119,6 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
         {save.isSuccess && !isDirty && (
           <Alert className="page-error" type="success" showIcon title="Настройки сохранены" />
         )}
-        <Form.Item name="auto_review_enabled" label="Авто-ревью" valuePropName="checked">
-          <Switch />
-        </Form.Item>
         <Form.Item
           name="branch_filter"
           label="Фильтр веток"
@@ -214,10 +205,10 @@ export function RepositorySettingsPage() {
   const repoQuery = useRepository(repositoryId)
   const queryClient = useQueryClient()
 
-  // Репозиторий исчез (отключили, а ссылка осталась): список подключённых устарел.
+  // Репозиторий исчез (приложение сняли, а ссылка осталась): список устарел.
   useEffect(() => {
     if (isNotFound(repoQuery.error)) {
-      void queryClient.invalidateQueries({ queryKey: repositoryKeys.connected })
+      void queryClient.invalidateQueries({ queryKey: repositoryKeys.list })
     }
   }, [repoQuery.error, queryClient])
 

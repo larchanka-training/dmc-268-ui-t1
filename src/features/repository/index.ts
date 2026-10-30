@@ -1,8 +1,9 @@
 export {
   repositoryKeys,
-  useAvailableRepositories,
   useConnectRepository,
-  useConnectedRepositories,
+  useDisconnectRepository,
+  usePendingReviewToggles,
+  useRepositories,
   useRepository,
   useRepositorySettings,
   useRulesStatus,

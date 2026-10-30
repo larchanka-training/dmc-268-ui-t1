@@ -2,7 +2,7 @@ import { Button, Input, Segmented, Select } from 'antd'
 import { useState } from 'react'
 
 import { KNOWN_STATUSES, RUN_STATUS_LABELS, type KnownRunStatus } from '@/entities/review-run'
-import { useConnectedRepositories } from '@/features/repository'
+import { useRepositories } from '@/features/repository'
 
 import { MAX_REPOSITORIES, type ActivityFilter, type ReviewListFilters } from '../model/filters'
 
@@ -61,12 +61,16 @@ function CommitInput({
 
 export function ReviewFilters({ filters, onChange, onReset }: Props) {
   const {
-    data: repositories,
+    data: repositoryList,
     isLoading: repositoriesLoading,
     isLoadingError: repositoriesFailed,
     refetch: refetchRepositories,
-  } = useConnectedRepositories()
-  // Репозиторий из ссылки может быть уже не подключён: показываем его id, а не теряем фильтр.
+  } = useRepositories()
+  // Прогоны есть только у репозиториев с записью в сервисе (`id`), в том числе у выключенных.
+  const repositories = repositoryList?.items.flatMap((repo) =>
+    repo.id === null ? [] : [{ id: repo.id, full_name: repo.full_name }],
+  )
+  // Репозиторий из ссылки может пропасть из списка: показываем его id, а не теряем фильтр.
   const repositoryOptions = [
     ...(repositories ?? []).map((repo) => ({ label: repo.full_name, value: repo.id })),
     ...filters.repositoryIds

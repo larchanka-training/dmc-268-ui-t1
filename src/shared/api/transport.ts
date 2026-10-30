@@ -10,6 +10,8 @@ export type ApiTransport = {
   post: (path: string, body: unknown) => Promise<unknown>
   /** Заменяющий запрос с JSON-телом (`PUT` в контракте); ответ без тела (`204`) — `null`. */
   put: (path: string, body: unknown) => Promise<unknown>
+  /** Удаляющий запрос без тела; ответ без тела (`204`) — `null`. */
+  delete: (path: string) => Promise<unknown>
 }
 
 export const TransportContext = createContext<ApiTransport | null>(null)

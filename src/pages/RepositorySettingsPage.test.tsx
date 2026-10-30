@@ -163,7 +163,11 @@ function backendTransport(backend: Backend) {
     throw new Error(`неожиданный запрос POST ${path}`)
   })
 
-  return { get, put, post }
+  const del = vi.fn(async (path: string): Promise<unknown> => {
+    throw new Error(`неожиданный запрос DELETE ${path}`)
+  })
+
+  return { get, put, post, delete: del }
 }
 
 function deferred() {
@@ -192,8 +196,7 @@ describe('RepositorySettingsPage: загрузка', () => {
   it('форма показывает сохранённые значения repo-1', async () => {
     renderSettingsPage()
 
-    expect(await screen.findByRole('switch')).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
     expect(screen.getByText('feature/**')).toBeInTheDocument()
     expect(screen.getByText('fix/**')).toBeInTheDocument()
     // A11y: группа радиокнопок порога severity имеет имя (замечание ревью).
@@ -219,13 +222,13 @@ describe('RepositorySettingsPage: загрузка', () => {
     renderSettingsPage('repo-1', backend)
 
     expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
   })
 
   it('тулбар ведёт на вкладку «Ревью» с фильтром по этому репозиторию', async () => {
     renderSettingsPage('repo-1')
 
-    expect(await screen.findByRole('switch')).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
     const runsLink = screen.getByRole('link', { name: 'Прогоны репозитория' })
     expect(runsLink).toHaveAttribute('href', '/reviews?repository_id=repo-1')
   })
@@ -236,16 +239,17 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const user = userEvent.setup()
     const { transport } = renderSettingsPage()
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    // Radio-кнопка antd прячет input от указателя — клик идёт по подписи.
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
     expect(transport.put).toHaveBeenCalledTimes(1)
     expect(transport.put).toHaveBeenCalledWith('/repositories/repo-1/settings', {
-      auto_review_enabled: false,
+      auto_review_enabled: true,
       branch_filter: ['feature/**', 'fix/**'],
-      min_severity: 'high',
+      min_severity: 'low',
     })
     expect(transport.post).not.toHaveBeenCalled()
   })
@@ -255,17 +259,17 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const backend = createBackend()
     const { unmount } = renderSettingsPage('repo-1', backend)
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
-    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(false)
+    expect(backend.settings['repo-1']?.min_severity).toBe('low')
 
     // Новый заход на экран читает уже сохранённые значения.
     unmount()
     renderSettingsPage('repo-1', backend)
-    expect(await screen.findByRole('switch')).not.toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'Low' })).toBeChecked()
   })
 
   it('ошибка: черновик остаётся в форме, бэкенд не меняется', async () => {
@@ -273,14 +277,14 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const { backend } = renderSettingsPage()
     backend.failures.save = new Error('Сеть недоступна')
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('Не удалось сохранить настройки')).toBeInTheDocument()
     expect(screen.getByText('Сеть недоступна')).toBeInTheDocument()
-    expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(true)
+    expect(screen.getByRole('radio', { name: 'Low' })).toBeChecked()
+    expect(backend.settings['repo-1']?.min_severity).toBe('high')
   })
 
   it('поля заблокированы на время сохранения, после успеха форма совпадает с бэкендом', async () => {
@@ -289,53 +293,52 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const { backend } = renderSettingsPage()
     backend.beforeSave = () => gate.promise
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     // Сохранение в полёте (бэкенд молчит, пока тест не отпустит): правка невозможна.
-    await waitFor(() => expect(screen.getByRole('switch')).toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Medium' })).toBeDisabled())
     expect(screen.getByRole('radio', { name: 'Low' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Сбросить' })).toBeDisabled()
     expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
 
     gate.release()
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
-    expect(screen.getByRole('switch')).not.toBeDisabled()
-    expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(backend.settings['repo-1']?.auto_review_enabled).toBe(false)
+    expect(screen.getByRole('radio', { name: 'Low' })).not.toBeDisabled()
+    expect(screen.getByRole('radio', { name: 'Low' })).toBeChecked()
+    expect(backend.settings['repo-1']?.min_severity).toBe('low')
   })
 
   it('сброс возвращает сохранённые значения', async () => {
     const user = userEvent.setup()
     renderSettingsPage()
 
-    expect(await screen.findByRole('switch')).toBeChecked()
-    await user.click(screen.getByRole('switch'))
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
     // Radio-кнопка antd прячет input от указателя — клик идёт по подписи.
     await user.click(screen.getByText('Critical'))
-    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Critical' })).toBeChecked()
 
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))
 
-    expect(screen.getByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Critical' })).not.toBeChecked()
   })
 
   it('сброс после правок убирает баннер «Настройки сохранены»', async () => {
     const user = userEvent.setup()
     renderSettingsPage()
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
 
     // Правка скрывает баннер, сброс не должен возвращать его над откатанной формой.
-    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByText('Critical'))
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))
 
-    expect(screen.getByRole('switch')).not.toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Low' })).toBeChecked()
     expect(screen.queryByText('Настройки сохранены')).not.toBeInTheDocument()
   })
 
@@ -344,14 +347,14 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     const { backend } = renderSettingsPage()
     backend.failures.save = new Error('Сеть недоступна')
 
-    await screen.findByRole('switch')
-    await user.click(screen.getByRole('switch'))
+    await screen.findByRole('radio', { name: 'High' })
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
     expect(await screen.findByText('Не удалось сохранить настройки')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Сбросить' }))
 
-    expect(screen.getByRole('switch')).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
     expect(screen.queryByText('Не удалось сохранить настройки')).not.toBeInTheDocument()
   })
 
@@ -378,11 +381,11 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
   it('упавший рефетч после сохранения не откатывает форму к прежним значениям', async () => {
     const user = userEvent.setup()
     const { backend } = renderSettingsPage()
-    await screen.findByRole('switch')
+    await screen.findByRole('radio', { name: 'High' })
 
     // Сохранение пройдёт, а следующий за ним рефетч настроек упадёт.
     backend.failures.settings = new Error('settings boom')
-    await user.click(screen.getByRole('switch'))
+    await user.click(screen.getByText('Low'))
     await user.click(screen.getByRole('button', { name: 'Сохранить' }))
 
     expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
@@ -391,8 +394,29 @@ describe('RepositorySettingsPage: сохранение настроек', () => 
     ).toBeInTheDocument()
     expect(screen.getByText('settings boom')).toBeInTheDocument()
     // Форма остаётся на новых значениях, ошибка — неблокирующая.
-    expect(screen.getByRole('switch')).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Low' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).not.toBeChecked()
+  })
+})
+
+describe('RepositorySettingsPage: авто-ревью', () => {
+  it('свитчера «Авто-ревью» нет, сохранение отправляет флаг как был сохранён', async () => {
+    const user = userEvent.setup()
+    const { transport } = renderSettingsPage('repo-2')
+
+    await screen.findByRole('radio', { name: 'Critical' })
+    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByText('Авто-ревью')).not.toBeInTheDocument()
+
+    await user.click(screen.getByText('Low'))
+    await user.click(screen.getByRole('button', { name: 'Сохранить' }))
+
+    expect(await screen.findByText('Настройки сохранены')).toBeInTheDocument()
+    expect(transport.put).toHaveBeenCalledWith('/repositories/repo-2/settings', {
+      auto_review_enabled: false,
+      branch_filter: ['docs/**'],
+      min_severity: 'low',
+    })
   })
 })
 
@@ -449,7 +473,7 @@ describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
       },
       note: 'Статус правил пока недоступен',
       alive: async () => {
-        expect(await screen.findByRole('switch')).toBeChecked()
+        expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
       },
     },
   ])(
@@ -473,18 +497,15 @@ describe('RepositorySettingsPage: черновик', () => {
     const link = <Link to="/repositories/repo-2/settings">Настройки repo-2</Link>
     renderSettingsPage('repo-1', createBackend(), link)
 
-    expect(await screen.findByRole('switch')).toBeChecked()
-    // Черновик repo-1: авто-ревью выключен, порог занижен.
-    await user.click(screen.getByRole('switch'))
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
+    // Черновик repo-1: порог занижен.
     await user.click(screen.getByText('Low'))
 
     await user.click(screen.getByRole('link', { name: 'Настройки repo-2' }))
 
     // Форма repo-2 показывает сохранённые значения repo-2, а не черновик repo-1.
     expect(await screen.findByText('larchanka-training/docs')).toBeInTheDocument()
-    const switch2 = await screen.findByRole('switch')
-    expect(switch2).not.toBeChecked()
-    expect(screen.getByRole('radio', { name: 'Critical' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'Critical' })).toBeChecked()
     expect(screen.getByRole('radio', { name: 'Low' })).not.toBeChecked()
     expect(screen.getByText('docs/**')).toBeInTheDocument()
   })
@@ -499,8 +520,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     expect(await screen.findByText('Не удалось загрузить статус правил')).toBeInTheDocument()
     expect(await screen.findByText('rules boom')).toBeInTheDocument()
     // Настройки продолжают работать.
-    expect(await screen.findByRole('switch')).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
 
     // Чиним бэкенд и повторяем запрос блока.
     delete backend.failures.rules
@@ -517,8 +537,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     // 4xx повтор не изменит — кнопки повтора в блоке нет.
     expect(screen.queryByRole('button', { name: /Повторить/ })).not.toBeInTheDocument()
     // Настройки продолжают работать.
-    expect(await screen.findByRole('switch')).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
   })
 
   it('429 — повтор имеет смысл: кнопка «Повторить» есть', async () => {
@@ -542,7 +561,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
   it('репозиторий отключили, пока настройки открыты: фоновый рефетч с 404 показывает «не найден», а не ошибку обновления', async () => {
     const { backend, queryClient } = renderSettingsPage()
 
-    expect(await screen.findByRole('switch')).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
 
     backend.failures.repository = new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
     await act(() =>
@@ -551,7 +570,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
 
     expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
     // Блоки и форма скрыты: данных больше нет.
-    expect(screen.queryByRole('switch')).not.toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
   })
 
   it('данные вне схемы: каждый блок показывает ошибку контракта, экран не падает', async () => {
@@ -571,8 +590,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     const user = userEvent.setup()
     const { backend, queryClient } = renderSettingsPage()
 
-    expect(await screen.findByRole('switch')).toBeChecked()
-    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
+    expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
 
     backend.failures.settings = new Error('settings boom')
     await act(() => queryClient.invalidateQueries({ queryKey: repositoryKeys.settings('repo-1') }))
@@ -582,7 +600,6 @@ describe('RepositorySettingsPage: состояния данных', () => {
     ).toBeInTheDocument()
     expect(screen.getByText('settings boom')).toBeInTheDocument()
     // Форма не заменена ошибкой: значения из кэша на месте.
-    expect(screen.getByRole('switch')).toBeChecked()
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
 
     // Повтор с починенным бэкендом убирает Alert.
@@ -591,7 +608,7 @@ describe('RepositorySettingsPage: состояния данных', () => {
     await waitFor(() =>
       expect(screen.queryByText(/Не удалось обновить настройки/)).not.toBeInTheDocument(),
     )
-    expect(screen.getByRole('switch')).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
   })
 
   it('фоновая ошибка правил: панель остаётся на данных из кэша, сверху Alert с повтором', async () => {
