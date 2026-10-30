@@ -77,7 +77,7 @@ describe('ReviewCommentThread', () => {
     expect(lines.map((line) => line.textContent)).toEqual([
       '-Было:     rows = run(f"... {q}")',
       '+Стало:     rows = run("... :q", {"q": q})',
-      '     return rows',
+      ' Без изменений:     return rows',
     ])
     expect(block).not.toHaveTextContent('не должна попасть в блок')
   })

@@ -5,6 +5,7 @@ import { formatDateTime, stripCodeMarks } from '../../../shared/lib'
 import { TextWithCode } from '../../../shared/ui'
 import type { ReviewFinding } from '../model/schema'
 import { CATEGORY_LABEL } from '../model/labels'
+import { parseSuggestion } from '../lib/suggestion'
 import { SeverityBadge } from './SeverityBadge'
 
 /** Достаточно даты публикации: сущность `PublishedComment` живёт в соседнем слайсе. */
@@ -73,38 +74,11 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
   )
 }
 
-type SuggestionLine = { kind: 'removed' | 'added' | 'context'; text: string }
-
 const LINE_STYLE = {
   removed: { sign: '-', className: 'bg-red-50 text-red-900', label: 'Было: ' },
   added: { sign: '+', className: 'bg-emerald-50 text-emerald-900', label: 'Стало: ' },
-  context: { sign: ' ', className: 'text-slate-700', label: '' },
+  context: { sign: ' ', className: 'text-slate-700', label: 'Без изменений: ' },
 } as const
-
-/**
- * Модель присылает правку унифицированным диффом (`prompts/review/output-format.md`
- * бэкенда), но бывает и просто код замены. Дифф — если каждая непустая строка
- * начинается с `-`, `+` или пробела и есть хоть одна `-`/`+`; иначе текст —
- * замена строки замечания.
- */
-function parseSuggestion(suggestion: string, anchorContent?: string): SuggestionLine[] {
-  const lines = suggestion.split('\n')
-  const isDiff =
-    lines.some((line) => /^[-+]/.test(line)) &&
-    lines.every((line) => line === '' || /^[-+ ]/.test(line))
-  if (isDiff) {
-    return lines
-      .filter((line) => line !== '')
-      .map((line) => ({
-        kind: line[0] === '-' ? 'removed' : line[0] === '+' ? 'added' : 'context',
-        text: line.slice(1),
-      }))
-  }
-  return [
-    ...(anchorContent !== undefined ? [{ kind: 'removed' as const, text: anchorContent }] : []),
-    ...lines.map((text) => ({ kind: 'added' as const, text })),
-  ]
-}
 
 function SuggestionBlock({
   suggestion,
@@ -129,14 +103,14 @@ function SuggestionBlock({
       <pre className="font-mono text-xs leading-5 whitespace-pre-wrap break-all">
         {lines.map((line, index) => {
           const style = LINE_STYLE[line.kind]
-          // Подпись для скринридера — у первой строки каждой стороны.
-          const first = lines.findIndex((other) => other.kind === line.kind) === index
+          // Подпись для скринридера — там, где сторона сменилась.
+          const first = index === 0 || lines[index - 1].kind !== line.kind
           return (
             <code key={index} className={`block px-3 ${style.className}`}>
               <span aria-hidden className="select-none pr-2">
                 {style.sign}
               </span>
-              {first && style.label && <span className="sr-only">{style.label}</span>}
+              {first && <span className="sr-only">{style.label}</span>}
               {line.text}
             </code>
           )
