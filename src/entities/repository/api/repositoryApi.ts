@@ -1,10 +1,9 @@
 import {
-  AvailableRepositoryListSchema,
   RepositorySchema,
   RepositoryListSchema,
-  type AvailableRepository,
   type ConnectRepositoryRequest,
   type Repository,
+  type RepositoryList,
 } from '@/entities/repository/model/schema'
 import {
   RepositorySettingsSchema,
@@ -16,29 +15,51 @@ import {
 import { parseResponse, type ApiTransport } from '@/shared/api'
 
 export const REPOSITORIES_PATH = '/repositories'
-export const AVAILABLE_REPOSITORIES_PATH = '/repositories/available'
 
-/** Первая страница подключённых: больше 200 бэкенд всё равно не отдаст. */
-const PAGE = '?limit=200'
+/** Больше 200 за страницу бэкенд не отдаёт; страница короче — последняя. */
+const PAGE_LIMIT = 200
+// shortcut: не больше 50 страниц (10 000 репозиториев) — защита от бэкенда, который перестал
+// учитывать `offset` и отдаёт одну и ту же полную страницу.
+const MAX_PAGES = 50
 
-export async function fetchConnectedRepositories(transport: ApiTransport): Promise<Repository[]> {
-  const path = REPOSITORIES_PATH + PAGE
-  return parseResponse(RepositoryListSchema, path, await transport.get(path)).items
+/**
+ * Все репозитории установок, видимые пользователю, подключённые и нет: страницы подряд, пока
+ * страница полная. `install_url` — из первой.
+ */
+export async function fetchRepositories(transport: ApiTransport): Promise<RepositoryList> {
+  const fetchPage = async (offset: number) => {
+    const path = `${REPOSITORIES_PATH}?limit=${PAGE_LIMIT}&offset=${offset}`
+    return parseResponse(RepositoryListSchema, path, await transport.get(path))
+  }
+  const first = await fetchPage(0)
+  const items = [...first.items]
+  let page = first
+  let pages = 1
+  while (page.items.length === PAGE_LIMIT && pages < MAX_PAGES) {
+    page = await fetchPage(items.length)
+    items.push(...page.items)
+    pages += 1
+  }
+  // Страницы режутся из кэша бэкенда на 30 с: на его границе строка может прийти дважды.
+  const unique = [...new Map(items.map((r) => [`${r.provider}:${r.provider_id}`, r])).values()]
+  return { items: unique, install_url: first.install_url }
 }
 
-export async function fetchAvailableRepositories(
-  transport: ApiTransport,
-): Promise<AvailableRepository[]> {
-  const path = AVAILABLE_REPOSITORIES_PATH
-  return parseResponse(AvailableRepositoryListSchema, path, await transport.get(path)).items
-}
-
+/** Включает ревью. `409 REPOSITORY_ALREADY_CONNECTED` вызывающий считает успехом. */
 export async function connectRepository(
   transport: ApiTransport,
   request: ConnectRepositoryRequest,
 ): Promise<Repository> {
   const path = REPOSITORIES_PATH
   return parseResponse(RepositorySchema, path, await transport.post(path, request))
+}
+
+/** Выключает ревью: `204` и тогда, когда оно уже выключено. */
+export async function disconnectRepository(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<void> {
+  await transport.delete(repositoryPath(repositoryId))
 }
 
 export async function fetchRepository(

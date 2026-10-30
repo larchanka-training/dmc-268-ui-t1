@@ -65,13 +65,16 @@ describe('App', () => {
     window.history.pushState({}, '', '/app/repositories')
     const calls = stubFetch({
       'GET /api/v1/auth/me': { status: 200, body: ME },
-      'GET /api/v1/repositories?limit=200': { status: 200, body: { items: [] } },
+      'GET /api/v1/repositories?limit=200&offset=0': {
+        status: 200,
+        body: { items: [], install_url: null },
+      },
     })
 
     render(<App useMockApi={false} />)
 
     await waitFor(() =>
-      expect(calls.map((call) => call.url)).toContain('/api/v1/repositories?limit=200'),
+      expect(calls.map((call) => call.url)).toContain('/api/v1/repositories?limit=200&offset=0'),
     )
   })
 
@@ -139,6 +142,21 @@ describe('App', () => {
 
     expect(await screen.findByText('Настройки репозитория')).toBeInTheDocument()
     expect(window.location.pathname).toBe(SETTINGS_URL)
+  })
+
+  it('страницы подключения и пункта меню «Подключить репозиторий» больше нет', async () => {
+    window.history.pushState({}, '', '/app/repositories/connect')
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+
+    render(<App />)
+
+    // Адрес не узнан и уводит на обзор, как любой неизвестный.
+    expect(await screen.findByText('С возвращением, The Octocat')).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: /Репозитории/ })).toBeInTheDocument()
+    expect(
+      screen.queryByRole('menuitem', { name: /Подключить репозиторий/ }),
+    ).not.toBeInTheDocument()
+    expect(screen.queryByText('Подключить репозиторий')).not.toBeInTheDocument()
   })
 
   it('неизвестный адрес под /app уводит на /app/', async () => {

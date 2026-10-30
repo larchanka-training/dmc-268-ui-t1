@@ -155,6 +155,14 @@ describe('createHttpTransport', () => {
     expect(calls[0].init.credentials).toBe('include')
   })
 
+  it('DELETE уходит без тела, ответ 204 — null', async () => {
+    const calls = stubFetch({ 'DELETE /api/v1/repositories/r-1': { status: 204 } })
+
+    await expect(createHttpTransport().delete('/repositories/r-1')).resolves.toBeNull()
+    expect(calls[0].init.body).toBeUndefined()
+    expect(calls[0].init.credentials).toBe('include')
+  })
+
   it('GET идёт через apiFetch с cookie и отдаёт тело как unknown', async () => {
     const calls = stubFetch({ 'GET /api/v1/repositories': { status: 200, body: [{ id: 1 }] } })
 

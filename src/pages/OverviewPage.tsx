@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import { Button, Card, Col, Row, Statistic, Typography } from 'antd'
 import { useCurrentUser } from '@/features/auth'
-import { useConnectedRepositories } from '@/features/repository'
+import { useRepositories } from '@/features/repository'
 
 export function OverviewPage() {
   const user = useCurrentUser()
-  const { data: repos, isLoading, isLoadingError, refetch } = useConnectedRepositories()
+  const { data, isLoading, isLoadingError, refetch } = useRepositories()
+  const connectedCount = data?.items.filter((repo) => repo.connected).length
 
   return (
     <div>
@@ -21,7 +22,7 @@ export function OverviewPage() {
             {/* Список не загрузился — не «0»: это выглядело бы как «репозиториев нет». */}
             <Statistic
               title="Подключённых репозиториев"
-              value={repos ? repos.length : '—'}
+              value={connectedCount ?? '—'}
               loading={isLoading}
             />
             {isLoadingError && (
@@ -49,9 +50,6 @@ export function OverviewPage() {
         <Typography.Title level={2}>Быстрые действия</Typography.Title>
         <Link to="/repositories">
           <Button type="primary">Список репозиториев</Button>
-        </Link>
-        <Link to="/repositories/connect" className="link-spaced">
-          <Button>Подключить репозиторий</Button>
         </Link>
       </Card>
     </div>

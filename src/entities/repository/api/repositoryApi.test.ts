@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { ContractError } from '@/shared/api'
+import { ApiError, ContractError } from '@/shared/api'
 import { fakeTransport } from '@/test/api'
 import type { Repository } from '../model/schema'
 import type { RepositorySettings, RepositorySettingsUpdate, RulesStatus } from '../model/settings'
 import {
+  fetchRepositories,
   fetchRepository,
   fetchRepositorySettings,
   fetchRulesStatus,
@@ -91,5 +92,84 @@ describe('валидация на границе', () => {
     const transport = fakeTransport({ get: async () => ({ status: 'half-loaded' }) })
 
     await expect(fetchRulesStatus(transport, 'repo-1')).rejects.toBeInstanceOf(ContractError)
+  })
+})
+
+describe('fetchRepositories', () => {
+  const row = (n: number) => ({
+    provider: 'github',
+    provider_id: String(n),
+    full_name: `acme/repo-${String(n).padStart(3, '0')}`,
+    default_branch: 'main',
+    connected: false,
+    id: null,
+    can_connect: true,
+    connected_at: null,
+  })
+
+  it('больше 200: страницы по offset, пока страница полная; install_url — из первой', async () => {
+    const all = Array.from({ length: 250 }, (_, n) => row(n + 1))
+    const get = vi.fn(async (path: string) => {
+      const offset = Number(new URLSearchParams(path.split('?')[1]).get('offset'))
+      return {
+        items: all.slice(offset, offset + 200),
+        install_url: offset === 0 ? 'https://github.com/apps/x/installations/new' : null,
+      }
+    })
+
+    const list = await fetchRepositories(fakeTransport({ get }))
+
+    expect(list.items).toHaveLength(250)
+    expect(list.install_url).toBe('https://github.com/apps/x/installations/new')
+    expect(get.mock.calls.map(([path]) => path)).toEqual([
+      '/repositories?limit=200&offset=0',
+      '/repositories?limit=200&offset=200',
+    ])
+  })
+
+  it('ровно 200: следующая страница пустая — конец списка', async () => {
+    const get = vi.fn(async (path: string) => ({
+      items: path.endsWith('offset=0') ? Array.from({ length: 200 }, (_, n) => row(n + 1)) : [],
+      install_url: null,
+    }))
+
+    expect((await fetchRepositories(fakeTransport({ get }))).items).toHaveLength(200)
+    expect(get).toHaveBeenCalledTimes(2)
+  })
+
+  it('строка на границе страниц пришла дважды: в списке одна', async () => {
+    // Между страницами истёк кэш бэкенда, и в начало добавился репозиторий: страница 2 сдвинулась.
+    const get = vi.fn(async (path: string) => ({
+      items: path.endsWith('offset=0')
+        ? Array.from({ length: 200 }, (_, n) => row(n + 1))
+        : [row(200), row(201)],
+      install_url: null,
+    }))
+
+    const list = await fetchRepositories(fakeTransport({ get }))
+
+    expect(list.items.map((r) => r.provider_id)).toEqual(
+      Array.from({ length: 201 }, (_, n) => String(n + 1)),
+    )
+  })
+
+  it('упала вторая страница: ошибка всего запроса, а не неполный список', async () => {
+    const get = vi.fn(async (path: string) => {
+      if (path.endsWith('offset=200')) throw new ApiError(502, 'GitHub не ответил')
+      return { items: Array.from({ length: 200 }, (_, n) => row(n + 1)), install_url: null }
+    })
+
+    await expect(fetchRepositories(fakeTransport({ get }))).rejects.toBeInstanceOf(ApiError)
+  })
+
+  it('бэкенд игнорирует offset: не больше 50 страниц', async () => {
+    const get = vi.fn(async () => ({
+      items: Array.from({ length: 200 }, (_, n) => row(n + 1)),
+      install_url: null,
+    }))
+
+    await fetchRepositories(fakeTransport({ get }))
+
+    expect(get).toHaveBeenCalledTimes(50)
   })
 })

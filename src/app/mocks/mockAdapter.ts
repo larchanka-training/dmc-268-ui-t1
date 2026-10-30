@@ -81,7 +81,6 @@ export function createMockAdapter({
     const [route, search = ''] = path.split('?')
     if (route === '/reviews') return reviewRuns.list(search)
     if (route === '/repositories') return repositories.list()
-    if (route === '/repositories/available') return repositories.available()
     // Один репозиторий и блок настроек — ручки контракта (api#113).
     const repositoryRoute = /^\/repositories\/([^/?]+)$/.exec(route)
     if (repositoryRoute) return repositories.get(repositoryRoute[1])
@@ -111,6 +110,12 @@ export function createMockAdapter({
     throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
   }
 
+  const del = (path: string): unknown => {
+    const repositoryRoute = /^\/repositories\/([^/?]+)$/.exec(path)
+    if (repositoryRoute) return repositories.disconnect(repositoryRoute[1])
+    throw new ApiError(404, `Нет такого ресурса: ${path}`, 'ROUTE_NOT_FOUND')
+  }
+
   const respond = (answer: () => unknown) =>
     new Promise<unknown>((resolve, reject) => {
       setTimeout(() => {
@@ -126,5 +131,6 @@ export function createMockAdapter({
     get: (path) => respond(() => get(path)),
     post: (path, body) => respond(() => post(path, body)),
     put: (path, body) => respond(() => put(path, body)),
+    delete: (path) => respond(() => del(path)),
   }
 }

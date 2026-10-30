@@ -4,7 +4,6 @@ import {
   FileSearchOutlined,
   GithubOutlined,
   GitlabOutlined,
-  PlusOutlined,
   QuestionCircleOutlined,
 } from '@ant-design/icons'
 import { Menu } from 'antd'
@@ -15,7 +14,6 @@ const navItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Обзор' },
   { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
   { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
-  { key: '/repositories/connect', icon: <PlusOutlined />, label: 'Подключить репозиторий' },
   { key: '/help', icon: <QuestionCircleOutlined />, label: 'Помощь' },
 ]
 

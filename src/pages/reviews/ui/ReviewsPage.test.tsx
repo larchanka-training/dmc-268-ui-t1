@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { createMemoryRouter, RouterProvider, useParams } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { Repository } from '@/entities/repository'
+import type { RepositoryListItem } from '@/entities/repository'
 import type { ReviewRunListItem } from '@/entities/review-run'
 import { LIST_REFETCH_THROTTLE } from '@/features/live-run-status'
 import { ApiError, EventStreamContext, TransportContext } from '@/shared/api'
@@ -17,18 +17,26 @@ import { ReviewsPage } from './ReviewsPage'
 /** Id репозитория в контракте — uuid; `repoId(1)` — `acme/api`, как у фабрик. */
 const repoId = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
-const repository = (n: number, name: string): Repository => ({
+const repository = (n: number, name: string): RepositoryListItem => ({
   id: repoId(n),
   provider: 'github',
   provider_id: String(n),
   full_name: name,
   default_branch: 'main',
-  auto_review_enabled: true,
-  created_at: '2026-09-01T10:00:00Z',
-  updated_at: '2026-09-01T10:00:00Z',
+  connected: true,
+  can_connect: true,
+  connected_at: '2026-09-01T10:00:00Z',
 })
 
-const REPOSITORIES = [repository(1, 'acme/api'), repository(2, 'acme/web')]
+/** Репозиторий без записи в сервисе: прогонов у него нет, в фильтр он не попадает. */
+const NEVER_CONNECTED: RepositoryListItem = {
+  ...repository(3, 'acme/never'),
+  id: null,
+  connected: false,
+  connected_at: null,
+}
+
+const REPOSITORIES = [repository(1, 'acme/api'), repository(2, 'acme/web'), NEVER_CONNECTED]
 
 /** Прогоны от новых к старым: `run-1` самый новый. */
 function makeRuns(count: number): ReviewRunListItem[] {
@@ -69,7 +77,7 @@ function createTransport() {
     get: async (path) => {
       if (path.startsWith('/repositories')) {
         if (backend.repositoriesError) throw backend.repositoriesError
-        return { items: REPOSITORIES }
+        return { items: REPOSITORIES, install_url: null }
       }
       if (path === '/reviews' || path.startsWith('/reviews?')) {
         backend.calls.push(path)
@@ -243,6 +251,8 @@ describe('ReviewsPage: таблица и URL', () => {
     await user.click(screen.getByRole('combobox', { name: 'Репозиторий' }))
     await user.click(await screen.findByTitle('acme/api'))
     await user.click(await screen.findByTitle('acme/web'))
+    // Без записи в сервисе прогонов нет — такого репозитория в фильтре нет.
+    expect(screen.queryByTitle('acme/never')).not.toBeInTheDocument()
 
     await waitFor(() => expect(search().getAll('repository_id')).toEqual([repoId(1), repoId(2)]))
     await waitFor(() =>

@@ -1,7 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from '@/features/auth'
 import { AppLayout } from '@/widgets/app-shell'
-import { ConnectRepositoryPage } from '@/pages/ConnectRepositoryPage'
 import { HelpPage } from '@/pages/HelpPage'
 import { OverviewPage } from '@/pages/OverviewPage'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
@@ -35,7 +34,6 @@ export function AppRouter() {
           <Route path="/" element={<OverviewPage />} />
           <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/repositories" element={<RepositoriesPage />} />
-          <Route path="/repositories/connect" element={<ConnectRepositoryPage />} />
           <Route path="/repositories/:repositoryId/settings" element={<RepositorySettingsPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
