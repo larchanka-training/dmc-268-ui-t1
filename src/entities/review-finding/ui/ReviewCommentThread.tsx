@@ -73,6 +73,39 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
   )
 }
 
+type SuggestionLine = { kind: 'removed' | 'added' | 'context'; text: string }
+
+const LINE_STYLE = {
+  removed: { sign: '-', className: 'bg-red-50 text-red-900', label: 'Было: ' },
+  added: { sign: '+', className: 'bg-emerald-50 text-emerald-900', label: 'Стало: ' },
+  context: { sign: ' ', className: 'text-slate-700', label: '' },
+} as const
+
+/**
+ * Модель присылает правку унифицированным диффом (`prompts/review/output-format.md`
+ * бэкенда), но бывает и просто код замены. Дифф — если каждая непустая строка
+ * начинается с `-`, `+` или пробела и есть хоть одна `-`/`+`; иначе текст —
+ * замена строки замечания.
+ */
+function parseSuggestion(suggestion: string, anchorContent?: string): SuggestionLine[] {
+  const lines = suggestion.split('\n')
+  const isDiff =
+    lines.some((line) => /^[-+]/.test(line)) &&
+    lines.every((line) => line === '' || /^[-+ ]/.test(line))
+  if (isDiff) {
+    return lines
+      .filter((line) => line !== '')
+      .map((line) => ({
+        kind: line[0] === '-' ? 'removed' : line[0] === '+' ? 'added' : 'context',
+        text: line.slice(1),
+      }))
+  }
+  return [
+    ...(anchorContent !== undefined ? [{ kind: 'removed' as const, text: anchorContent }] : []),
+    ...lines.map((text) => ({ kind: 'added' as const, text })),
+  ]
+}
+
 function SuggestionBlock({
   suggestion,
   anchorContent,
@@ -81,6 +114,7 @@ function SuggestionBlock({
   anchorContent?: string
 }) {
   const captionId = useId()
+  const lines = parseSuggestion(suggestion, anchorContent)
   return (
     <figure
       aria-labelledby={captionId}
@@ -93,24 +127,20 @@ function SuggestionBlock({
         Предлагаемое исправление
       </figcaption>
       <pre className="font-mono text-xs leading-5 whitespace-pre-wrap break-all">
-        {anchorContent !== undefined && (
-          <code className="block bg-red-50 px-3 text-red-900">
-            <span aria-hidden className="select-none pr-2">
-              -
-            </span>
-            <span className="sr-only">Было: </span>
-            {anchorContent}
-          </code>
-        )}
-        {suggestion.split('\n').map((line, index) => (
-          <code key={index} className="block bg-emerald-50 px-3 text-emerald-900">
-            <span aria-hidden className="select-none pr-2">
-              +
-            </span>
-            {index === 0 && <span className="sr-only">Стало: </span>}
-            {line}
-          </code>
-        ))}
+        {lines.map((line, index) => {
+          const style = LINE_STYLE[line.kind]
+          // Подпись для скринридера — у первой строки каждой стороны.
+          const first = lines.findIndex((other) => other.kind === line.kind) === index
+          return (
+            <code key={index} className={`block px-3 ${style.className}`}>
+              <span aria-hidden className="select-none pr-2">
+                {style.sign}
+              </span>
+              {first && style.label && <span className="sr-only">{style.label}</span>}
+              {line.text}
+            </code>
+          )
+        })}
       </pre>
     </figure>
   )

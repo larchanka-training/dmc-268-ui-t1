@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 
@@ -57,6 +57,29 @@ describe('ReviewCommentThread', () => {
     const block = screen.getByRole('figure', { name: 'Предлагаемое исправление' })
     expect(block).toHaveTextContent('Было: query = f"SELECT {run_id}"')
     expect(block).toHaveTextContent('Стало: query = text("SELECT * FROM runs WHERE id = :id")')
+  })
+
+  it('правку-дифф показывает диффом: удаляемые строки — «Было», добавляемые — «Стало»', () => {
+    const diff = [
+      '-    rows = run(f"... {q}")',
+      '+    rows = run("... :q", {"q": q})',
+      '     return rows',
+    ].join('\n')
+    render(
+      <ReviewCommentThread
+        finding={makeFinding({ severity: 'high', suggestion: diff })}
+        anchorContent="не должна попасть в блок"
+      />,
+    )
+
+    const block = screen.getByRole('figure', { name: 'Предлагаемое исправление' })
+    const lines = within(block).getAllByRole('code')
+    expect(lines.map((line) => line.textContent)).toEqual([
+      '-Было:     rows = run(f"... {q}")',
+      '+Стало:     rows = run("... :q", {"q": q})',
+      '     return rows',
+    ])
+    expect(block).not.toHaveTextContent('не должна попасть в блок')
   })
 
   it('без предложения блока исправления нет', () => {
