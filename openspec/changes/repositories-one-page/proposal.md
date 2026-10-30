@@ -9,17 +9,16 @@
 [dmc-268-api-t1#247](https://github.com/larchanka-training/dmc-268-api-t1/pull/247)
 (change `repositories-one-list`): `GET /repositories` отдаёт все репозитории установок,
 подключённые и нет, с `connected`, `id`, `can_connect` и `install_url`;
-`GET /repositories/available` удалён; `DELETE /repositories/{id}` выключает ревью (пока
-`501`); `GET /auth/github/setup` уводит на «Репозитории» с итогом в query. Схема и тексты —
-`docs/GITHUB_APP.md` бэкенда, раздел «Подключение → После #243».
+`GET /repositories/available` удалён; `DELETE /repositories/{id}` выключает ревью;
+`GET /auth/github/setup` уводит на «Репозитории» с итогом в query. Схема и тексты —
+`docs/GITHUB_APP.md` бэкенда, раздел «Подключение и выключение → После #243».
 
 ## What Changes
 
 - **Одна страница «Репозитории»** по `GET /repositories`: все строки, колонка «Ревью» с
   переключателем, «Настройки» у строк с `id` (в том числе у выключенных — история остаётся).
 - **Переключатель:** вкл — `POST /repositories`, выкл — подтверждение и
-  `DELETE /repositories/{id}`. `409` при включении и `204` при выключении — успех; `501` у
-  `DELETE` — «Выключение ревью пока недоступно». После мутации список перезапрашивается. Без
+  `DELETE /repositories/{id}`. `409` при включении и `204` при выключении — успех. После мутации список перезапрашивается. Без
   admin или maintain (`can_connect: false`) переключатель неактивен с подсказкой.
 - Сверху — **«Добавить репозитории из GitHub»** (`install_url`) и ссылка **«Управлять
   доступом в GitHub»**, под ними подсказка про ревью и доступ бота. Пустой список — подсказка

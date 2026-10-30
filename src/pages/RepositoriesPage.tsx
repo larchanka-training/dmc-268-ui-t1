@@ -22,7 +22,6 @@ import {
   usePendingReviewToggles,
   useRepositories,
 } from '@/features/repository'
-import { isNotImplemented } from '@/shared/api'
 import {
   PAGE_PARAM,
   clampPage,
@@ -100,8 +99,7 @@ function setupResultOf(params: URLSearchParams) {
   return null
 }
 
-function errorText(error: unknown, notImplemented: string, fallback: string) {
-  if (isNotImplemented(error)) return notImplemented
+function errorText(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback
 }
 
@@ -202,9 +200,7 @@ export function RepositoriesPage() {
       void connect
         .mutateAsync({ provider: repo.provider, provider_id: repo.provider_id })
         .catch((err: unknown) => {
-          void messageApi.error(
-            errorText(err, 'Включение ревью пока недоступно', 'Не удалось включить ревью'),
-          )
+          void messageApi.error(errorText(err, 'Не удалось включить ревью'))
         })
       return
     }
@@ -217,9 +213,7 @@ export function RepositoriesPage() {
       cancelText: 'Отмена',
       onOk: () => {
         void disconnect.mutateAsync(repositoryId).catch((err: unknown) => {
-          void messageApi.error(
-            errorText(err, 'Выключение ревью пока недоступно', 'Не удалось выключить ревью'),
-          )
+          void messageApi.error(errorText(err, 'Не удалось выключить ревью'))
         })
       },
     })
@@ -231,7 +225,7 @@ export function RepositoriesPage() {
       dataIndex: 'full_name',
       key: 'full_name',
       render: (value, record) => (
-        <Space direction="vertical" size={0}>
+        <Space orientation="vertical" size={0}>
           <Typography.Text strong>{value}</Typography.Text>
           <Typography.Text type="secondary" className="text-meta">
             ветка по умолчанию: {record.default_branch}
@@ -313,10 +307,9 @@ export function RepositoriesPage() {
           className="page-error"
           type="error"
           showIcon
-          closable
-          message="Установка на GitHub не завершилась"
+          closable={{ onClose: () => setSetupError(null) }}
+          title="Установка на GitHub не завершилась"
           description={setupError}
-          onClose={() => setSetupError(null)}
         />
       )}
       {/* Подсказка, а не тревога: `role="alert"` по умолчанию у antd зачитывался бы сразу. */}

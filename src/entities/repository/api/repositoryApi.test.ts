@@ -137,6 +137,22 @@ describe('fetchRepositories', () => {
     expect(get).toHaveBeenCalledTimes(2)
   })
 
+  it('строка на границе страниц пришла дважды: в списке одна', async () => {
+    // Между страницами истёк кэш бэкенда, и в начало добавился репозиторий: страница 2 сдвинулась.
+    const get = vi.fn(async (path: string) => ({
+      items: path.endsWith('offset=0')
+        ? Array.from({ length: 200 }, (_, n) => row(n + 1))
+        : [row(200), row(201)],
+      install_url: null,
+    }))
+
+    const list = await fetchRepositories(fakeTransport({ get }))
+
+    expect(list.items.map((r) => r.provider_id)).toEqual(
+      Array.from({ length: 201 }, (_, n) => String(n + 1)),
+    )
+  })
+
   it('упала вторая страница: ошибка всего запроса, а не неполный список', async () => {
     const get = vi.fn(async (path: string) => {
       if (path.endsWith('offset=200')) throw new ApiError(502, 'GitHub не ответил')

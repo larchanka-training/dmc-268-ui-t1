@@ -40,7 +40,9 @@ export async function fetchRepositories(transport: ApiTransport): Promise<Reposi
     items.push(...page.items)
     pages += 1
   }
-  return { items, install_url: first.install_url }
+  // Страницы режутся из кэша бэкенда на 30 с: на его границе строка может прийти дважды.
+  const unique = [...new Map(items.map((r) => [`${r.provider}:${r.provider_id}`, r])).values()]
+  return { items: unique, install_url: first.install_url }
 }
 
 /** Включает ревью. `409 REPOSITORY_ALREADY_CONNECTED` вызывающий считает успехом. */

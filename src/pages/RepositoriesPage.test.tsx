@@ -380,7 +380,16 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
           rejectFirst = reject
         })
       }
-      return Promise.resolve(null)
+      return Promise.resolve({
+        id: 'repo-5',
+        provider: 'github',
+        provider_id: OTHER.provider_id,
+        full_name: OTHER.full_name,
+        default_branch: 'main',
+        auto_review_enabled: true,
+        created_at: '2026-10-30T10:00:00Z',
+        updated_at: '2026-10-30T10:00:00Z',
+      })
     })
     renderRepositoriesPage({ get: listBackend([OFF, OTHER]).get, post })
 
@@ -396,6 +405,7 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
     )
 
     expect(await screen.findByText('Нужна роль admin или maintain')).toBeInTheDocument()
+    expect(screen.queryByText('Не удалось включить ревью')).not.toBeInTheDocument()
     await waitFor(() =>
       expect(reviewSwitch('larchanka-training/docs')).toHaveAttribute('aria-busy', 'false'),
     )
@@ -438,23 +448,6 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
     )
 
     expect(del).not.toHaveBeenCalled()
-    expect(reviewSwitch('larchanka-training/platform-api')).toBeChecked()
-  })
-
-  it('выкл: 501 — «Выключение ревью пока недоступно», переключатель остаётся «вкл»', async () => {
-    const user = userEvent.setup()
-    const del = vi.fn(async () => {
-      throw new ApiError(501, 'Не реализовано', 'NOT_IMPLEMENTED')
-    })
-    renderRepositoriesPage({ get: listBackend([ON]).get, delete: del })
-
-    await screen.findByText('larchanka-training/platform-api')
-    await user.click(reviewSwitch('larchanka-training/platform-api'))
-    await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Выключить' }),
-    )
-
-    expect(await screen.findByText('Выключение ревью пока недоступно')).toBeInTheDocument()
     expect(reviewSwitch('larchanka-training/platform-api')).toBeChecked()
   })
 })
