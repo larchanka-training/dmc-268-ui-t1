@@ -5,6 +5,7 @@ import { formatDateTime, stripCodeMarks } from '../../../shared/lib'
 import { TextWithCode } from '../../../shared/ui'
 import type { ReviewFinding } from '../model/schema'
 import { CATEGORY_LABEL } from '../model/labels'
+import { parseSuggestion } from '../lib/suggestion'
 import { SeverityBadge } from './SeverityBadge'
 
 /** Достаточно даты публикации: сущность `PublishedComment` живёт в соседнем слайсе. */
@@ -73,6 +74,12 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
   )
 }
 
+const LINE_STYLE = {
+  removed: { sign: '-', className: 'bg-red-50 text-red-900', label: 'Было: ' },
+  added: { sign: '+', className: 'bg-emerald-50 text-emerald-900', label: 'Стало: ' },
+  context: { sign: ' ', className: 'text-slate-700', label: 'Без изменений: ' },
+} as const
+
 function SuggestionBlock({
   suggestion,
   anchorContent,
@@ -81,6 +88,7 @@ function SuggestionBlock({
   anchorContent?: string
 }) {
   const captionId = useId()
+  const lines = parseSuggestion(suggestion, anchorContent)
   return (
     <figure
       aria-labelledby={captionId}
@@ -93,24 +101,20 @@ function SuggestionBlock({
         Предлагаемое исправление
       </figcaption>
       <pre className="font-mono text-xs leading-5 whitespace-pre-wrap break-all">
-        {anchorContent !== undefined && (
-          <code className="block bg-red-50 px-3 text-red-900">
-            <span aria-hidden className="select-none pr-2">
-              -
-            </span>
-            <span className="sr-only">Было: </span>
-            {anchorContent}
-          </code>
-        )}
-        {suggestion.split('\n').map((line, index) => (
-          <code key={index} className="block bg-emerald-50 px-3 text-emerald-900">
-            <span aria-hidden className="select-none pr-2">
-              +
-            </span>
-            {index === 0 && <span className="sr-only">Стало: </span>}
-            {line}
-          </code>
-        ))}
+        {lines.map((line, index) => {
+          const style = LINE_STYLE[line.kind]
+          // Подпись для скринридера — там, где сторона сменилась.
+          const first = index === 0 || lines[index - 1].kind !== line.kind
+          return (
+            <code key={index} className={`block px-3 ${style.className}`}>
+              <span aria-hidden className="select-none pr-2">
+                {style.sign}
+              </span>
+              {first && <span className="sr-only">{style.label}</span>}
+              {line.text}
+            </code>
+          )
+        })}
       </pre>
     </figure>
   )
