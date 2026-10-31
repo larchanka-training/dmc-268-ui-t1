@@ -1,6 +1,6 @@
 ---
 document_id: frontend-architecture
-version: '6.1-draft'
+version: '6.2-draft'
 language: ru
 status: draft
 implementation_status: planned
@@ -74,19 +74,28 @@ diff, поэтому `entities/diff/lib` переводит `DiffFile` в тек
 
 ```text
 src/
+├── main.tsx                          # точка входа: телеметрия, тема, монтирование app
 ├── app/
-│   ├── providers/                    # QueryClient, ErrorBoundary, TransportProvider
-│   └── mocks/                        # конкретный mock adapter и фикстуры по умолчанию
+│   ├── App.tsx
+│   ├── providers/                    # AppProviders (QueryClient, antd ConfigProvider, тема), queryClient
+│   ├── router/                       # AppRouter
+│   └── mocks/                        # mock adapter, mock event stream, mock server, фикстуры
 ├── pages/
-│   └── review-run/
-│       ├── ui/ReviewRunView.tsx      # экран: только композиция публичных widget API
-│       ├── model/mockReview.ts       # MockReviewStateSchema и запрос экрана
-│       └── index.ts
-├── widgets/
-│   ├── review-run-view/
-│   │   ├── ui/RunHeader.tsx
-│   │   ├── ui/ReviewSummary.tsx
+│   ├── review-run/
+│   │   ├── ui/                       # ReviewRunView — композиция публичных widget API, FindingsList
+│   │   ├── model/                    # review (запрос экрана), verdict, workspace
 │   │   └── index.ts
+│   ├── reviews/
+│   │   ├── ui/                       # ReviewsPage, ReviewFilters
+│   │   ├── model/                    # filters, reviewList
+│   │   └── index.ts
+│   ├── OverviewPage.tsx              # плоские экраны без слайса
+│   ├── RepositoriesPage.tsx
+│   ├── RepositorySettingsPage.tsx
+│   └── HelpPage.tsx
+├── widgets/
+│   ├── app-shell/                    # ui/ — AppLayout, AppHeader, AppSidebar
+│   ├── review-run-view/              # ui/ — RunHeader, ReviewSummary, RunProgress
 │   ├── review-workspace/
 │   │   ├── ui/ReviewWorkspace.tsx
 │   │   ├── ui/FileList.tsx
@@ -94,28 +103,34 @@ src/
 │   │   ├── ui/DiffViewer.tsx         # обёртка над @git-diff-view/react
 │   │   ├── model/store.ts
 │   │   └── index.ts
-│   └── run-inspector/
-│       ├── ui/RunInspector.tsx
-│       ├── ui/ActionTree.tsx
-│       ├── ui/ActionDetails.tsx
-│       ├── model/store.ts
-│       └── index.ts
+│   └── run-inspector/                # ui/ — RunInspector
 ├── features/
-│   └── filter-findings/
-│       ├── ui/SeverityFilter.tsx
-│       ├── model/store.ts
-│       └── index.ts
+│   ├── auth/                         # hooks/ — useAuth, ui/ — RequireAuth
+│   ├── filter-findings/              # model/store.ts, ui/ — SeverityFilter, FileFilter, TextFilter, FilterSummary
+│   ├── live-run-status/              # model/ — useRunLiveStatus, useRunListLiveUpdates, ui/ — ConnectionNotice
+│   ├── repository/                   # model/ — repositoryQueries
+│   └── theme/                        # model/ — ThemeProvider, theme-context, hooks/ — useAppTheme
 ├── entities/
-│   ├── review-run/                   # model/, ui/ — бейджи статуса и verdict
 │   ├── diff/                         # model/, lib/ — collapseContext, toUnifiedDiff
-│   ├── review-finding/               # model/, lib/ — anchor, ui/ — ReviewCommentThread, SeverityBadge
 │   ├── published-comment/            # model/
-│   └── review-run-action/            # model/
+│   ├── repository/                   # api/, lib/, model/, ui/ — RulesPreview, RulesStatusBadge
+│   ├── review-finding/               # model/, lib/ — anchor, ui/ — ReviewCommentThread, SeverityBadge
+│   ├── review-run/                   # api/, lib/, model/, ui/ — RunStatusBadge, VerdictBadge
+│   ├── review-run-step/              # model/
+│   └── session/                      # api/, model/
 └── shared/
-    ├── api/                          # интерфейс adapter, TransportContext, useTransport и общая граница Zod
-    ├── lib/                          # нейтральные утилиты
-    └── ui/                           # повторно используемые простые UI-обёртки
+    ├── api/                          # http, eventStream, transport (интерфейс adapter, TransportContext, useTransport), parse, errors, contract/
+    ├── config/                       # env, общая настройка Zod
+    ├── lib/                          # нейтральные утилиты: format, navigation, urlPagination, usePageVisible, codeMarks
+    ├── telemetry/                    # OpenTelemetry и фильтр redact
+    ├── theme/                        # palette
+    └── ui/                           # повторно используемые простые UI-обёртки: ErrorBoundary, PageNav, states…
 ```
+
+Вне слоёв FSD лежат: `main.tsx` — точка входа, подключает телеметрию, тему и `app`; `landing/` —
+скрипт и стили статичной страницы входа `login.html`; `build/` — правила dev- и preview-сервера
+Vite под `/app`, SEO-файлы и мок входа для сборки; `styles/` — глобальные стили; `test/` —
+фабрики для тестов.
 
 Сегменты слайса — стандартные для FSD:
 
@@ -132,7 +147,8 @@ src/
 нельзя. В частности:
 
 - `shared/api` владеет интерфейсом adapter, `TransportContext` и `useTransport()`;
-  `app/providers/TransportProvider` выбирает конкретный adapter и передаёт его в этот context.
+  `app/App.tsx` выбирает конкретный adapter (mock или HTTP по `VITE_USE_MOCK_API`),
+  `app/providers/AppProviders` передаёт его в этот context.
   `ReviewRunView` не импортирует `app`;
 - `pages/review-run` получает adapter через `useTransport()`, владеет запросом экрана и
   собирает публичные widget API;
@@ -142,6 +158,78 @@ src/
   публичный API сущности;
 - `ReviewRunView` находится в `pages`, не в `app`: это экран предметной области, а не корень
   приложения.
+
+### 3.1 Схема слоёв
+
+```mermaid
+flowchart TB
+    subgraph app["app"]
+        direction LR
+        a_prov["providers"] ~~~ a_router["router"] ~~~ a_mocks["mocks"]
+    end
+    subgraph pages["pages"]
+        direction LR
+        p_run["review-run"] ~~~ p_reviews["reviews"] ~~~ p_flat["Overview, Repositories,<br/>RepositorySettings, Help"]
+    end
+    subgraph widgets["widgets"]
+        direction LR
+        w_shell["app-shell"] ~~~ w_view["review-run-view"] ~~~ w_ws["review-workspace"] ~~~ w_insp["run-inspector"]
+    end
+    subgraph features["features"]
+        direction LR
+        f_auth["auth"] ~~~ f_filter["filter-findings"] ~~~ f_live["live-run-status"] ~~~ f_repo["repository"] ~~~ f_theme["theme"]
+    end
+    subgraph entities["entities"]
+        direction LR
+        e_diff["diff"] ~~~ e_pc["published-comment"] ~~~ e_repo["repository"] ~~~ e_rf["review-finding"] ~~~ e_rr["review-run"] ~~~ e_step["review-run-step"] ~~~ e_sess["session"]
+    end
+    subgraph shared["shared"]
+        direction LR
+        s_api["api"] ~~~ s_lib["lib"] ~~~ s_ui["ui"] ~~~ s_cfg["config"] ~~~ s_theme["theme"] ~~~ s_tel["telemetry"]
+    end
+    app --> pages --> widgets --> features --> entities --> shared
+```
+
+Стрелка — разрешённое направление импорта: слой импортирует только нижележащие слои и никогда
+не импортирует вышестоящий; соседний слайс — только через его `index.ts`.
+
+Кто владеет состоянием:
+
+```mermaid
+flowchart LR
+    s_api["shared/api<br/>useTransport()"] -.-> tq[("TanStack Query<br/>серверные данные")]
+    tq -.-> q_owners["pages/review-run, pages/reviews,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
+    zs[("Zustand<br/>UI-состояние")] -.-> z_owners["widgets/review-workspace,<br/>features/filter-findings"]
+```
+
+Серверные данные идут через `useTransport()` из `shared/api` в кэш TanStack Query; запросы,
+мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. UI-состояние живёт в двух
+Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема (`features/theme`)
+— React context, не Zustand.
+
+Рёбра между слайсами на схеме не нарисованы — они в таблице. Любой слайс может импортировать
+`shared`, поэтому `shared` в таблице не указан.
+
+| Слайс                          | Импортирует (кроме `shared`)                                                                                                                            |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `app`                          | все `pages/*`, `widgets/app-shell`, `features/auth`, `features/theme`, `entities/*` кроме `session` (моки и фикстуры)                                   |
+| `pages/review-run`             | `widgets/review-run-view`, `widgets/review-workspace`, `widgets/run-inspector`, `features/live-run-status`, `entities/*` кроме `repository` и `session` |
+| `pages/reviews`                | `features/live-run-status`, `features/repository`, `entities/review-run`                                                                                |
+| `pages/OverviewPage`           | `features/auth`, `features/repository`                                                                                                                  |
+| `pages/RepositoriesPage`       | `features/repository`, `entities/repository`                                                                                                            |
+| `pages/RepositorySettingsPage` | `features/repository`, `entities/repository`                                                                                                            |
+| `pages/HelpPage`               | `features/theme`                                                                                                                                        |
+| `widgets/app-shell`            | `features/auth`, `features/theme`                                                                                                                       |
+| `widgets/review-run-view`      | `entities/published-comment`, `entities/review-finding`, `entities/review-run`                                                                          |
+| `widgets/review-workspace`     | `features/filter-findings`, `entities/diff`, `entities/published-comment`, `entities/review-finding`, `entities/review-run`                             |
+| `widgets/run-inspector`        | `entities/review-run`, `entities/review-run-step`                                                                                                       |
+| `features/auth`                | `entities/session`                                                                                                                                      |
+| `features/filter-findings`     | `entities/review-finding`                                                                                                                               |
+| `features/live-run-status`     | `entities/review-run`, `entities/session`                                                                                                               |
+| `features/repository`          | `entities/repository`                                                                                                                                   |
+| `features/theme`               | —                                                                                                                                                       |
+| `entities/*`                   | —                                                                                                                                                       |
+| `shared/*`                     | —                                                                                                                                                       |
 
 ## 4. Данные и состояние
 
