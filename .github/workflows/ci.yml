@@ -90,6 +90,12 @@ jobs:
           persist-credentials: false
       - uses: ./.github/actions/setup
       - run: pnpm run spec:validate
+      # Change со всеми закрытыми задачами архивируется в том же PR — иначе его
+      # дельты не доходят до openspec/specs/. Открытые change — в summary.
+      # Явный `shell: bash` включает pipefail: сбой openspec не маскируется
+      # ошибкой разбора JSON в скрипте. Порт проверки бэкенда.
+      - run: pnpm exec openspec list --json | node scripts/check-openspec-archived.mjs
+        shell: bash
 
   # Workflow и actions: zizmor (шаблонные инъекции, незакреплённые actions,
   # креды checkout, опасные триггеры) и shellcheck по shell-скриптам. Профиль
