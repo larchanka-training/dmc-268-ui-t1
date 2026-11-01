@@ -77,54 +77,42 @@ src/
 ├── main.tsx                          # точка входа: телеметрия, тема, монтирование app
 ├── app/
 │   ├── App.tsx
-│   ├── providers/                    # AppProviders (QueryClient, antd ConfigProvider, тема), queryClient
-│   ├── router/                       # AppRouter
-│   └── mocks/                        # mock adapter, mock event stream, mock server, фикстуры
+│   ├── providers/                    # AppProviders: QueryClient, antd ConfigProvider, тема
+│   ├── router/
+│   └── mocks/                        # mock adapter, поток событий, фикстуры
 ├── pages/
-│   ├── review-run/
-│   │   ├── ui/                       # ReviewRunView — композиция публичных widget API, FindingsList
-│   │   ├── model/                    # review (запрос экрана), verdict, workspace
-│   │   └── index.ts
-│   ├── reviews/
-│   │   ├── ui/                       # ReviewsPage, ReviewFilters
-│   │   ├── model/                    # filters, reviewList
-│   │   └── index.ts
+│   ├── review-run/                   # ui/, model/ — экран прогона, композиция публичных widget API
+│   ├── reviews/                      # ui/, model/ — список ревью
 │   ├── OverviewPage.tsx              # плоские экраны без слайса
 │   ├── RepositoriesPage.tsx
 │   ├── RepositorySettingsPage.tsx
 │   └── HelpPage.tsx
 ├── widgets/
-│   ├── app-shell/                    # ui/ — AppLayout, AppHeader, AppSidebar
-│   ├── review-run-view/              # ui/ — RunHeader, ReviewSummary, RunProgress
-│   ├── review-workspace/
-│   │   ├── ui/ReviewWorkspace.tsx
-│   │   ├── ui/FileList.tsx
-│   │   ├── ui/ViewModeToggle.tsx
-│   │   ├── ui/DiffViewer.tsx         # обёртка над @git-diff-view/react
-│   │   ├── model/store.ts
-│   │   └── index.ts
-│   └── run-inspector/                # ui/ — RunInspector
+│   ├── app-shell/                    # ui/
+│   ├── review-run-view/              # ui/
+│   ├── review-workspace/             # ui/, model/ — DiffViewer поверх @git-diff-view/react
+│   └── run-inspector/                # ui/
 ├── features/
-│   ├── auth/                         # hooks/ — useAuth, ui/ — RequireAuth
-│   ├── filter-findings/              # model/store.ts, ui/ — SeverityFilter, FileFilter, TextFilter, FilterSummary
-│   ├── live-run-status/              # model/ — useRunLiveStatus, useRunListLiveUpdates, ui/ — ConnectionNotice
-│   ├── repository/                   # model/ — repositoryQueries
-│   └── theme/                        # model/ — ThemeProvider, theme-context, hooks/ — useAppTheme
+│   ├── auth/                         # hooks/, ui/
+│   ├── filter-findings/              # model/, ui/
+│   ├── live-run-status/              # model/, ui/
+│   ├── repository/                   # model/
+│   └── theme/                        # model/, hooks/
 ├── entities/
-│   ├── diff/                         # model/, lib/ — collapseContext, toUnifiedDiff
+│   ├── diff/                         # model/, lib/
 │   ├── published-comment/            # model/
-│   ├── repository/                   # api/, lib/, model/, ui/ — RulesPreview, RulesStatusBadge
-│   ├── review-finding/               # model/, lib/ — anchor, ui/ — ReviewCommentThread, SeverityBadge
-│   ├── review-run/                   # api/, lib/, model/, ui/ — RunStatusBadge, VerdictBadge
+│   ├── repository/                   # api/, lib/, model/, ui/
+│   ├── review-finding/               # model/, lib/, ui/
+│   ├── review-run/                   # api/, lib/, model/, ui/
 │   ├── review-run-step/              # model/
 │   └── session/                      # api/, model/
 └── shared/
-    ├── api/                          # http, eventStream, transport (интерфейс adapter, TransportContext, useTransport), parse, errors, contract/
+    ├── api/                          # HTTP-клиент, поток событий, transport, ошибки, contract/
     ├── config/                       # env, общая настройка Zod
-    ├── lib/                          # нейтральные утилиты: format, navigation, urlPagination, usePageVisible, codeMarks
+    ├── lib/                          # нейтральные утилиты
     ├── telemetry/                    # OpenTelemetry и фильтр redact
-    ├── theme/                        # palette
-    └── ui/                           # повторно используемые простые UI-обёртки: ErrorBoundary, PageNav, states…
+    ├── theme/                        # палитра
+    └── ui/                           # простые повторно используемые UI-обёртки
 ```
 
 Вне слоёв FSD лежат: `main.tsx` — точка входа, подключает телеметрию, тему и `app`; `landing/` —
@@ -138,7 +126,7 @@ Vite под `/app`, SEO-файлы и мок входа для сборки; `st
 - `lib/` — чистые функции сущности или виджета;
 - `ui/` — компоненты; в `entities` они только отображают сущность и не меняют данные, действия
   пользователя живут в `features`;
-- `api/` — запросы, когда появится HTTP-клиент.
+- `api/` — запросы к бэкенду через `shared/api`.
 
 Наружу слайс отдаёт только `index.ts`.
 
@@ -191,45 +179,29 @@ flowchart TB
 ```
 
 Стрелка — разрешённое направление импорта: слой импортирует только нижележащие слои и никогда
-не импортирует вышестоящий; соседний слайс — только через его `index.ts`.
+не импортирует вышестоящий; соседний слайс — только через его `index.ts`. Любой слой может
+импортировать `shared`.
+
+Линтер направление импортов не проверяет: правило держится на ревью. Исключение — тесты: им
+можно брать `AppProviders` и `App` из `app`, чтобы рендерить экран в настоящих провайдерах.
 
 Кто владеет состоянием:
 
 ```mermaid
 flowchart LR
     s_api["shared/api<br/>useTransport()"] -.-> tq[("TanStack Query<br/>серверные данные")]
+    s_es["shared/api<br/>useEventStream()"] -.-> f_live["features/live-run-status"]
+    f_live -. setQueryData .-> tq
     tq -.-> q_owners["pages/review-run, pages/reviews,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
     zs[("Zustand<br/>UI-состояние")] -.-> z_owners["widgets/review-workspace,<br/>features/filter-findings"]
 ```
 
 Серверные данные идут через `useTransport()` из `shared/api` в кэш TanStack Query; запросы,
-мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. UI-состояние живёт в двух
-Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема (`features/theme`)
-— React context, не Zustand.
-
-Рёбра между слайсами на схеме не нарисованы — они в таблице. Любой слайс может импортировать
-`shared`, поэтому `shared` в таблице не указан.
-
-| Слайс                          | Импортирует (кроме `shared`)                                                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `app`                          | все `pages/*`, `widgets/app-shell`, `features/auth`, `features/theme`, `entities/*` кроме `session` (моки и фикстуры)                                   |
-| `pages/review-run`             | `widgets/review-run-view`, `widgets/review-workspace`, `widgets/run-inspector`, `features/live-run-status`, `entities/*` кроме `repository` и `session` |
-| `pages/reviews`                | `features/live-run-status`, `features/repository`, `entities/review-run`                                                                                |
-| `pages/OverviewPage`           | `features/auth`, `features/repository`                                                                                                                  |
-| `pages/RepositoriesPage`       | `features/repository`, `entities/repository`                                                                                                            |
-| `pages/RepositorySettingsPage` | `features/repository`, `entities/repository`                                                                                                            |
-| `pages/HelpPage`               | `features/theme`                                                                                                                                        |
-| `widgets/app-shell`            | `features/auth`, `features/theme`                                                                                                                       |
-| `widgets/review-run-view`      | `entities/published-comment`, `entities/review-finding`, `entities/review-run`                                                                          |
-| `widgets/review-workspace`     | `features/filter-findings`, `entities/diff`, `entities/published-comment`, `entities/review-finding`, `entities/review-run`                             |
-| `widgets/run-inspector`        | `entities/review-run`, `entities/review-run-step`                                                                                                       |
-| `features/auth`                | `entities/session`                                                                                                                                      |
-| `features/filter-findings`     | `entities/review-finding`                                                                                                                               |
-| `features/live-run-status`     | `entities/review-run`, `entities/session`                                                                                                               |
-| `features/repository`          | `entities/repository`                                                                                                                                   |
-| `features/theme`               | —                                                                                                                                                       |
-| `entities/*`                   | —                                                                                                                                                       |
-| `shared/*`                     | —                                                                                                                                                       |
+мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. Живые статусы прогонов
+приходят другим путём: `useRunLiveStatus` и `useRunListLiveUpdates` из `features/live-run-status`
+читают события из `useEventStream()` и пишут их в кэш через `setQueryData`. UI-состояние живёт в
+двух Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема
+(`features/theme`) — React context, не Zustand.
 
 ## 4. Данные и состояние
 
@@ -284,7 +256,6 @@ Zustand. Zustand хранит лишь действия пользователя
 | ---------- | --------------------------------------------------------- | -------------------------- |
 | workspace  | `selected_file`, `view_mode`, `expanded_context_line_ids` | `widgets/review-workspace` |
 | фильтрация | `severity_filters`                                        | `features/filter-findings` |
-| inspector  | `selected_action_id`                                      | `widgets/run-inspector`    |
 
 Локальные hover, popover и фокус одной строки не попадают в Zustand. При refetch выбранный файл,
 режим viewer, фильтры и раскрытый context сохраняются, если соответствующие данные всё ещё есть.
@@ -303,27 +274,24 @@ ReviewRunView (pages/review-run)
 │       └── @git-diff-view/react: hunks и строки
 │           └── ReviewCommentThread (entities/review-finding) в виджете под строкой
 └── RunInspector (widgets/run-inspector)
-    ├── ActionTree
-    └── ActionDetails
 ```
 
 `DiffHunk` и `DiffLine` — модели и роли, а не собственные React-компоненты: их выполняет
 библиотека внутри `DiffViewer`.
 
-| Компонент                      | Что делает                                                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `ReviewRunView`                | Через adapter из `useTransport()` показывает loading, error с повтором, empty и данные; композирует widgets.                          |
-| `RunHeader`                    | Даёт статус доступным текстом; показывает `base_sha` и `head_sha`, `failure_reason`, когда он есть; не рисует `null`.                 |
-| `ReviewSummary`                | Считает findings по severity, отклонённые findings и статусы публикации; finding вне diff показывает здесь.                           |
-| `FileList`                     | Показывает все файлы, включая без findings; меняет только `selected_file`.                                                            |
-| `SeverityFilter`               | Изменяет `severity_filters`, не владеет данными diff.                                                                                 |
-| `ViewModeToggle`               | Переключает `view_mode` между unified и side-by-side.                                                                                 |
-| `DiffViewer`                   | Рендерит ровно один выбранный `DiffFile` через библиотеку; кладёт findings и кнопки раскрытия context в виджеты под нужными строками. |
-| `DiffHunk` (роль)              | Заголовок `@@` соответствует показанным строкам: если свёрнутый блок делит hunk, номера пересчитываются.                              |
-| `DiffLine` (роль)              | Явно различает added/removed/context; findings получает только корректная строка.                                                     |
-| `ReviewCommentThread`          | Показывает все findings строки, их severity, suggestion и статус публикации.                                                          |
-| `RunInspector`                 | Показывает mock-хронологию действий; не требует готового backend endpoint.                                                            |
-| `ActionTree` / `ActionDetails` | Сортируют по `position`, выбирают `selected_action_id`, показывают безопасные preview и ошибку.                                       |
+| Компонент             | Что делает                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ReviewRunView`       | Через adapter из `useTransport()` показывает loading, error с повтором, empty и данные; композирует widgets.                          |
+| `RunHeader`           | Даёт статус доступным текстом; показывает `base_sha` и `head_sha`, `failure_reason`, когда он есть; не рисует `null`.                 |
+| `ReviewSummary`       | Считает findings по severity, отклонённые findings и статусы публикации; finding вне diff показывает здесь.                           |
+| `FileList`            | Показывает все файлы, включая без findings; меняет только `selected_file`.                                                            |
+| `SeverityFilter`      | Изменяет `severity_filters`, не владеет данными diff.                                                                                 |
+| `ViewModeToggle`      | Переключает `view_mode` между unified и side-by-side.                                                                                 |
+| `DiffViewer`          | Рендерит ровно один выбранный `DiffFile` через библиотеку; кладёт findings и кнопки раскрытия context в виджеты под нужными строками. |
+| `DiffHunk` (роль)     | Заголовок `@@` соответствует показанным строкам: если свёрнутый блок делит hunk, номера пересчитываются.                              |
+| `DiffLine` (роль)     | Явно различает added/removed/context; findings получает только корректная строка.                                                     |
+| `ReviewCommentThread` | Показывает все findings строки, их severity, suggestion и статус публикации.                                                          |
+| `RunInspector`        | Показывает ход прогона: шаги воркера по порядку — этап, статус, время, токены, код ошибки.                                            |
 
 ## 6. Правила viewer
 
