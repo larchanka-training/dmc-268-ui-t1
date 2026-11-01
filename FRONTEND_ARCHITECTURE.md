@@ -1,6 +1,6 @@
 ---
 document_id: frontend-architecture
-version: '6.1-draft'
+version: '6.2-draft'
 language: ru
 status: draft
 implementation_status: planned
@@ -74,48 +74,51 @@ diff, поэтому `entities/diff/lib` переводит `DiffFile` в тек
 
 ```text
 src/
+├── main.tsx                          # точка входа: телеметрия, тема, монтирование app
 ├── app/
-│   ├── providers/                    # QueryClient, ErrorBoundary, TransportProvider
-│   └── mocks/                        # конкретный mock adapter и фикстуры по умолчанию
+│   ├── App.tsx
+│   ├── providers/                    # AppProviders: QueryClient, antd ConfigProvider, тема
+│   ├── router/
+│   └── mocks/                        # mock adapter, поток событий, фикстуры
 ├── pages/
-│   └── review-run/
-│       ├── ui/ReviewRunView.tsx      # экран: только композиция публичных widget API
-│       ├── model/mockReview.ts       # MockReviewStateSchema и запрос экрана
-│       └── index.ts
+│   ├── review-run/                   # ui/, model/ — экран прогона, композиция публичных widget API
+│   ├── reviews/                      # ui/, model/ — список ревью
+│   ├── OverviewPage.tsx              # плоские экраны без слайса
+│   ├── RepositoriesPage.tsx
+│   ├── RepositorySettingsPage.tsx
+│   └── HelpPage.tsx
 ├── widgets/
-│   ├── review-run-view/
-│   │   ├── ui/RunHeader.tsx
-│   │   ├── ui/ReviewSummary.tsx
-│   │   └── index.ts
-│   ├── review-workspace/
-│   │   ├── ui/ReviewWorkspace.tsx
-│   │   ├── ui/FileList.tsx
-│   │   ├── ui/ViewModeToggle.tsx
-│   │   ├── ui/DiffViewer.tsx         # обёртка над @git-diff-view/react
-│   │   ├── model/store.ts
-│   │   └── index.ts
-│   └── run-inspector/
-│       ├── ui/RunInspector.tsx
-│       ├── ui/ActionTree.tsx
-│       ├── ui/ActionDetails.tsx
-│       ├── model/store.ts
-│       └── index.ts
+│   ├── app-shell/                    # ui/
+│   ├── review-run-view/              # ui/
+│   ├── review-workspace/             # ui/, model/ — DiffViewer поверх @git-diff-view/react
+│   └── run-inspector/                # ui/
 ├── features/
-│   └── filter-findings/
-│       ├── ui/SeverityFilter.tsx
-│       ├── model/store.ts
-│       └── index.ts
+│   ├── auth/                         # hooks/, ui/
+│   ├── filter-findings/              # model/, ui/
+│   ├── live-run-status/              # model/, ui/
+│   ├── repository/                   # model/
+│   └── theme/                        # model/, hooks/
 ├── entities/
-│   ├── review-run/                   # model/, ui/ — бейджи статуса и verdict
-│   ├── diff/                         # model/, lib/ — collapseContext, toUnifiedDiff
-│   ├── review-finding/               # model/, lib/ — anchor, ui/ — ReviewCommentThread, SeverityBadge
+│   ├── diff/                         # model/, lib/
 │   ├── published-comment/            # model/
-│   └── review-run-action/            # model/
+│   ├── repository/                   # api/, lib/, model/, ui/
+│   ├── review-finding/               # model/, lib/, ui/
+│   ├── review-run/                   # api/, lib/, model/, ui/
+│   ├── review-run-step/              # model/
+│   └── session/                      # api/, model/
 └── shared/
-    ├── api/                          # интерфейс adapter, TransportContext, useTransport и общая граница Zod
+    ├── api/                          # HTTP-клиент, поток событий, transport, ошибки, contract/
+    ├── config/                       # env, общая настройка Zod
     ├── lib/                          # нейтральные утилиты
-    └── ui/                           # повторно используемые простые UI-обёртки
+    ├── telemetry/                    # OpenTelemetry и фильтр redact
+    ├── theme/                        # палитра
+    └── ui/                           # простые повторно используемые UI-обёртки
 ```
+
+Вне слоёв FSD лежат: `main.tsx` — точка входа, подключает телеметрию, тему и `app`; `landing/` —
+скрипт и стили статичной страницы входа `login.html`; `build/` — правила dev- и preview-сервера
+Vite под `/app`, SEO-файлы и мок входа для сборки; `styles/` — глобальные стили; `test/` —
+фабрики для тестов.
 
 Сегменты слайса — стандартные для FSD:
 
@@ -123,7 +126,7 @@ src/
 - `lib/` — чистые функции сущности или виджета;
 - `ui/` — компоненты; в `entities` они только отображают сущность и не меняют данные, действия
   пользователя живут в `features`;
-- `api/` — запросы, когда появится HTTP-клиент.
+- `api/` — запросы к бэкенду через `shared/api`.
 
 Наружу слайс отдаёт только `index.ts`.
 
@@ -132,7 +135,8 @@ src/
 нельзя. В частности:
 
 - `shared/api` владеет интерфейсом adapter, `TransportContext` и `useTransport()`;
-  `app/providers/TransportProvider` выбирает конкретный adapter и передаёт его в этот context.
+  `app/App.tsx` выбирает конкретный adapter (mock или HTTP по `VITE_USE_MOCK_API`),
+  `app/providers/AppProviders` передаёт его в этот context.
   `ReviewRunView` не импортирует `app`;
 - `pages/review-run` получает adapter через `useTransport()`, владеет запросом экрана и
   собирает публичные widget API;
@@ -142,6 +146,62 @@ src/
   публичный API сущности;
 - `ReviewRunView` находится в `pages`, не в `app`: это экран предметной области, а не корень
   приложения.
+
+### 3.1 Схема слоёв
+
+```mermaid
+flowchart TB
+    subgraph app["app"]
+        direction LR
+        a_prov["providers"] ~~~ a_router["router"] ~~~ a_mocks["mocks"]
+    end
+    subgraph pages["pages"]
+        direction LR
+        p_run["review-run"] ~~~ p_reviews["reviews"] ~~~ p_flat["Overview, Repositories,<br/>RepositorySettings, Help"]
+    end
+    subgraph widgets["widgets"]
+        direction LR
+        w_shell["app-shell"] ~~~ w_view["review-run-view"] ~~~ w_ws["review-workspace"] ~~~ w_insp["run-inspector"]
+    end
+    subgraph features["features"]
+        direction LR
+        f_auth["auth"] ~~~ f_filter["filter-findings"] ~~~ f_live["live-run-status"] ~~~ f_repo["repository"] ~~~ f_theme["theme"]
+    end
+    subgraph entities["entities"]
+        direction LR
+        e_diff["diff"] ~~~ e_pc["published-comment"] ~~~ e_repo["repository"] ~~~ e_rf["review-finding"] ~~~ e_rr["review-run"] ~~~ e_step["review-run-step"] ~~~ e_sess["session"]
+    end
+    subgraph shared["shared"]
+        direction LR
+        s_api["api"] ~~~ s_lib["lib"] ~~~ s_ui["ui"] ~~~ s_cfg["config"] ~~~ s_theme["theme"] ~~~ s_tel["telemetry"]
+    end
+    app --> pages --> widgets --> features --> entities --> shared
+```
+
+Стрелка — разрешённое направление импорта: слой импортирует только нижележащие слои и никогда
+не импортирует вышестоящий; соседний слайс — только через его `index.ts`. Любой слой может
+импортировать `shared`.
+
+Линтер направление импортов не проверяет: правило держится на ревью. Исключение — тесты: им
+можно брать `AppProviders` и `App` из `app`, чтобы рендерить экран в настоящих провайдерах.
+
+Кто владеет состоянием:
+
+```mermaid
+flowchart LR
+    s_api["shared/api<br/>useTransport()"] -.-> tq[("TanStack Query<br/>серверные данные")]
+    s_es["shared/api<br/>useEventStream()"] -.-> f_live["features/live-run-status"]
+    f_live -. setQueryData .-> tq
+    tq -.-> q_owners["pages/review-run, pages/reviews,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
+    zs[("Zustand<br/>UI-состояние")] -.-> z_owners["widgets/review-workspace,<br/>features/filter-findings"]
+```
+
+Серверные данные идут через `useTransport()` из `shared/api` в кэш TanStack Query; запросы,
+мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. Живые статусы прогонов
+приходят другим путём: `useRunLiveStatus` и `useRunListLiveUpdates` из `features/live-run-status`
+читают события из `useEventStream()` и пишут их в кэш через `setQueryData`. UI-состояние живёт в
+двух Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема
+(`features/theme`) — React context, не Zustand.
 
 ## 4. Данные и состояние
 
@@ -196,7 +256,6 @@ Zustand. Zustand хранит лишь действия пользователя
 | ---------- | --------------------------------------------------------- | -------------------------- |
 | workspace  | `selected_file`, `view_mode`, `expanded_context_line_ids` | `widgets/review-workspace` |
 | фильтрация | `severity_filters`                                        | `features/filter-findings` |
-| inspector  | `selected_action_id`                                      | `widgets/run-inspector`    |
 
 Локальные hover, popover и фокус одной строки не попадают в Zustand. При refetch выбранный файл,
 режим viewer, фильтры и раскрытый context сохраняются, если соответствующие данные всё ещё есть.
@@ -215,27 +274,24 @@ ReviewRunView (pages/review-run)
 │       └── @git-diff-view/react: hunks и строки
 │           └── ReviewCommentThread (entities/review-finding) в виджете под строкой
 └── RunInspector (widgets/run-inspector)
-    ├── ActionTree
-    └── ActionDetails
 ```
 
 `DiffHunk` и `DiffLine` — модели и роли, а не собственные React-компоненты: их выполняет
 библиотека внутри `DiffViewer`.
 
-| Компонент                      | Что делает                                                                                                                            |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `ReviewRunView`                | Через adapter из `useTransport()` показывает loading, error с повтором, empty и данные; композирует widgets.                          |
-| `RunHeader`                    | Даёт статус доступным текстом; показывает `base_sha` и `head_sha`, `failure_reason`, когда он есть; не рисует `null`.                 |
-| `ReviewSummary`                | Считает findings по severity, отклонённые findings и статусы публикации; finding вне diff показывает здесь.                           |
-| `FileList`                     | Показывает все файлы, включая без findings; меняет только `selected_file`.                                                            |
-| `SeverityFilter`               | Изменяет `severity_filters`, не владеет данными diff.                                                                                 |
-| `ViewModeToggle`               | Переключает `view_mode` между unified и side-by-side.                                                                                 |
-| `DiffViewer`                   | Рендерит ровно один выбранный `DiffFile` через библиотеку; кладёт findings и кнопки раскрытия context в виджеты под нужными строками. |
-| `DiffHunk` (роль)              | Заголовок `@@` соответствует показанным строкам: если свёрнутый блок делит hunk, номера пересчитываются.                              |
-| `DiffLine` (роль)              | Явно различает added/removed/context; findings получает только корректная строка.                                                     |
-| `ReviewCommentThread`          | Показывает все findings строки, их severity, suggestion и статус публикации.                                                          |
-| `RunInspector`                 | Показывает mock-хронологию действий; не требует готового backend endpoint.                                                            |
-| `ActionTree` / `ActionDetails` | Сортируют по `position`, выбирают `selected_action_id`, показывают безопасные preview и ошибку.                                       |
+| Компонент             | Что делает                                                                                                                            |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `ReviewRunView`       | Через adapter из `useTransport()` показывает loading, error с повтором, empty и данные; композирует widgets.                          |
+| `RunHeader`           | Даёт статус доступным текстом; показывает `base_sha` и `head_sha`, `failure_reason`, когда он есть; не рисует `null`.                 |
+| `ReviewSummary`       | Считает findings по severity, отклонённые findings и статусы публикации; finding вне diff показывает здесь.                           |
+| `FileList`            | Показывает все файлы, включая без findings; меняет только `selected_file`.                                                            |
+| `SeverityFilter`      | Изменяет `severity_filters`, не владеет данными diff.                                                                                 |
+| `ViewModeToggle`      | Переключает `view_mode` между unified и side-by-side.                                                                                 |
+| `DiffViewer`          | Рендерит ровно один выбранный `DiffFile` через библиотеку; кладёт findings и кнопки раскрытия context в виджеты под нужными строками. |
+| `DiffHunk` (роль)     | Заголовок `@@` соответствует показанным строкам: если свёрнутый блок делит hunk, номера пересчитываются.                              |
+| `DiffLine` (роль)     | Явно различает added/removed/context; findings получает только корректная строка.                                                     |
+| `ReviewCommentThread` | Показывает все findings строки, их severity, suggestion и статус публикации.                                                          |
+| `RunInspector`        | Показывает ход прогона: шаги воркера по порядку — этап, статус, время, токены, код ошибки.                                            |
 
 ## 6. Правила viewer
 
