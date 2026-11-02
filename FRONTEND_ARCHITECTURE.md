@@ -151,45 +151,26 @@ Vite под `/app`, SEO-файлы и мок входа для сборки; `st
 
 ```mermaid
 flowchart TB
-    subgraph app["app"]
-        direction LR
-        a_prov["providers"] ~~~ a_router["router"] ~~~ a_mocks["mocks"]
-    end
-    subgraph pages["pages"]
-        direction LR
-        p_run["review-run"] ~~~ p_reviews["reviews"] ~~~ p_flat["Overview, Repositories,<br/>RepositorySettings, Help"]
-    end
-    subgraph widgets["widgets"]
-        direction LR
-        w_shell["app-shell"] ~~~ w_view["review-run-view"] ~~~ w_ws["review-workspace"] ~~~ w_insp["run-inspector"]
-    end
-    subgraph features["features"]
-        direction LR
-        f_auth["auth"] ~~~ f_filter["filter-findings"] ~~~ f_live["live-run-status"] ~~~ f_repo["repository"] ~~~ f_theme["theme"]
-    end
-    subgraph entities["entities"]
-        direction LR
-        e_diff["diff"] ~~~ e_pc["published-comment"] ~~~ e_repo["repository"] ~~~ e_rf["review-finding"] ~~~ e_rr["review-run"] ~~~ e_step["review-run-step"] ~~~ e_sess["session"]
-    end
-    subgraph shared["shared"]
-        direction LR
-        s_api["api"] ~~~ s_lib["lib"] ~~~ s_ui["ui"] ~~~ s_cfg["config"] ~~~ s_theme["theme"] ~~~ s_tel["telemetry"]
-    end
+    app["<b>app</b><br/>providers, router, mocks"]
+    pages["<b>pages</b><br/>review-run, reviews, Overview, Repositories, Help"]
+    widgets["<b>widgets</b><br/>app-shell, review-run-view, review-workspace, run-inspector"]
+    features["<b>features</b><br/>auth, filter-findings, live-run-status, repository, theme"]
+    entities["<b>entities</b><br/>diff, review-run, review-finding, review-run-step, session"]
+    shared["<b>shared</b><br/>api, lib, ui, config, telemetry"]
     app --> pages --> widgets --> features --> entities --> shared
 ```
 
-Стрелка — разрешённое направление импорта: слой импортирует только нижележащие слои и никогда
-не импортирует вышестоящий; соседний слайс — только через его `index.ts`. Любой слой может
-импортировать `shared`.
+Стрелка — разрешённое направление импорта: слой может импортировать любой нижележащий. Правило —
+в §3.
 
 Линтер направление импортов не проверяет: правило держится на ревью. Исключение — тесты: им
-можно брать `AppProviders` и `App` из `app`, чтобы рендерить экран в настоящих провайдерах.
+можно брать провайдеры и `App` из `app`, чтобы рендерить экран в настоящих провайдерах.
 
 Кто владеет состоянием:
 
 ```mermaid
 flowchart LR
-    s_api["shared/api<br/>useTransport()"] -.-> tq[("TanStack Query<br/>серверные данные")]
+    s_api["shared/api<br/>useTransport(), apiFetch"] -.-> tq[("TanStack Query<br/>серверные данные")]
     s_es["shared/api<br/>useEventStream()"] -.-> f_live["features/live-run-status"]
     f_live -. setQueryData .-> tq
     tq -.-> q_owners["pages/review-run, pages/reviews,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
@@ -197,7 +178,9 @@ flowchart LR
 ```
 
 Серверные данные идут через `useTransport()` из `shared/api` в кэш TanStack Query; запросы,
-мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. Живые статусы прогонов
+мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. Исключение —
+`features/auth`: профиль и выход (`entities/session`) вызывают `apiFetch` напрямую, мимо
+`useTransport()`, поэтому подмена adapter их не покрывает. Живые статусы прогонов
 приходят другим путём: `useRunLiveStatus` и `useRunListLiveUpdates` из `features/live-run-status`
 читают события из `useEventStream()` и пишут их в кэш через `setQueryData`. UI-состояние живёт в
 двух Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема
@@ -214,7 +197,7 @@ type MockReviewState = {
   diffs_by_path: Record<string, DiffFile>
   findings: ReviewFinding[]
   published_comments: PublishedComment[]
-  actions: ReviewRunAction[]
+  steps: ReviewRunStep[]
 }
 ```
 
@@ -238,10 +221,9 @@ type MockReviewState = {
 
 `ReviewFinding` содержит `file_path`, `side`, номер строки на своей стороне, severity, category,
 текст и suggestion при наличии. `PublishedComment` — отдельная сущность: она хранит факт и
-статус публикации finding, а не заменяет finding. `ReviewRunAction` содержит `position`, tool,
-status, время, duration, очищенные `request_preview` / `response_preview` и ошибку при наличии.
-Неизвестный preview отображается безопасно как JSON, текст или пустое значение; полный payload
-не загружается.
+статус публикации finding, а не заменяет finding. `ReviewRunStep` — шаг воркера: `stage`,
+`status`, `started_at`, `duration_seconds`, `tokens_used` и `error_code`; запросов и ответов
+модели в нём нет.
 
 Поля вроде URL запроса на изменения, автора, веток, verdict и score допустимы только как
 **явно помеченное mock-расширение**, пока их не согласовали с backend. Они не должны называться
@@ -249,8 +231,9 @@ status, время, duration, очищенные `request_preview` / `response_p
 
 ### 4.2 Один источник правды
 
-TanStack Query хранит только `MockReviewState`, возвращённый adapter. Его нельзя копировать в
-Zustand. Zustand хранит лишь действия пользователя:
+TanStack Query хранит серверные данные: профиль, репозитории, список прогонов, прогон с diff,
+findings и шагами — всё, что вернули adapter или `apiFetch`. Их нельзя копировать в Zustand.
+Zustand хранит лишь действия пользователя:
 
 | Store      | Поля                                                      | Владелец                   |
 | ---------- | --------------------------------------------------------- | -------------------------- |
