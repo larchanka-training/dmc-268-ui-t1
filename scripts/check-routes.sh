@@ -136,8 +136,19 @@ fetch /app/help/
 has "$body" 'id="root"' || fail "в /app/help/ нет id=\"root\": это не приложение"
 security_headers "/app/help/ без cookie сессии"
 
-# Исключение только для самой помощи: глубже и рядом гостя уводят на вход.
-for path in /app/help/x /app/helpx /app/repositories; do
+# Статус сервиса открыт гостю так же, как помощь.
+fetch /app/status
+[ "$status" = 200 ] || fail "/app/status без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/status нет id=\"root\": это не приложение"
+security_headers "/app/status без cookie сессии"
+
+fetch /app/status/
+[ "$status" = 200 ] || fail "/app/status/ без cookie сессии вернул ${status}, ожидался 200"
+has "$body" 'id="root"' || fail "в /app/status/ нет id=\"root\": это не приложение"
+security_headers "/app/status/ без cookie сессии"
+
+# Исключение только для самих помощи и статуса: глубже и рядом гостя уводят на вход.
+for path in /app/help/x /app/helpx /app/status/x /app/statusx /app/repositories; do
   fetch "$path"
   [ "$status" = 302 ] || fail "$path без cookie сессии вернул ${status}, ожидался 302 на /login"
   location_is "/login?redirect=$path" || fail "$path без cookie сессии не уводит на /login?redirect=$path"
@@ -187,6 +198,6 @@ fetch /otlp/v1/traces
 [ "$status" = 403 ] || fail "GET /otlp/v1/traces вернул ${status}, ожидался 403: приём трейсов — только POST"
 
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help и /app/help/ (гость), /app/help/x, /app/helpx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help, /app/help/, /app/status и /app/status/ (гость), /app/help/x, /app/helpx, /app/status/x, /app/statusx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
 fi
 exit "$failed"

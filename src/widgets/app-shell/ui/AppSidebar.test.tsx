@@ -18,4 +18,18 @@ describe('AppSidebar', () => {
     await userEvent.click(screen.getByRole('menuitem', { name: /Помощь/ }))
     expect(screen.getByRole('status')).toHaveTextContent('/help')
   })
+
+  it('пункт «Статус сервиса» в боковом меню ведёт на /status', async () => {
+    function Path() {
+      return <output>{useLocation().pathname}</output>
+    }
+    render(
+      <MemoryRouter initialEntries={['/']}>
+        <AppSidebar />
+        <Path />
+      </MemoryRouter>,
+    )
+    await userEvent.click(screen.getByRole('menuitem', { name: /Статус сервиса/ }))
+    expect(screen.getByRole('status')).toHaveTextContent('/status')
+  })
 })

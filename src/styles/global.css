@@ -179,3 +179,35 @@ body {
   border: 1px solid var(--app-border);
   border-radius: 6px;
 }
+
+/* Статус сервиса: та же ширина, что у помощи, компоненты строками в карточке. */
+.status-content {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.status-error {
+  margin-top: 24px;
+}
+
+.status-heading {
+  font-size: 18px;
+}
+
+.status-components {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.status-component {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+}
+
+.status-component + .status-component {
+  border-top: 1px solid var(--app-border);
+}

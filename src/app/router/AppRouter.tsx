@@ -7,6 +7,7 @@ import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
 import { ReviewRunView } from '@/pages/review-run'
 import { ReviewsPage } from '@/pages/reviews'
+import { StatusPage } from '@/pages/status'
 
 export function AppRouter() {
   return (
@@ -15,6 +16,8 @@ export function AppRouter() {
       <Routes>
         {/* Помощь — статичный текст без данных: открыта без сессии, nginx пускает гостя на /app/help. */}
         <Route path="/help" element={<HelpPage />} />
+        {/* Статус сервиса — публичная ручка `/api/v1/status` без сессии: nginx пускает гостя на /app/status. */}
+        <Route path="/status" element={<StatusPage />} />
         {/* Экран прогона — маршрут кабинета: сессия нужна, но шапки и меню у него нет. */}
         <Route
           path="/reviews/:reviewId"

@@ -1,5 +1,6 @@
 import { ApiError, type ApiTransport } from '../../shared/api'
 import type { ConnectRepositoryRequest, RepositorySettingsUpdate } from '../../entities/repository'
+import { SERVICE_STATUS_PATH } from '../../entities/service-status'
 import {
   reviewDiffPath,
   reviewPath,
@@ -11,6 +12,7 @@ import type { MockServer } from './mockServer'
 import { createRepositoryStore } from './repositories'
 import { createRepositorySettingsStore } from './repositorySettings'
 import { createReviewRunStore } from './reviewRuns'
+import { mockServiceStatus } from './serviceStatus'
 
 /**
  * Mock adapter с той же границей, что и HTTP-клиент: пути и формы ответов — как в контракте
@@ -25,7 +27,7 @@ import { createReviewRunStore } from './reviewRuns'
  * Настройки и статус правил живут в своём store (`repositorySettings.ts`) по ручкам контракта
  * `GET/PUT /repositories/{id}/settings` и `GET /repositories/{id}/rules`; список прогонов
  * `/reviews` (в том числе с фильтром `repository_id`) отдаёт вкладке «Ревью» store
- * `reviewRuns.ts`.
+ * `reviewRuns.ts`. Статус сервиса `/status` — из `serviceStatus.ts`.
  */
 export function createMockAdapter({
   latencyMs = 250,
@@ -81,6 +83,8 @@ export function createMockAdapter({
     const [route, search = ''] = path.split('?')
     if (route === '/reviews') return reviewRuns.list(search)
     if (route === '/repositories') return repositories.list()
+    // Публичный статус сервиса (api#299): в моках всё работает.
+    if (route === SERVICE_STATUS_PATH) return mockServiceStatus()
     // Один репозиторий и блок настроек — ручки контракта (api#113).
     const repositoryRoute = /^\/repositories\/([^/?]+)$/.exec(route)
     if (repositoryRoute) return repositories.get(repositoryRoute[1])

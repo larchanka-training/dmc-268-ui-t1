@@ -1,5 +1,6 @@
 import {
   BookOutlined,
+  CloudServerOutlined,
   DashboardOutlined,
   FileSearchOutlined,
   GithubOutlined,
@@ -15,6 +16,7 @@ const navItems = [
   { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
   { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
   { key: '/help', icon: <QuestionCircleOutlined />, label: 'Помощь' },
+  { key: '/status', icon: <CloudServerOutlined />, label: 'Статус сервиса' },
 ]
 
 export function AppSidebar() {

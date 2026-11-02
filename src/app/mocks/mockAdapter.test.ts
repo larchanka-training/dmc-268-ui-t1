@@ -9,6 +9,7 @@ import {
   fetchRulesStatus,
   saveRepositorySettings,
 } from '../../entities/repository'
+import { fetchServiceStatus } from '../../entities/service-status'
 import { createMockAdapter } from './mockAdapter'
 import { MOCK_INSTALL_URL, mockRepositoryId } from './repositories'
 
@@ -132,5 +133,15 @@ describe('mock adapter: список и переключатель «Ревью�
     await expect(
       connectRepository(adapter(), { provider: 'github', provider_id: '104' }),
     ).rejects.toMatchObject({ status: 403, code: 'REPOSITORY_MANAGE_REQUIRED' })
+  })
+})
+
+describe('mock adapter: статус сервиса', () => {
+  it('GET /status отдаёт все три компонента формой контракта', async () => {
+    const report = await fetchServiceStatus(adapter())
+
+    expect(report.status).toBe('operational')
+    expect(report.components.map((component) => component.id)).toEqual(['api', 'worker', 'queue'])
+    expect(report.checked_at).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/)
   })
 })

@@ -1,8 +1,7 @@
-import { MoonOutlined, SunOutlined } from '@ant-design/icons'
-import { Button, Layout, Space, Typography } from 'antd'
+import { Typography } from 'antd'
 import { useEffect, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAppTheme } from '@/features/theme'
+import { useLocation } from 'react-router-dom'
+import { PublicLayout } from '@/widgets/app-shell'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -124,13 +123,11 @@ const FAQ: { id: string; question: string; answer: ReactNode }[] = [
 ]
 
 /**
- * Помощь: статичный текст без данных с сервера, открыт без сессии. Поэтому у страницы своя
- * простая шапка вместо `AppLayout`: меню и профиль кабинета требуют входа.
+ * Помощь: статичный текст без данных с сервера, открыт без сессии. Поэтому каркас —
+ * `PublicLayout` с простой шапкой вместо `AppLayout`: меню и профиль кабинета требуют входа.
  */
 export function HelpPage() {
-  const { mode, toggleMode } = useAppTheme()
-  const { hash, key } = useLocation()
-  const navigate = useNavigate()
+  const { hash } = useLocation()
 
   // Роутер сам не прокручивает к якорю: делаем это при открытии и при смене `#…`.
   useEffect(() => {
@@ -139,83 +136,57 @@ export function HelpPage() {
   }, [hash])
 
   return (
-    <Layout className="app-layout-root">
-      <Layout.Header className="app-shell-header-bar app-main-header">
-        <a href="/">DMC Console</a>
-        <Space>
-          {/* Пришли из кабинета (в истории приложения есть запись до помощи) — возвращаемся
-              туда же. Открыли помощь по ссылке или с входа — на «Обзор». */}
-          <Link
-            to="/"
-            onClick={(event) => {
-              if (key === 'default') return
-              event.preventDefault()
-              void navigate(-1)
-            }}
-          >
-            В кабинет
-          </Link>
-          <Button
-            type="text"
-            icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}
-            onClick={toggleMode}
-            aria-label="Переключить тему"
-          />
-        </Space>
-      </Layout.Header>
-      <Layout.Content className="app-layout-content">
-        <div className="help-content">
-          <Title level={1} className="page-title">
-            Помощь
+    <PublicLayout>
+      <div className="help-content">
+        <Title level={1} className="page-title">
+          Помощь
+        </Title>
+
+        <section className="page-section">
+          <Title level={2} id="start" className="help-anchor">
+            Как начать
           </Title>
+          <ol>
+            <li>Войдите через GitHub.</li>
+            <li>
+              Откройте «Репозитории» и нажмите <Text strong>«Добавить репозитории из GitHub»</Text>.
+            </li>
+            <li>На странице GitHub выберите аккаунт: свой или организацию.</li>
+            <li>
+              Отметьте нужные репозитории («Only select repositories»), в том числе приватные, и
+              нажмите <Text strong>Install</Text>.
+            </li>
+            <li>
+              Вернитесь на «Репозитории»: отмеченные репозитории появятся в списке. Если ревью в
+              нужном выключено, включите его переключателем «Ревью». Без роли admin или maintain его
+              включит администратор.
+            </li>
+            <li>
+              Откройте PR в одном из них: бот пришлёт ревью комментариями, а прогон будет виден в
+              разделе «Ревью» бокового меню.
+            </li>
+          </ol>
+          <Paragraph>
+            Сразу после Install сервис может включить ревью сам, но только в отмеченных
+            репозиториях. Если на GitHub выбрать «All repositories» или позже добавить репозитории в
+            уже установленное приложение, они появятся выключенными.
+          </Paragraph>
+        </section>
 
-          <section className="page-section">
-            <Title level={2} id="start" className="help-anchor">
-              Как начать
-            </Title>
-            <ol>
-              <li>Войдите через GitHub.</li>
-              <li>
-                Откройте «Репозитории» и нажмите{' '}
-                <Text strong>«Добавить репозитории из GitHub»</Text>.
-              </li>
-              <li>На странице GitHub выберите аккаунт: свой или организацию.</li>
-              <li>
-                Отметьте нужные репозитории («Only select repositories»), в том числе приватные, и
-                нажмите <Text strong>Install</Text>.
-              </li>
-              <li>
-                Вернитесь на «Репозитории»: отмеченные репозитории появятся в списке. Если ревью в
-                нужном выключено, включите его переключателем «Ревью». Без роли admin или maintain
-                его включит администратор.
-              </li>
-              <li>
-                Откройте PR в одном из них: бот пришлёт ревью комментариями, а прогон будет виден в
-                разделе «Ревью» бокового меню.
-              </li>
-            </ol>
-            <Paragraph>
-              Сразу после Install сервис может включить ревью сам, но только в отмеченных
-              репозиториях. Если на GitHub выбрать «All repositories» или позже добавить репозитории
-              в уже установленное приложение, они появятся выключенными.
-            </Paragraph>
-          </section>
-
-          <section className="page-section">
-            <Title level={2} id="faq">
-              Вопросы и ответы
-            </Title>
-            {FAQ.map(({ id, question, answer }) => (
-              <article key={id}>
-                <Title level={3} id={id} className="help-anchor">
-                  {question}
-                </Title>
-                {answer}
-              </article>
-            ))}
-          </section>
-        </div>
-      </Layout.Content>
-    </Layout>
+        <section className="page-section">
+          <Title level={2} id="faq">
+            Вопросы и ответы
+          </Title>
+          {FAQ.map(({ id, question, answer }) => (
+            <article key={id}>
+              <Title level={3} id={id} className="help-anchor">
+                {question}
+              </Title>
+              {answer}
+            </article>
+          ))}
+        </section>
+      </div>
+    </PublicLayout>
   )
 }
