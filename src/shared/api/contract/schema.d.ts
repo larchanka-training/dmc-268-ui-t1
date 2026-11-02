@@ -139,7 +139,7 @@ export interface paths {
         put?: never;
         /**
          * Подключить репозиторий
-         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App с `auto_review_enabled = true`; `full_name` и `default_branch` — из ответа GitHub. Два запроса к GitHub: репозиторий по id токеном пользователя (`GET /repositories/{id}`), затем установка приложения на нём (`GET /repos/{owner}/{repo}/installation`). Проверки по порядку: провайдер не `github`, репозиторий не виден пользователю или публичный виден только с правом чтения (так GitHub отдаёт любой публичный репозиторий), приложение на нём не установлено или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, один ответ без различия; у пользователя нет права admin или maintain на репозиторий в GitHub, в том числе роль read на приватном — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён и включён — `409 REPOSITORY_ALREADY_CONNECTED`; интерфейс считает его успехом: ревью уже включено, в том числе параллельным запросом. Выключенный `DELETE` репозиторий включается обратно — `201` с прежним `id`, история прогонов сохраняется. После повторного включения head, запушенный в выключенный период, остаётся с проверкой «Ревью выключено» до следующего push. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Регистрирует репозиторий установки GitHub App; новый получает настройки по умолчанию, в том числе `auto_review_enabled = true`, а включённый обратно после `DELETE` сохраняет свои сохранённые настройки, в том числе `auto_review_enabled = false`. `full_name` и `default_branch` — из ответа GitHub. Два запроса к GitHub: репозиторий по id токеном пользователя (`GET /repositories/{id}`), затем установка приложения на нём (`GET /repos/{owner}/{repo}/installation`). Проверки по порядку: провайдер не `github`, репозиторий не виден пользователю или публичный виден только с правом чтения (так GitHub отдаёт любой публичный репозиторий), приложение на нём не установлено или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, один ответ без различия; у пользователя нет права admin или maintain на репозиторий в GitHub, в том числе роль read на приватном — `403 REPOSITORY_MANAGE_REQUIRED`; репозиторий уже подключён и включён — `409 REPOSITORY_ALREADY_CONNECTED`; интерфейс считает его успехом: ревью уже включено, в том числе параллельным запросом. Выключенный `DELETE` репозиторий включается обратно — `201` с прежним `id`, история прогонов сохраняется. После повторного включения head, запушенный в выключенный период, остаётся с проверкой «Ревью выключено» до следующего push. Пользователь без прав получает `403` и не узнаёт, подключён ли репозиторий. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается. Если GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, репозиторий не записан.
          */
         post: operations["connectRepository"];
         delete?: never;
@@ -181,12 +181,12 @@ export interface paths {
         };
         /**
          * Настройки ревью репозитория
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #113). Требует сессию; id репозитория проверяется до ответа 501. Когда ручка заработает: настройки ревью репозитория; 404 REPOSITORY_NOT_FOUND, если репозитория нет. У репозитория без сохранённых настроек — значения по умолчанию: auto_review_enabled = true, branch_filter = [] (все ветки), min_severity = critical.
+         * @description Требует сессию. Настройки ревью видимого пользователю репозитория, в том числе выключенного `DELETE`. У репозитория без сохранённых настроек — значения по умолчанию: auto_review_enabled = true, branch_filter = [] (все ветки), min_severity = critical. 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub (кэш видимости, как у GET /repositories/{id}), — ответ один и тот же. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`.
          */
         get: operations["getRepositorySettings"];
         /**
          * Сохранить настройки ревью репозитория
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #113). Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела, id репозитория и тело — до ответа 501. Тело — полный набор настроек: все поля обязательны, запись заменяет прежние настройки целиком, повтор того же тела ничего не меняет. Когда ручка заработает: 200 с сохранёнными настройками; 404 REPOSITORY_NOT_FOUND, если репозитория нет; 403 REPOSITORY_MANAGE_REQUIRED, если у пользователя нет роли admin или maintain на репозитории у провайдера, — как при подключении, роль проверяется запросом к GitHub.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела, id репозитория и тело — раньше обращения к базе и к GitHub. Тело — полный набор настроек: все поля обязательны, запись заменяет прежние настройки целиком, повтор того же тела ничего не меняет; паттерны веток хранятся обрезанными. Ответ — 200 с настройками, какими их записала база. Проверки по порядку: видимость — 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub (кэш видимости, как у GET /repositories/{id}), — ответ один и тот же. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`. Затем роль — как у POST и DELETE /repositories, запросом к GitHub мимо кэша видимости: без admin или maintain — `403 REPOSITORY_MANAGE_REQUIRED`, GitHub не отдал репозиторий — `404 REPOSITORY_NOT_FOUND`; при отказе и при `502` настройки не меняются. Выключенный репозиторий настройки получает, но не включается — включение только POST /repositories. Смена порога уже стоящую проверку merge gate не пересчитывает: новый порог применится со следующим прогоном или вебхуком закрытия треда.
          */
         put: operations["saveRepositorySettings"];
         post?: never;
@@ -205,7 +205,7 @@ export interface paths {
         };
         /**
          * Статус правил ревью репозитория
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #113). Требует сессию; id репозитория проверяется до ответа 501. Когда ручка заработает: чем закончилась загрузка `.review/rules.md` с ветки по умолчанию репозитория — те же исходы, что у загрузки правил для прогона: loaded — файл разобран, в ответе принятые правила и отклонённые разделы; empty — файл разобран, но ни один раздел не стал правилом, в ответе отклонённые разделы; absent — файла нет; too_large — файл больше лимита и не разбирался; unavailable — провайдер не ответил. Кроме loaded, ревью идёт по стандартным критериям. 404 REPOSITORY_NOT_FOUND, если репозитория нет.
+         * @description Требует сессию. Чем закончилась загрузка `.review/rules.md` с последнего коммита ветки по умолчанию репозитория — те же лимит, разбор и исходы, что у загрузки правил для прогона: loaded — файл разобран, в ответе принятые правила и отклонённые разделы; empty — файл разобран, но ни один раздел не стал правилом, в ответе отклонённые разделы; absent — файла нет; too_large — файл больше лимита и не разбирался; unavailable — GitHub не ответил на запрос установки приложения, на разрешение ветки в коммит или на чтение файла (это ответ `200`, а не ошибка). Кроме loaded, ревью идёт по стандартным критериям. Ветка разрешается в коммит на каждый запрос — текущая ветка по умолчанию из ответа GitHub, как в GET /repositories; исход файла кэшируется по паре «репозиторий, коммит» (свой кэш процесса API, тот же ключ и TTL, что у прогона): на том же коммите файл повторно не запрашивается и `fetched_at` — время первого получения; сбой не кэшируется. 404 REPOSITORY_NOT_FOUND, если репозитория нет или пользователь не видит его на GitHub (кэш видимости, как у GET /repositories/{id}), — ответ один и тот же. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`. Приложение не установлено на репозиторий или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`, ветка и файл не запрашиваются.
          */
         get: operations["getRepositoryRules"];
         put?: never;
@@ -289,7 +289,7 @@ export interface paths {
         };
         /**
          * Дифф прогона
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы (задача #82). Требует сессию; прогон проверяется до ответа 501 — 404 REVIEW_NOT_FOUND, если его нет или он не виден пользователю. Когда ручка заработает: полный дифф запроса на изменение у провайдера между base_sha и head_sha прогона.
+         * @description Требует сессию. Дифф пары коммитов base_sha...head_sha прогона у GitHub (задача #87): все изменённые файлы в порядке диффа, включая файлы, которые ревью отфильтровало (lock-файлы, сгенерированное). Видимость прогона — то же правило, что у GET /reviews: невидимый или несуществующий прогон — 404 REVIEW_NOT_FOUND, без запроса установки приложения и диффа к GitHub. Дифф кэшируется в памяти API по паре коммитов на час, без привязки к пользователю: видимость проверяется до чтения кэша; номер установки приложения спрашивается у GitHub на каждом промахе кэша. Отказы не кэшируются: 409 DIFF_UNAVAILABLE — у прогона нет base_sha, к GitHub не ходили; 404 REPOSITORY_NOT_IN_INSTALLATION — приложение не установлено на репозиторий или установка приостановлена; 410 COMMIT_NOT_FOUND — GitHub не знает коммит прогона; 422 DIFF_TOO_LARGE — дифф больше RUN_DIFF_MAX_BYTES (2 МиБ) или 50000 строк, либо GitHub сам отказался его строить (422 на сравнение); 502 SCM_UNAVAILABLE — прочий сбой GitHub.
          */
         get: operations["getReviewDiff"];
         put?: never;
@@ -340,6 +340,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Статус сервиса
+         * @description Открыт без сессии. Состояние API, воркера и очереди по сработавшим критическим алертам мониторинга; оценка кэшируется на сервере на 15 секунд. Недоступный мониторинг — не ошибка: ответ 200, компоненты unknown.
+         */
+        get: operations["getServiceStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -353,13 +373,86 @@ export interface components {
          *     `HTTP_ERROR` (прочий отказ фреймворка) и `INTERNAL_ERROR` (сбой сервера). Остальные коды
          *     операция объявляет в своих ответах; `413` — ещё и каждая операция с телом.
          */
-        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
+        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["DiffUnavailableProblem"] | components["schemas"]["CommitNotFoundProblem"] | components["schemas"]["DiffTooLargeProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
         /**
          * CommentKind
          * @description Форма комментария, публикуемого обратно на хостинг.
          * @enum {string}
          */
         CommentKind: "summary" | "inline" | "thread_reply";
+        /**
+         * CommitNotFoundProblem
+         * @description `410 COMMIT_NOT_FOUND`: провайдер не знает коммит прогона — например, после force-push.
+         *
+         *     Установка приложения на репозиторий найдена, значит репозиторий доступен — пропал коммит.
+         * @example {
+         *       "code": "COMMIT_NOT_FOUND",
+         *       "detail": "GitHub не знает коммиты прогона: дифф больше не получить.",
+         *       "instance": "/api/v1/reviews/01920000-0000-7000-8000-000000000001/diff",
+         *       "status": 410,
+         *       "title": "Коммит прогона не найден у провайдера",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:commit-not-found"
+         *     }
+         */
+        CommitNotFoundProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:commit-not-found
+             * @constant
+             */
+            type: "urn:dmc-268:problem:commit-not-found";
+            /**
+             * Title
+             * @default Коммит прогона не найден у провайдера
+             * @constant
+             */
+            title: "Коммит прогона не найден у провайдера";
+            /**
+             * Status
+             * @default 410
+             * @constant
+             */
+            status: 410;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "COMMIT_NOT_FOUND";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
+         * ComponentStatusResponse
+         * @description Состояние одного компонента сервиса.
+         */
+        ComponentStatusResponse: {
+            /**
+             * @description Компонент: api — HTTP API, worker — воркер ревью, queue — очередь задач (брокер).
+             * @example api
+             */
+            id: components["schemas"]["ServiceComponent"];
+            /**
+             * @description Состояние компонента. operational — работает; degraded — работает со сбоями; outage — недоступен; unknown — проверить не удалось: мониторинг не настроен или не отвечает, либо не видит сигналов, на которых держится проверка.
+             * @example operational
+             */
+            status: components["schemas"]["ServiceStatus"];
+        };
         /**
          * ConnectRepositoryRequest
          * @description Запрос на подключение репозитория к сервису.
@@ -522,6 +615,119 @@ export interface components {
          * @enum {string}
          */
         DiffSide: "old" | "new";
+        /**
+         * DiffTooLargeProblem
+         * @description `422 DIFF_TOO_LARGE`: дифф прогона больше `RUN_DIFF_MAX_BYTES` или 50 000 строк, либо провайдер сам
+         *     отказался его строить; тело ответа провайдера дальше лимита байт не читалось.
+         * @example {
+         *       "code": "DIFF_TOO_LARGE",
+         *       "detail": "Дифф прогона больше лимита: 2097152 байт или 50000 строк, либо GitHub отказался его строить.",
+         *       "instance": "/api/v1/reviews/01920000-0000-7000-8000-000000000001/diff",
+         *       "status": 422,
+         *       "title": "Дифф слишком большой",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:diff-too-large"
+         *     }
+         */
+        DiffTooLargeProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:diff-too-large
+             * @constant
+             */
+            type: "urn:dmc-268:problem:diff-too-large";
+            /**
+             * Title
+             * @default Дифф слишком большой
+             * @constant
+             */
+            title: "Дифф слишком большой";
+            /**
+             * Status
+             * @default 422
+             * @constant
+             */
+            status: 422;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "DIFF_TOO_LARGE";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
+         * DiffUnavailableProblem
+         * @description `409 DIFF_UNAVAILABLE`: у прогона нет пары коммитов для диффа (`base_sha` не записан).
+         *
+         *     Прогон есть и виден — поэтому не `404`; запросов к GitHub не было.
+         * @example {
+         *       "code": "DIFF_UNAVAILABLE",
+         *       "detail": "У прогона нет базового коммита: дифф построить не из чего.",
+         *       "instance": "/api/v1/reviews/01920000-0000-7000-8000-000000000001/diff",
+         *       "status": 409,
+         *       "title": "Дифф прогона недоступен",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:diff-unavailable"
+         *     }
+         */
+        DiffUnavailableProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:diff-unavailable
+             * @constant
+             */
+            type: "urn:dmc-268:problem:diff-unavailable";
+            /**
+             * Title
+             * @default Дифф прогона недоступен
+             * @constant
+             */
+            title: "Дифф прогона недоступен";
+            /**
+             * Status
+             * @default 409
+             * @constant
+             */
+            status: 409;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "DIFF_UNAVAILABLE";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
         /**
          * FindingCategory
          * @description Оси ревью, к которым может относиться замечание.
@@ -1523,7 +1729,7 @@ export interface components {
             auto_review_enabled: boolean;
             /**
              * Branch Filter
-             * @description Glob-паттерны целевых веток запросов на изменение, которые ревьюятся; пустой список — все ветки (так и без сохранённых настроек).
+             * @description Glob-паттерны целевых веток запросов на изменение, которые ревьюятся; пустой список — все ветки (так и без сохранённых настроек). Пока не применяется: сохраняется, но ревью идёт для всех веток (задача #313).
              * @example [
              *       "main",
              *       "release/*"
@@ -1531,7 +1737,7 @@ export interface components {
              */
             branch_filter: string[];
             /**
-             * @description Порог важности: нерешённое замечание с severity не ниже порога блокирует merge gate, и бот запрашивает изменения. Публикуются все замечания, порог их не отсекает. Без сохранённых настроек — critical.
+             * @description Порог важности: нерешённое замечание с severity не ниже порога блокирует merge gate: check run проверки — failure. Публикуются все замечания, порог их не отсекает. Без сохранённых настроек — critical.
              * @example critical
              */
             min_severity: components["schemas"]["FindingSeverity"];
@@ -1549,7 +1755,7 @@ export interface components {
             auto_review_enabled: boolean;
             /**
              * Branch Filter
-             * @description Glob-паттерны целевых веток запросов на изменение, которые ревьюятся; пустой список — все ветки (так и без сохранённых настроек). Не больше 50 паттернов, каждый — непустой после обрезки пробелов, не длиннее 200 символов, без повторов.
+             * @description Glob-паттерны целевых веток запросов на изменение, которые ревьюятся; пустой список — все ветки (так и без сохранённых настроек). Пока не применяется: сохраняется, но ревью идёт для всех веток (задача #313). Не больше 50 паттернов, каждый — непустой после обрезки пробелов, не длиннее 200 символов, без повторов.
              * @example [
              *       "main",
              *       "release/*"
@@ -1557,7 +1763,7 @@ export interface components {
              */
             branch_filter: string[];
             /**
-             * @description Порог важности: нерешённое замечание с severity не ниже порога блокирует merge gate, и бот запрашивает изменения. Публикуются все замечания, порог их не отсекает. Без сохранённых настроек — critical.
+             * @description Порог важности: нерешённое замечание с severity не ниже порога блокирует merge gate: check run проверки — failure. Публикуются все замечания, порог их не отсекает. Без сохранённых настроек — critical.
              * @example critical
              */
             min_severity: components["schemas"]["FindingSeverity"];
@@ -2441,6 +2647,42 @@ export interface components {
              * @example 4bf92f3577b34da6a3ce929d0e0e4736
              */
             trace_id: string;
+        };
+        /**
+         * ServiceComponent
+         * @description Компонент сервиса на странице статуса; порядок объявления — порядок в ответе.
+         * @enum {string}
+         */
+        ServiceComponent: "api" | "worker" | "queue";
+        /**
+         * ServiceStatus
+         * @description Состояние сервиса или его компонента на странице статуса; по тяжести — outage,
+         *     degraded, unknown, operational.
+         * @enum {string}
+         */
+        ServiceStatus: "operational" | "degraded" | "outage" | "unknown";
+        /**
+         * ServiceStatusResponse
+         * @description Состояние сервиса для страницы статуса.
+         */
+        ServiceStatusResponse: {
+            /**
+             * @description Сводное состояние — худшее из компонентов в порядке outage, degraded, unknown, operational. operational — работает; degraded — работает со сбоями; outage — недоступен; unknown — проверить не удалось: мониторинг не настроен или не отвечает, либо не видит сигналов, на которых держится проверка.
+             * @example operational
+             */
+            status: components["schemas"]["ServiceStatus"];
+            /**
+             * Components
+             * @description Все компоненты, всегда в порядке api, worker, queue.
+             */
+            components: components["schemas"]["ComponentStatusResponse"][];
+            /**
+             * Checked At
+             * Format: date-time
+             * @description Когда сервер оценил состояние; ответ может быть из кэша не старше 15 секунд.
+             * @example 2026-10-11T10:00:00Z
+             */
+            checked_at: string;
         };
         /**
          * TriggerSource
@@ -3414,14 +3656,14 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
-            /** @description Ручка ещё не реализована. */
-            501: {
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -3512,14 +3754,14 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
-            /** @description Ручка ещё не реализована. */
-            501: {
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -3566,14 +3808,14 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description Репозитория с таким id нет. */
+            /** @description `REPOSITORY_NOT_FOUND` — репозитория с таким id нет или пользователь не видит его на GitHub; `REPOSITORY_NOT_IN_INSTALLATION` — приложение не установлено на репозиторий или установка приостановлена, ветка и файл у GitHub не запрашивались. */
             404: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"];
+                    "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"];
                 };
             };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
@@ -3586,14 +3828,14 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
-            /** @description Ручка ещё не реализована. */
-            501: {
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
@@ -3968,37 +4210,47 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description Прогона ревью с таким id нет. */
+            /** @description `REVIEW_NOT_FOUND` — прогона с таким id нет или он не виден пользователю; `REPOSITORY_NOT_IN_INSTALLATION` — приложение не установлено на репозиторий прогона или установка приостановлена, дифф у GitHub не запрашивался. */
             404: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["ReviewNotFoundProblem"];
+                    "application/problem+json": components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"];
                 };
             };
-            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            /** @description У прогона не записан base_sha — пары коммитов для диффа нет; запросов к GitHub не было. */
+            409: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["DiffUnavailableProblem"];
+                };
+            };
+            /** @description GitHub ответил 404 на сравнение base_sha...head_sha прогона: коммита больше нет (например, после force-push). */
+            410: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["CommitNotFoundProblem"];
+                };
+            };
+            /** @description `VALIDATION_ERROR` — параметр пути не прошёл проверку, в `errors` — где и почему; `DIFF_TOO_LARGE` — дифф прогона больше `RUN_DIFF_MAX_BYTES` (2 МиБ) или 50 000 строк, либо GitHub сам отказался его строить (`422` на сравнение); тело ответа GitHub дальше лимита байт не читалось. */
             422: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                    "application/problem+json": components["schemas"]["ValidationProblem"] | components["schemas"]["DiffTooLargeProblem"];
                 };
             };
-            /** @description Ручка ещё не реализована. */
-            501: {
-                headers: {
-                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
-                };
-            };
-            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            /** @description GitHub не ответил или ответил ошибкой (`5xx`, отказ лимита), когда считался набор видимых репозиториев, обновлялся токен пользователя, запрашивалась установка приложения на репозиторий или дифф. */
             502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -4134,6 +4386,37 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    getServiceStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Сводное состояние и состояние каждого компонента. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceStatusResponse"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
