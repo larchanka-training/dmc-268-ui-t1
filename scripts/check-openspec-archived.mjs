@@ -16,12 +16,11 @@
  */
 import { appendFileSync } from 'node:fs'
 import process from 'node:process'
-import { fileURLToPath } from 'node:url'
 
 const isCount = (value) => Number.isInteger(value) && value >= 0
 
 /** Change из вывода `openspec list --json`; вход с границы проверяется. */
-export function parseChanges(text) {
+function parseChanges(text) {
   /** @type {unknown} */
   const data = JSON.parse(text)
   const changes = data && typeof data === 'object' && 'changes' in data ? data.changes : undefined
@@ -35,12 +34,12 @@ export function parseChanges(text) {
 }
 
 /** Завершённые — все задачи закрыты; change без задач завершённым не считается. */
-export function splitChanges(changes) {
+function splitChanges(changes) {
   const isDone = (c) => c.totalTasks > 0 && c.completedTasks === c.totalTasks
   return { done: changes.filter(isDone), open: changes.filter((c) => !isDone(c)) }
 }
 
-export function summary(open) {
+function summary(open) {
   const lines = ['## Открытые OpenSpec change', '']
   if (open.length === 0) lines.push('Нет.')
   else {
@@ -50,7 +49,7 @@ export function summary(open) {
   return `${lines.join('\n')}\n`
 }
 
-export function errors(done) {
+function errors(done) {
   return done.map(
     (c) =>
       `::error::change ${c.name}: все задачи закрыты, а change не заархивирован — ` +
@@ -77,4 +76,4 @@ async function main() {
   return done.length > 0 ? 1 : 0
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) process.exitCode = await main()
+process.exitCode = await main()

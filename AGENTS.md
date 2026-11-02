@@ -30,7 +30,8 @@
   (`pnpm api:sync <sha>`) — временно, пока фронт в работе, CI не пропустит его в мёрж. Моки
   отвечают по типам контракта. Расхождение ловит `pnpm api:check`.
 - Поведение меняется **только через OpenSpec-change**. Каталог `openspec/specs/` руками в обход
-  change не правится.
+  change не правится. Change, у которого закрыты все задачи, архивируется (`openspec archive`)
+  в том же PR, до мерджа, — CI падает на незаархивированном.
 - Работаем по git flow: ветка от `develop`, пул-реквест в `develop`, в `main` только то, что
   прошло `develop`.
 - Имена веток: `feat/…`, `fix/…`, `deps-update-YYYY-MM-DD`. Коммиты — conventional commits.
