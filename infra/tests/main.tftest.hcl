@@ -103,7 +103,7 @@ run "ui_runs_image_by_digest_without_tag" {
   command = plan
 
   variables {
-    ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:0123abc-api@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+    ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:0123abc@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
   }
 
   assert {
@@ -117,7 +117,7 @@ run "registry_port_is_not_a_tag" {
   command = plan
 
   variables {
-    ui_image = "localhost:5000/dmc-268-ui-t1:0123abc-api@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
+    ui_image = "localhost:5000/dmc-268-ui-t1:0123abc@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
   }
 
   assert {
@@ -156,7 +156,7 @@ run "image_without_digest_rejected" {
   command = plan
 
   variables {
-    ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:0123abc-api"
+    ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1:0123abc"
   }
 
   expect_failures = [var.ui_image]

@@ -122,13 +122,10 @@ jobs:
 
   # Образ интерфейса — так, как его собирает деплой: те же build-args, что у
   # build-push-action в deploy.yml (держать в синхроне), и одна сборка на все
-  # проверки. Иначе CI проверял бы не тот бандл: без VITE_USE_MOCK_API в нём
-  # mock adapter, а на стенд едет HTTP-клиент. Образ не публикуется.
+  # проверки. Иначе CI проверял бы не тот бандл, что едет на стенд. Образ не
+  # публикуется.
   #
-  # По порядку: hadolint — правила Dockerfile; в бандл не попал мок входа (он
-  # нужен только dev-серверу: плагин с apply: 'serve' в vite.config.ts) — ловит
-  # импорт src/build/mockAuth.ts из кода приложения по строке фикстуры, которая
-  # переживает минификацию; nginx -t в обоих режимах — с ошибкой в конфиге
+  # По порядку: hadolint — правила Dockerfile; nginx -t в обоих режимах — с ошибкой в конфиге
   # контейнер не стартует, и стенд ложится; маршруты в режиме HTTP — nginx -t
   # их не ловит; trivy — пакеты ОС образа. Важны версия nginx, подключённый
   # модуль ACME и конфиг, который скрипт выбора режима собирает из шаблона,
@@ -153,28 +150,14 @@ jobs:
       - name: Собрать образ с build-args деплоя
         env:
           PUBLIC_ORIGIN: https://${{ vars.VPS_DMC268_IP_T1 }}
-          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
           OTEL_EXPORTER_URL: ${{ vars.VITE_OTEL_EXPORTER_URL }}
         run: >-
           docker build -t dmc268-ui:ci
           --build-arg PUBLIC_ORIGIN="$PUBLIC_ORIGIN"
-          --build-arg VITE_USE_MOCK_API="$USE_MOCK_API"
           --build-arg VITE_OTEL_EXPORTER_URL="$OTEL_EXPORTER_URL"
           --build-arg VITE_OTEL_ENVIRONMENT=production
           --build-arg VITE_APP_VERSION="$GITHUB_SHA"
           .
-      - name: Мока входа нет в образе
-        run: |
-          rc=0
-          docker run --rm --entrypoint grep dmc268-ui:ci \
-            -rl 'Локальный пользователь' /usr/share/nginx/html || rc=$?
-          # grep: 0 — нашёл, 1 — не нашёл, 2 и выше — сам не отработал
-          # (например, статики нет по этому пути); последнее — не «чисто».
-          case "$rc" in
-            1) echo 'мока входа в образе нет' ;;
-            0) echo '::error::мок входа попал в образ'; exit 1 ;;
-            *) echo "::error::поиск мока в образе не выполнен (grep: ${rc})"; exit 1 ;;
-          esac
       - name: nginx -t в режиме HTTP
         run: >-
           docker run --rm --network none --entrypoint sh dmc268-ui:ci

@@ -90,14 +90,11 @@ jobs:
         id: meta
         env:
           SHA: ${{ needs.gate.outputs.sha }}
-          USE_MOCK_API: ${{ vars.VITE_USE_MOCK_API || 'true' }}
         run: |
           set -euo pipefail
           # Реестр принимает имя только в нижнем регистре, а в имени
           # репозитория бывают заглавные.
-          if [ "$USE_MOCK_API" = false ]; then source=api; else source=mock; fi
-          image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):${SHA}-${source}"
-          echo "use_mock_api=$USE_MOCK_API" >> "$GITHUB_OUTPUT"
+          image="$(printf '%s' "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]'):${SHA}"
           echo "image=$image" >> "$GITHUB_OUTPUT"
           echo "$image"
 
@@ -118,14 +115,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.image }}
           # Абсолютный адрес стенда попадает в canonical, Open Graph,
-          # sitemap.xml и robots.txt лендинга при сборке. Источник данных
-          # кабинета — переменная репозитория VITE_USE_MOCK_API, по умолчанию моки.
+          # sitemap.xml и robots.txt лендинга при сборке.
           # Адрес коллектора — переменная репозитория VITE_OTEL_EXPORTER_URL:
           # пока её нет, телеметрия кабинета выключена (прокси /otlp/ — api#108).
           # Окружение — production: стенд и есть прод, staging нет (api#97).
           build-args: |
             PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
-            VITE_USE_MOCK_API=${{ steps.meta.outputs.use_mock_api }}
             VITE_OTEL_EXPORTER_URL=${{ vars.VITE_OTEL_EXPORTER_URL }}
             VITE_OTEL_ENVIRONMENT=production
             VITE_APP_VERSION=${{ needs.gate.outputs.sha }}

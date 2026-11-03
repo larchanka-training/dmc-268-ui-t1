@@ -10,10 +10,6 @@ COPY . .
 # Без аргумента Vite берёт http://localhost:3000.
 ARG PUBLIC_ORIGIN
 ENV PUBLIC_ORIGIN=$PUBLIC_ORIGIN
-# Источник данных кабинета: без аргумента — mock adapter, `false` — бэкенд.
-# Флаг печатается в бандл, поэтому меняется только пересборкой.
-ARG VITE_USE_MOCK_API
-ENV VITE_USE_MOCK_API=$VITE_USE_MOCK_API
 # Телеметрия кабинета (change cabinet-browser-telemetry): без адреса коллектора
 # экспорт выключен. Версия — sha коммита, окружение — deployment.environment.name.
 ARG VITE_OTEL_EXPORTER_URL
