@@ -131,10 +131,13 @@ const changesText = () => screen.getByRole('region', { name: 'Изменения
 
 let stream: FakeEventStream
 
-/** Экран живёт под маршрутом `/reviews/:reviewId`; по умолчанию — id прогона из фабрики. */
-function renderView(adapter: ApiTransport, reviewId = makeReviewRun().id) {
+/**
+ * Экран живёт под маршрутом `/reviews/:reviewId`; по умолчанию — id прогона из фабрики.
+ * `retry` — правила повтора приложения вместо «без повторов» тестов.
+ */
+function renderView(adapter: ApiTransport, reviewId = makeReviewRun().id, { retry = false } = {}) {
   const queryClient = createQueryClient()
-  queryClient.setDefaultOptions({ queries: { retry: false } })
+  if (!retry) queryClient.setDefaultOptions({ queries: { retry: false } })
   render(
     <AppProviders transport={adapter} eventStream={stream} queryClient={queryClient}>
       <MemoryRouter initialEntries={[`/reviews/${reviewId}`]}>
@@ -182,10 +185,11 @@ describe('ReviewRunView', () => {
     expect(paths).toContain('/reviews/a1b2-c3/steps')
   })
 
-  it('бэкенд ещё не отдаёт дифф и шаги (501) — замечания списком', async () => {
+  it('бэкенд не отдаёт дифф и шаги (501) — ошибка диффа, замечания списком, хода прогона нет', async () => {
     renderView(fakeAdapter({ planned: false }))
 
     const list = await screen.findByRole('region', { name: 'Замечания' })
+    expect(await screen.findByText('Не удалось загрузить дифф')).toBeInTheDocument()
     expect(within(list).getByRole('article', { name: /Токен печатается в лог/ })).toBeVisible()
     expect(within(list).getByText('app/api.py:3')).toBeInTheDocument()
     // Вердикт считается по замечаниям и без диффа.
@@ -221,26 +225,73 @@ describe('ReviewRunView', () => {
     expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
   })
 
-  it('дифф не загрузился из-за GitHub (502) — замечания списком, без ошибки', async () => {
+  it('дифф не загрузился из-за GitHub (502) — ошибка с повтором, замечания списком, повтор показывает дифф', async () => {
     const backend = fakeAdapter()
-    const requested: string[] = []
     const diffPath = reviewDiffPath(makeReviewRun().id)
+    let githubDown = true
     renderView(
       fakeTransport({
         get: async (path) => {
-          requested.push(path)
-          if (path === diffPath) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          if (githubDown && path === diffPath)
+            throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
           return backend.get(path)
         },
       }),
     )
 
-    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
-    await waitFor(() => expect(requested).toContain(diffPath))
-    expect(screen.queryByText(/Не удалось/)).not.toBeInTheDocument()
+    const problem = (await screen.findByText('Не удалось загрузить дифф')).closest<HTMLElement>(
+      '[role="alert"]',
+    )
+    if (!problem) throw new Error('ошибка диффа без role="alert"')
+    expect(problem).toHaveTextContent('GitHub недоступен')
     expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
     expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+
+    githubDown = false
+    await userEvent.click(within(problem).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByRole('region', { name: 'Изменения' })).toBeInTheDocument()
+    expect(screen.queryByText('Не удалось загрузить дифф')).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['дифф больше лимита', 422, 'DIFF_TOO_LARGE', 'Дифф слишком большой для показа'],
+    ['у прогона нет base_sha', 409, 'DIFF_UNAVAILABLE', 'Дифф прогона недоступен'],
+    ['коммита больше нет', 410, 'COMMIT_NOT_FOUND', 'Коммитов прогона больше нет'],
+    [
+      'приложение снято с репозитория',
+      404,
+      'REPOSITORY_NOT_IN_INSTALLATION',
+      'Приложение не установлено на репозиторий',
+    ],
+  ])(
+    'дифф недоступен насовсем (%s) — причина без повтора, запрос один, замечания списком',
+    async (_, status, code, title) => {
+      const backend = fakeAdapter()
+      const diffPath = reviewDiffPath(makeReviewRun().id)
+      const requested: string[] = []
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            requested.push(path)
+            if (path === diffPath) throw new ApiError(status, 'Причина от бэкенда.', code)
+            return backend.get(path)
+          },
+        }),
+        undefined,
+        { retry: true },
+      )
+
+      const problem = (await screen.findByText(title)).closest<HTMLElement>('[role="alert"]')
+      if (!problem) throw new Error('причина без role="alert"')
+      expect(problem).toHaveTextContent('Причина от бэкенда.')
+      expect(within(problem).queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
+      expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      // Правила повтора приложения: постоянная ошибка не перезапрашивается.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(requested.filter((path) => path === diffPath)).toHaveLength(1)
+    },
+  )
 
   it.each([
     ['GitHub недоступен (502)', 502, 'SCM_UNAVAILABLE'],

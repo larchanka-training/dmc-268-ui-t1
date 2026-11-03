@@ -90,13 +90,16 @@ function usePlannedPart<T extends z.ZodType>(
 }
 
 /**
- * Дифф прогона; `null` — бэкенд его пока не отдаёт (`501`, `404` от источника без пути).
- *
- * TODO: когда бэкенд реализует дифф (dmc-268-api-t1#87), убрать `404` — настоящий `404`
- * на под-ресурсе сейчас маскируется под «части нет».
+ * Дифф прогона. Бэкенд его реализует (dmc-268-api-t1#87), поэтому любой отказ — ошибка
+ * запроса: экран показывает причину (`diffProblem`), а не прячет дифф молча.
  */
 export function useReviewDiff(reviewId: string) {
-  return usePlannedPart(reviewId, 'diff', reviewDiffPath(reviewId), ReviewDiffSchema, [501, 404])
+  const transport = useTransport()
+  const path = reviewDiffPath(reviewId)
+  return useQuery({
+    queryKey: [...reviewKey(reviewId), 'diff'] as const,
+    queryFn: async () => parseResponse(ReviewDiffSchema, path, await transport.get(path)),
+  })
 }
 
 /**

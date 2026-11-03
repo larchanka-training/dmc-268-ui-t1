@@ -20,12 +20,24 @@ import {
   useReviewSteps,
   type ReviewRunResponse,
 } from '../model/review'
+import { diffProblem } from '../model/diffProblem'
 import { runVerdict } from '../model/verdict'
 import { toWorkspace } from '../model/workspace'
 
 /** Событие прогона патчит его статус в кэше; замечания и публикации остаются как есть. */
 function patchRun(data: ReviewRunResponse, event: ReviewRunListItem): ReviewRunResponse {
   return applyRunEvent(data, event)
+}
+
+function DiffProblemNotice({ error, onRetry }: { error: unknown; onRetry: () => unknown }) {
+  const { title, retryable } = diffProblem(error)
+  return (
+    <ErrorState
+      title={title}
+      error={error}
+      onRetry={retryable ? () => void onRetry() : undefined}
+    />
+  )
 }
 
 /**
@@ -106,7 +118,9 @@ export function ReviewRunView() {
       )}
       <RunProgress run={run} seenStage={live.seenStage} />
       <ReviewSummary run={run} findings={findings} publishedComments={published_comments} />
-      {/* Диффа нет, пока бэкенд его не отдаёт (501) или пока он грузится: замечания списком. */}
+      {/* Дифф не загрузился — причина на месте области изменений, замечания списком ниже.
+          Постоянная причина (дифф велик, коммитов нет) без повтора: ответ не изменится. */}
+      {diff.isLoadingError && <DiffProblemNotice error={diff.error} onRetry={diff.refetch} />}
       {workspace ? (
         <ReviewWorkspace
           run={run}
