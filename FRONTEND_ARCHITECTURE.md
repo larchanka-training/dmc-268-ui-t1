@@ -117,7 +117,7 @@ src/
 
 Вне слоёв FSD лежат: `main.tsx` — точка входа, подключает телеметрию, тему и `app`; `landing/` —
 скрипт и стили статичной страницы входа `login.html`; `build/` — правила dev- и preview-сервера
-Vite под `/app`, SEO-файлы и мок входа для сборки; `styles/` — глобальные стили; `test/` —
+Vite под `/app`, SEO-файлы и мок входа для сборки; `index.css` и `styles/` — глобальные стили: в `index.css` порядок CSS-слоёв и импорт Tailwind; `test/` —
 фабрики для тестов.
 
 Сегменты слайса — стандартные для FSD:
@@ -188,18 +188,18 @@ flowchart LR
 
 ## 4. Данные и состояние
 
-### 4.1 Mock-снимок
+### 4.1 Данные экрана прогона
 
-```ts
-type MockReviewState = {
-  run: ReviewRun
-  files: DiffFileSummary[]
-  diffs_by_path: Record<string, DiffFile>
-  findings: ReviewFinding[]
-  published_comments: PublishedComment[]
-  steps: ReviewRunStep[]
-}
-```
+Экран прогона собирают три запроса из `pages/review-run/model`, у каждого своя Zod-схема на
+границе:
+
+| Запрос | Путь                                     | Схема                                                                                                         |
+| ------ | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| прогон | `reviewPath`: `GET /api/v1/reviews/{id}` | `ReviewRunResponseSchema`: прогон, `findings` и `published_comments`, сверена с `ReviewRunResponse` контракта |
+| diff   | `reviewDiffPath`: `…/diff`               | `ReviewDiffSchema`                                                                                            |
+| шаги   | `reviewStepsPath`: `…/steps`             | `ReviewRunStepListSchema`                                                                                     |
+
+Mock adapter из `app/mocks` отвечает на те же пути, поэтому экран не знает, откуда пришли данные.
 
 `ReviewRun` содержит как минимум `id`, `status`, `head_sha`, `base_sha`, `failure_reason`,
 `model`, `tokens_used`, `duration_seconds` и число отклонённых findings. `head_sha` и `base_sha`
@@ -235,10 +235,10 @@ TanStack Query хранит серверные данные: профиль, р�
 findings и шагами — всё, что вернули adapter или `apiFetch`. Их нельзя копировать в Zustand.
 Zustand хранит лишь действия пользователя:
 
-| Store      | Поля                                                      | Владелец                   |
-| ---------- | --------------------------------------------------------- | -------------------------- |
-| workspace  | `selected_file`, `view_mode`, `expanded_context_line_ids` | `widgets/review-workspace` |
-| фильтрация | `severity_filters`                                        | `features/filter-findings` |
+| Store      | Поля                                                                 | Владелец                   |
+| ---------- | -------------------------------------------------------------------- | -------------------------- |
+| workspace  | `selected_file`, `view_mode`, `expanded_context_line_ids`            | `widgets/review-workspace` |
+| фильтрация | `severity_filters`, `file_query`, `only_with_findings`, `text_query` | `features/filter-findings` |
 
 Локальные hover, popover и фокус одной строки не попадают в Zustand. При refetch выбранный файл,
 режим viewer, фильтры и раскрытый context сохраняются, если соответствующие данные всё ещё есть.
@@ -319,7 +319,7 @@ Backend отбрасывает finding с anchor вне diff (`validate_anchor`)
 ### 6.5 Binary
 
 Binary-файл остаётся выбранным, но вместо текстового diff показывает понятное сообщение. Viewer
-не обращается к отсутствующему `diffs_by_path[path]` и не падает.
+не читает hunks, которых у binary-файла нет, и не падает.
 
 ## 7. Минимум проверок реализации
 
@@ -334,7 +334,7 @@ Binary-файл остаётся выбранным, но вместо текс�
 - заголовок hunk, независимый context-блок и binary-файл;
 - finding на old/new строке, несколько findings одной строки, отсутствие finding на
   context-строке и finding вне diff;
-- порядок действий `RunInspector`, выбор действия и безопасные preview.
+- порядок шагов `RunInspector` и шаг с ошибкой.
 
 Тесты спрашивают экран по роли и видимому тексту. Они не зависят от классов Tailwind,
 внутренностей чужого слайса или вызовов `fetch`: подменяется adapter.
