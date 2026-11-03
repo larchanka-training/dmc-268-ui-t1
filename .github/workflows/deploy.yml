@@ -131,6 +131,12 @@ jobs:
             VITE_APP_VERSION=${{ needs.gate.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Стадия runtime (nginx и apk upgrade) — всегда заново: её строки не
+          # меняются, и из кеша apk upgrade вернул бы пакеты на момент первой
+          # сборки — trivy ниже ронял бы деплой на CVE, исправленной в Alpine
+          # после неё. В ci.yml кеша нет, там слой и так свежий. Стадия build
+          # (pnpm install, vite) по-прежнему из кеша; runtime — секунды.
+          no-cache-filters: runtime
           # Без provenance-аттестации: в ней данные прогона (id, время), и
           # повторная сборка того же коммита с теми же build-args давала бы
           # новый digest — tofu пересоздавал бы контейнер интерфейса без

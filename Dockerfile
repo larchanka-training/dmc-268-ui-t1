@@ -27,11 +27,14 @@ RUN pnpm run build \
     && find dist -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.xml' -o -name '*.txt' \) \
        -exec gzip -9 -k {} +
 
-FROM nginx:1.30-alpine
+FROM nginx:1.30-alpine AS runtime
 # apk upgrade: пакеты ОС — с исправлениями из репозитория Alpine на момент
 # сборки, а не на момент выхода базового образа: он пересобирается реже, и
 # trivy (job image в CI, скан перед деплоем) находил бы CVE, исправленную в
 # Alpine, но ещё не попавшую в nginx:1.30-alpine (brotli-libs, CVE-2026-111497).
+# Стадия названа, чтобы деплой собирал её мимо кеша (no-cache-filters в
+# deploy.yml): строка RUN не меняется, и слой из кеша gha нёс бы пакеты на
+# момент первой сборки (libexpat, CVE-2026-117610).
 # Модуль ACME лежит в образе, но не подключён: load_module допустим только
 # в главном конфиге, а не в conf.d. Там же worker_shutdown_timeout: по
 # SIGQUIT nginx сразу закрывает приём новых соединений и ждёт открытые, а поток
