@@ -4,7 +4,6 @@ import { defineConfig, loadEnv, type Connect, type Plugin } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { rewriteAppUrl, rewriteStaticPage } from './src/build/appRoutes.ts'
-import { mockAuthReply } from './src/build/mockAuth.ts'
 import { applyOrigin, buildRobotsTxt, buildSitemapXml, normalizeOrigin } from './src/build/seo.ts'
 
 const page = (path: string) => fileURLToPath(new URL(path, import.meta.url))
@@ -26,32 +25,12 @@ function appRoutes(): Plugin {
   }
 }
 
-// Мок /api/v1/auth/* — только для dev-сервера: в сборку не попадает. Против
-// настоящего бэкенда выключается VITE_USE_MOCK_API=false: тогда dev-сервер
-// проксирует /api на VITE_API_PROXY_TARGET (см. apiProxy).
-function mockAuth(useMock: boolean): Plugin {
-  return {
-    name: 'dmc268:mock-auth',
-    apply: 'serve',
-    configureServer(server) {
-      if (!useMock) return
-      server.middlewares.use((req, res, next) => {
-        const reply = mockAuthReply(req.method ?? 'GET', req.url ?? '', req.headers.cookie)
-        if (!reply) return next()
-        res.writeHead(reply.status, reply.headers)
-        res.end(reply.body)
-      })
-    },
-  }
-}
-
-// Без мока /api уходит на бэкенд через dev-сервер: браузер остаётся на одном
+// /api уходит на бэкенд через dev-сервер: браузер остаётся на одном
 // origin с API, поэтому cookie `session` ставится и отправляется как на стенде.
 // Путь не переписывается, заголовки (Cookie, Set-Cookie, Origin) проходят как
 // есть. Origin браузера — http://localhost:3000, поэтому у API нужен
 // PUBLIC_ORIGIN=http://localhost:3000, иначе он ответит 403 ORIGIN_FORBIDDEN.
-function apiProxy(useMock: boolean, target: string | undefined) {
-  if (useMock) return undefined
+function apiProxy(target: string | undefined) {
   return { '/api': { target: target || 'http://localhost:8000' } }
 }
 
@@ -80,16 +59,9 @@ function publicOriginPlugin(publicOrigin: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const publicOrigin = normalizeOrigin(env.PUBLIC_ORIGIN)
-  const useMockApi = env.VITE_USE_MOCK_API !== 'false'
   return {
     appType: 'mpa',
-    plugins: [
-      tailwindcss(),
-      react(),
-      mockAuth(useMockApi),
-      appRoutes(),
-      publicOriginPlugin(publicOrigin),
-    ],
+    plugins: [tailwindcss(), react(), appRoutes(), publicOriginPlugin(publicOrigin)],
     resolve: {
       // Алиас `@` берётся из `paths` в tsconfig.json — одно место вместо двух.
       tsconfigPaths: true,
@@ -112,7 +84,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 3000,
       open: true,
-      proxy: apiProxy(useMockApi, env.VITE_API_PROXY_TARGET),
+      proxy: apiProxy(env.VITE_API_PROXY_TARGET),
     },
     test: {
       environment: 'jsdom',

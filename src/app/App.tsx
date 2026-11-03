@@ -7,45 +7,24 @@ import {
   type EventStream,
 } from '../shared/api'
 import { RUN_EVENT_TYPES } from '../entities/review-run'
-import { USE_MOCK_API } from '../shared/config/env'
-import { createMockAdapter } from './mocks/mockAdapter'
-import { createScenarioEventStream } from './mocks/mockEventStream'
-import { createMockServer } from './mocks/mockServer'
 import { AppProviders } from './providers/AppProviders'
 import { AppRouter } from './router/AppRouter'
 
 type Props = {
-  /** Источник данных; по умолчанию — по `VITE_USE_MOCK_API`. */
+  /** Источник данных; по умолчанию — HTTP-клиент к `/api/v1` и поток на `EventSource`. Тест подменяет оба. */
   transport?: ApiTransport
   eventStream?: EventStream
-  useMockApi?: boolean
 }
 
-/**
- * Mock adapter и сценарный поток или HTTP-клиент и `EventSource`: экраны ходят только через
- * `ApiTransport` и `EventStream`, поэтому переход на бэкенд — смена флага, а не правка экранов.
- */
-function createDataSources(useMockApi: boolean): { transport: ApiTransport; stream: EventStream } {
-  if (!useMockApi)
-    return {
-      transport: createHttpTransport(),
-      stream: createEventSourceStream({ eventTypes: RUN_EVENT_TYPES }),
-    }
-  // Adapter и поток читают одно состояние «сервера», иначе перезапрос после завершения вернул бы
-  // старый статус и подписка открывалась бы по кругу.
-  const server = createMockServer()
-  return {
-    transport: createMockAdapter({ server }),
-    stream: createScenarioEventStream(server),
-  }
-}
-
-export function App({ transport, eventStream, useMockApi = USE_MOCK_API }: Props) {
-  const [sources] = useState(() => createDataSources(useMockApi))
-  const adapter = transport ?? sources.transport
-  const stream = eventStream ?? sources.stream
+export function App({ transport, eventStream }: Props) {
+  // Создаются один раз на жизнь приложения: поток держит соединение, клиент — ничего, но
+  // пересоздание на рендере сбивало бы контекст транспорта.
+  const [sources] = useState(() => ({
+    transport: transport ?? createHttpTransport(),
+    stream: eventStream ?? createEventSourceStream({ eventTypes: RUN_EVENT_TYPES }),
+  }))
   return (
-    <AppProviders transport={adapter} eventStream={stream}>
+    <AppProviders transport={sources.transport} eventStream={sources.stream}>
       <AppRouter />
     </AppProviders>
   )

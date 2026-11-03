@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react'
 
 /**
- * Граница данных: HTTP-клиент и mock adapter реализуют один и тот же контракт.
+ * Граница данных: HTTP-клиент в приложении и фейк в тестах реализуют один и тот же контракт.
  * Ответ приходит как `unknown` — форму проверяет entity API своей схемой.
  */
 export type ApiTransport = {
