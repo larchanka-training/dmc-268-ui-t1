@@ -83,6 +83,7 @@ src/
 ├── pages/
 │   ├── review-run/                   # ui/, model/ — экран прогона, композиция публичных widget API
 │   ├── reviews/                      # ui/, model/ — список ревью
+│   ├── status/                       # ui/, model/ — публичная страница «Статус сервиса»
 │   ├── OverviewPage.tsx              # плоские экраны без слайса
 │   ├── RepositoriesPage.tsx
 │   ├── RepositorySettingsPage.tsx
@@ -105,6 +106,7 @@ src/
 │   ├── review-finding/               # model/, lib/, ui/
 │   ├── review-run/                   # api/, lib/, model/, ui/
 │   ├── review-run-step/              # model/
+│   ├── service-status/               # api/, lib/, model/, ui/
 │   └── session/                      # api/, model/
 └── shared/
     ├── api/                          # HTTP-клиент, поток событий, transport, ошибки, contract/
@@ -152,10 +154,10 @@ Vite под `/app`, SEO-файлы и мок входа для сборки; `in
 ```mermaid
 flowchart TB
     app["<b>app</b><br/>providers, router, mocks"]
-    pages["<b>pages</b><br/>review-run, reviews, Overview, Repositories, Help"]
+    pages["<b>pages</b><br/>review-run, reviews, status, Overview, Repositories, Help"]
     widgets["<b>widgets</b><br/>app-shell, review-run-view, review-workspace, run-inspector"]
     features["<b>features</b><br/>auth, filter-findings, live-run-status, repository, theme"]
-    entities["<b>entities</b><br/>diff, review-run, review-finding, review-run-step, session"]
+    entities["<b>entities</b><br/>diff, review-run, review-finding, review-run-step, service-status, session"]
     shared["<b>shared</b><br/>api, lib, ui, config, telemetry"]
     app --> pages --> widgets --> features --> entities --> shared
 ```
@@ -173,7 +175,7 @@ flowchart LR
     s_api["shared/api<br/>useTransport(), apiFetch"] -.-> tq[("TanStack Query<br/>серверные данные")]
     s_es["shared/api<br/>useEventStream()"] -.-> f_live["features/live-run-status"]
     f_live -. setQueryData .-> tq
-    tq -.-> q_owners["pages/review-run, pages/reviews,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
+    tq -.-> q_owners["pages/review-run, pages/reviews, pages/status,<br/>pages/RepositorySettingsPage,<br/>features/auth, features/live-run-status,<br/>features/repository"]
     zs[("Zustand<br/>UI-состояние")] -.-> z_owners["widgets/review-workspace,<br/>features/filter-findings"]
 ```
 
