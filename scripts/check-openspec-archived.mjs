@@ -21,9 +21,7 @@ const isCount = (value) => Number.isInteger(value) && value >= 0
 
 /** Change из вывода `openspec list --json`; вход с границы проверяется. */
 function parseChanges(text) {
-  /** @type {unknown} */
-  const data = JSON.parse(text)
-  const changes = data && typeof data === 'object' && 'changes' in data ? data.changes : undefined
+  const changes = JSON.parse(text)?.changes
   if (!Array.isArray(changes)) throw new Error('в выводе openspec list --json нет массива changes')
   return changes.map((item) => {
     const { name, completedTasks, totalTasks } = item ?? {}

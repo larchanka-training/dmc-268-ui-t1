@@ -57,6 +57,12 @@ describe('запуск скрипта', () => {
     expect(result.stdout).toContain('| `wip` | 1/4 |')
   })
 
+  it('пишет «Нет.» в summary, когда открытых change нет', () => {
+    const result = run(listJson())
+    expect(result.status).toBe(0)
+    expect(result.stdout).toContain('Нет.')
+  })
+
   it('change без задач завершённым не считается', () => {
     const result = run(listJson(change('empty', 0, 0)))
     expect(result.status).toBe(0)
