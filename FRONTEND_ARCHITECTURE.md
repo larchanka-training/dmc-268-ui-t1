@@ -10,14 +10,14 @@ implementation_status: planned
 
 **Статус.** Это архитектурный контракт для DoD
 [Issue #5](https://github.com/larchanka-training/dmc-268-ui-t1/issues/5). Этот PR содержит
-документ и правила выбора библиотек; исходный код viewer, mock adapter и OpenSpec-change в него
+документ и правила выбора библиотек; исходный код viewer и OpenSpec-change в него
 не входят. Их реализует [PR #19](https://github.com/larchanka-training/dmc-268-ui-t1/pull/19) по
 этому документу и [плану тестирования](docs/testing/TEST_PLAN.md). Что меняется для реализации
 относительно ревизии 5.0 — в §8.
 
 ## 1. Границы задачи
 
-Экран `ReviewRunView` показывает один **mock-прогон** ревью:
+Экран `ReviewRunView` показывает один прогон ревью, полученный с бэкенда:
 
 - метаданные и статус прогона;
 - сводку findings и их публикаций;
@@ -27,8 +27,8 @@ implementation_status: planned
 - техническую хронологию прогона (`RunInspector`).
 
 В задачу не входят HTTP API, `fetch`, маршрутизация, polling, авторизация, GitHub/GitLab,
-загрузка скрытого context по сети и полный payload действий. Mock — это не обещание HTTP DTO и
-не копия таблиц backend: это данные, достаточные для честного рендера и тестов.
+загрузка скрытого context по сети и полный payload действий. Доменная модель — не копия таблиц
+backend: adapter на границе переводит ответ контракта в данные, достаточные для рендера и тестов.
 
 ### 1.1 Граница с backend
 
@@ -39,7 +39,7 @@ implementation_status: planned
 Diff прогона — это разница между `base_sha` и `head_sha` этого прогона. Backend сейчас не хранит
 снимок diff (ответ на FE-OPEN-11 в PR #6): замечания публикуются inline у провайдера. Frontend
 закладывает просмотр diff как допущение; откуда браузер получит diff — открытый вопрос к
-backend. До его решения Diff Viewer работает только с mock adapter.
+backend. Теперь дифф отдаёт `GET /reviews/{id}/diff` (api#87); моков в приложении нет (ui#107).
 
 Не требуется заранее решать, будет ли backend отдавать готовый patch или структурированный
 `DiffFile`: adapter может преобразовать любой из этих вариантов в модель ниже. Поэтому
@@ -78,8 +78,7 @@ src/
 ├── app/
 │   ├── App.tsx
 │   ├── providers/                    # AppProviders: QueryClient, antd ConfigProvider, тема
-│   ├── router/
-│   └── mocks/                        # mock adapter, поток событий, фикстуры
+│   └── router/
 ├── pages/
 │   ├── review-run/                   # ui/, model/ — экран прогона, композиция публичных widget API
 │   ├── reviews/                      # ui/, model/ — список ревью
@@ -119,8 +118,8 @@ src/
 
 Вне слоёв FSD лежат: `main.tsx` — точка входа, подключает телеметрию, тему и `app`; `landing/` —
 скрипт и стили статичной страницы входа `login.html`; `build/` — правила dev- и preview-сервера
-Vite под `/app`, SEO-файлы и мок входа для сборки; `index.css` и `styles/` — глобальные стили: в `index.css` порядок CSS-слоёв и импорт Tailwind; `test/` —
-фабрики для тестов.
+Vite под `/app` и SEO-файлы; `index.css` и `styles/` — глобальные стили: в `index.css` порядок CSS-слоёв и импорт Tailwind; `test/` —
+фабрики для тестов и фейки транспорта и потока событий.
 
 Сегменты слайса — стандартные для FSD:
 
@@ -137,8 +136,8 @@ Vite под `/app`, SEO-файлы и мок входа для сборки; `in
 нельзя. В частности:
 
 - `shared/api` владеет интерфейсом adapter, `TransportContext` и `useTransport()`;
-  `app/App.tsx` выбирает конкретный adapter (mock или HTTP по `VITE_USE_MOCK_API`),
-  `app/providers/AppProviders` передаёт его в этот context.
+  `app/App.tsx` собирает HTTP-клиент и `EventSource`,
+  `app/providers/AppProviders` передаёт их в этот context; тесты подставляют фейк из `src/test`.
   `ReviewRunView` не импортирует `app`;
 - `pages/review-run` получает adapter через `useTransport()`, владеет запросом экрана и
   собирает публичные widget API;
@@ -153,7 +152,7 @@ Vite под `/app`, SEO-файлы и мок входа для сборки; `in
 
 ```mermaid
 flowchart TB
-    app["<b>app</b><br/>providers, router, mocks"]
+    app["<b>app</b><br/>providers, router"]
     pages["<b>pages</b><br/>review-run, reviews, status, Overview, Repositories, Help"]
     widgets["<b>widgets</b><br/>app-shell, review-run-view, review-workspace, run-inspector"]
     features["<b>features</b><br/>auth, filter-findings, live-run-status, repository, theme"]
@@ -201,7 +200,8 @@ flowchart LR
 | diff   | `reviewDiffPath`: `…/diff`               | `ReviewDiffSchema`                                                                                            |
 | шаги   | `reviewStepsPath`: `…/steps`             | `ReviewRunStepListSchema`                                                                                     |
 
-Mock adapter из `app/mocks` отвечает на те же пути, поэтому экран не знает, откуда пришли данные.
+В тестах фейк транспорта из `src/test/api` отвечает на те же пути по типам контракта, поэтому экран
+не знает, откуда пришли данные.
 
 `ReviewRun` содержит как минимум `id`, `status`, `head_sha`, `base_sha`, `failure_reason`,
 `model`, `tokens_used`, `duration_seconds` и число отклонённых findings. `head_sha` и `base_sha`
@@ -228,7 +228,7 @@ Mock adapter из `app/mocks` отвечает на те же пути, поэт
 модели в нём нет.
 
 Поля вроде URL запроса на изменения, автора, веток, verdict и score допустимы только как
-**явно помеченное mock-расширение**, пока их не согласовали с backend. Они не должны называться
+**явно помеченное расширение модели**, пока их не согласовали с backend. Они не должны называться
 контрактом API.
 
 ### 4.2 Один источник правды
@@ -293,7 +293,7 @@ ReviewRunView (pages/review-run)
 
 ### 6.3 Свёрнутый context
 
-Mock уже содержит скрытые строки: по нажатию UI только показывает их, без запроса к серверу. В
+Ответ диффа уже содержит скрытые строки: по нажатию UI только показывает их, без запроса к серверу. В
 `expanded_context_line_ids` хранятся `id` строк раскрытого блока. `id` строк уникальны, поэтому
 раскрытие блока в одном hunk никогда не раскрывает блок другого hunk. Повторное нажатие не
 дублирует строки.
@@ -349,7 +349,7 @@ PR #19 построен по ревизии 5.0. Чтобы соответств
   раскрывающаяся карточка замечания и остальные контролы переходят на компоненты Ant Design.
 - **Место экрана.** `ReviewRunView` переезжает из `app` в `pages/review-run/ui`, а
   `MockReviewStateSchema` и запрос экрана — из `app/model` в `pages/review-run/model` (§3).
-  Mock adapter и фикстуры остаются в `app/mocks`.
+  Mock adapter и фикстуры остаются в `app/mocks` (удалены в ui#107: тесты — на фейке транспорта).
 
 Остальное совпадает с реализацией PR #19: `@git-diff-view/react`, сегменты `lib/` и `ui/`,
 `ReviewCommentThread` в `entities/review-finding`, `MockReviewState.run`, `base_sha`,
