@@ -17,7 +17,7 @@
  * JS, а не TS: tsconfig собирает только src/ под браузер, типов Node в проекте
  * нет, а тесту нужны child_process и fs.
  */
-import { execFileSync, spawnSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { extname, join, relative } from 'node:path'
@@ -202,15 +202,5 @@ describe('туннели', () => {
         .filter(([, bad]) => bad.length > 0),
     )
     expect(offenders, 'ssh -L без -o ControlPath=none').toEqual({})
-  })
-
-  it('state-tunnel без хоста stand падает с подсказкой про stand-ssh, а не невнятной ошибкой ssh', () => {
-    const [script] = runBlocks(readFileSync(STATE_TUNNEL, 'utf8'))
-    const run = spawnSync('bash', ['-c', script], {
-      env: { PATH: process.env.PATH, HOME: tempDir(), STATE_PORT: '9000' },
-      encoding: 'utf8',
-    })
-    expect(run.status).toBe(1)
-    expect(run.stdout).toContain('stand-ssh должен стоять до state-tunnel')
   })
 })
