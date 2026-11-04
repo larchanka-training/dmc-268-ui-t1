@@ -39,4 +39,4 @@
 
 ## Migration Plan
 
-После мёржа в `develop` удалить переменную репозитория `VITE_USE_MOCK_API` (`gh variable delete`). Откат — revert PR: переменная со значением `false` на стенде ничего не меняла.
+После мёржа в `develop` удалить переменную репозитория `VITE_USE_MOCK_API` (`gh variable delete`). Откат — revert PR, но **перед ним** завести переменную снова: `gh variable set VITE_USE_MOCK_API --body false`. Старый `deploy.yml` читает `vars.VITE_USE_MOCK_API || 'true'`: без переменной revert соберёт стенд на моках.

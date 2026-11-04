@@ -6,6 +6,8 @@
 
 - [x] 2.1 `useReviewDiff` не считает `404`/`501` отсутствием диффа; `diffProblem.ts` сопоставляет `code` с заголовком и признаком постоянной ошибки
 - [x] 2.2 `ReviewRunView` показывает причину над списком замечаний: постоянные — без «Повторить», остальные — «Не удалось загрузить дифф» с «Повторить»; тесты `ReviewRunView.test.tsx` на каждый `code`, один запрос диффа при `409`/`410`/`422`, повтор после `502`
+- [x] 2.3 `useReviewDiff` ждёт `base_sha` (`enabled: base_sha != null`): прогон в очереди не показывает «Дифф прогона недоступен»; тесты на `queued` без `base_sha` и на появление диффа после `run.finished`
+- [x] 2.4 `usePlannedPart` встроен в `useReviewSteps` — единственный вызов; `501` у шагов по-прежнему скрывает блок
 
 ## 3. Приложение без mock adapter
 
@@ -26,8 +28,13 @@
 
 - [x] 6.1 README: раздел кабинета без мока, таблица переменных, локальный запуск против бэкенда (`make run-local`, своя GitHub App, `PUBLIC_ORIGIN`, callback) и почему не стенд
 - [x] 6.2 `docs/testing/TEST_PLAN.md` §4 и `FRONTEND_ARCHITECTURE.md` — фейк транспорта вместо `app/mocks`
+- [x] 6.3 Правила агентов без моков: `.agents/rules/frontend.md` (состояние, контракт API), `AGENTS.md`, скилл `frontend-tdd`, шаблон `.agents/templates/frontend/query.md`, комментарии в `nginx/site.conf` и `src/shared/api/eventStream.ts`
 
 ## 7. Проверка
 
 - [x] 7.1 Все гейты: `typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`, `openspec validate cabinet-without-mocks --strict`
 - [ ] 7.2 Локально против бэкенда: вход, репозитории, настройки, прогон, выход
+
+## 8. Архив
+
+- [ ] 8.1 После архива `review-run-diff-viewer` и `session-cookie` — `openspec archive cabinet-without-mocks` (#130)

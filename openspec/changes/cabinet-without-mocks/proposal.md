@@ -23,8 +23,8 @@
 
 ## Impact
 
-- Код: `src/app/App.tsx`, `src/app/mocks/` (удаляется), `src/build/mockAuth.ts` (удаляется), `src/shared/config/env.ts`, `src/vite-env.d.ts`, `vite.config.ts`, `src/pages/review-run`, `src/app/App.test.tsx`, `src/entities/session/api/sessionApi.test.ts`.
+- Код: `src/app/App.tsx`, `src/app/mocks/` (удаляется, вместе с моком `/status` из #119), `src/build/mockAuth.ts` (удаляется), `src/shared/config/env.ts`, `src/vite-env.d.ts`, `vite.config.ts`, `src/pages/review-run`, `src/app/App.test.tsx`, `src/entities/session/api/sessionApi.test.ts`.
 - Контракт: `src/shared/api/contract/*` через `pnpm api:sync`.
 - Сборка и доставка: `Dockerfile`, `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`, переменная репозитория `VITE_USE_MOCK_API`, фикстуры тегов в `.github/tests/deploy-report.test.mjs` и `infra/tests/main.tftest.hcl`.
 - Документация: `README.md`, `docs/testing/TEST_PLAN.md`, `FRONTEND_ARCHITECTURE.md`.
-- Порядок: ветка отведена от PR #118 (архив `repository-settings`, `repositories-one-page`, `review-run-live-status`, `review-run-general-stream`). Дельты написаны поверх спек после архива `session-cookie` и `review-run-diff-viewer`, поэтому этот change архивируется после них.
+- Порядок: ветка на `develop` после #118 (архив `repository-settings`, `repositories-one-page`, `review-run-live-status`, `review-run-general-stream`). Дельты написаны поверх спек после архива `session-cookie` и `review-run-diff-viewer`, поэтому этот change архивируется после них — задача 8.1, порядок в #130.
