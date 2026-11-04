@@ -48,7 +48,8 @@ export function ReviewRunView() {
   // Маршрут `/reviews/:reviewId`; id — UUID прогона на бэкенде.
   const { reviewId = '' } = useParams()
   const review = useReviewRun(reviewId)
-  const diff = useReviewDiff(reviewId)
+  // Без `base_sha` дифф не запрашиваем: бэкенд ответил бы `409`, а прогон просто ещё в очереди.
+  const diff = useReviewDiff(reviewId, review.data?.base_sha)
   const steps = useReviewSteps(reviewId)
   // Ключ — в зависимостях эффекта подписки: новый массив на каждый рендер переоткрывал бы поток.
   const queryKey = useMemo(() => reviewKey(reviewId), [reviewId])

@@ -127,6 +127,9 @@ function fakeAdapter(source: Backend | ((path: string) => Backend) = {}): ApiTra
 /** Текст области изменений: подсветка режет строку кода на отдельные узлы. */
 const progress = () => screen.getByRole('region', { name: 'Прогресс прогона' })
 
+/** Дифф уходит после прогона (ждёт `base_sha`): замечания списком видны раньше него. */
+const diffShown = () => screen.findByRole('region', { name: 'Изменения' })
+
 const changesText = () => screen.getByRole('region', { name: 'Изменения' }).textContent ?? ''
 
 let stream: FakeEventStream
@@ -256,7 +259,7 @@ describe('ReviewRunView', () => {
 
   it.each([
     ['дифф больше лимита', 422, 'DIFF_TOO_LARGE', 'Дифф слишком большой для показа'],
-    ['у прогона нет base_sha', 409, 'DIFF_UNAVAILABLE', 'Дифф прогона недоступен'],
+    ['пары коммитов нет', 409, 'DIFF_UNAVAILABLE', 'Дифф прогона недоступен'],
     ['коммита больше нет', 410, 'COMMIT_NOT_FOUND', 'Коммитов прогона больше нет'],
     [
       'приложение снято с репозитория',
@@ -366,6 +369,7 @@ describe('ReviewRunView', () => {
   it('INT-01: под строкой с замечанием рендерится карточка на своей стороне', async () => {
     renderView(fakeAdapter())
 
+    await diffShown()
     const card = await screen.findByRole('article', { name: /Токен печатается в лог/ })
     expect(within(card).getByText('Critical')).toBeInTheDocument()
     expect(
@@ -396,6 +400,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     expect(changesText()).not.toContain('return 42')
 
@@ -412,6 +417,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     await user.click(screen.getByRole('button', { name: /^High · 1$/ }))
 
@@ -521,6 +527,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     const { queryClient } = renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     await user.click(screen.getByRole('button', { name: /Показать 2 скрытых строк$/ }))
     await user.click(screen.getByRole('button', { name: 'Одна колонка' }))
@@ -556,12 +563,23 @@ describe('ReviewRunView', () => {
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
   })
 
-  it('без базовой ревизии объясняет, почему диффа нет', async () => {
-    renderView(fakeAdapter({ run: makeReviewRun({ base_sha: null }) }))
+  it.each([
+    ['прогон в очереди', 'queued'],
+    ['старый прогон без колонки base_sha', 'completed'],
+  ] as const)(
+    'без base_sha (%s) дифф не запрашивается: ошибки диффа нет, замечания списком',
+    async (_, status) => {
+      const backend = fakeAdapter({ run: makeReviewRun({ status, base_sha: null }) })
+      const get = vi.spyOn(backend, 'get')
+      renderView(backend)
 
-    expect(await screen.findByText(/не сохранена базовая ревизия/)).toBeInTheDocument()
-    expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
-  })
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
+      expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
+      expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
+    },
+  )
   describe('статус в реальном времени', () => {
     it('INT-09: смена статуса по событию видна без перезагрузки', async () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
@@ -694,6 +712,21 @@ describe('ReviewRunView', () => {
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
       expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
       expect(stream.active()).toBe(0)
+    })
+
+    it('ревизия появилась в прогоне после run.finished — дифф запрашивается и показан', async () => {
+      let backend: Backend = { run: makeReviewRun({ status: 'queued', base_sha: null }) }
+      renderView(fakeAdapter(() => backend))
+      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
+
+      backend = { run: makeReviewRun({ status: 'completed' }) }
+      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
+
+      expect(
+        await screen.findByRole('navigation', { name: 'Изменённые файлы' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
     })
 
     it('перезапрос после run.finished упал (502) — прогон остаётся, плашка с повтором', async () => {
@@ -906,6 +939,7 @@ describe('ReviewRunView', () => {
     it('INT-17: severity и текст действуют вместе', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.click(screen.getByRole('button', { name: /^High · 1$/ }))
@@ -955,6 +989,7 @@ describe('ReviewRunView', () => {
         message: 'Токен в README',
       })
       renderView(fakeAdapter({ files, findings: [leak, removed, general, tokenHigh, tokenLow] }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.type(screen.getByRole('textbox', { name: 'Поиск по тексту замечаний' }), 'токен')
@@ -975,6 +1010,7 @@ describe('ReviewRunView', () => {
     it('INT-22: счётчик замечаний у файла считается под фильтр severity', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
       const apiButton = () => within(fileList()).getByRole('button', { name: /app\/api\.py/ })
       expect(apiButton()).toHaveTextContent('замечаний: 3')
@@ -988,6 +1024,7 @@ describe('ReviewRunView', () => {
     it('INT-22: счётчик замечаний у файла считается под текстовый поиск', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.type(screen.getByRole('textbox', { name: 'Поиск по тексту замечаний' }), 'sql')
