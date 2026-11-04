@@ -142,21 +142,6 @@ jobs:
           # манифеста образа.
           provenance: false
 
-      - name: Убедиться, что образ забирается обратно
-        env:
-          IMAGE: ${{ steps.meta.outputs.image }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          set -euo pipefail
-          # Пустой digest дал бы ссылку, которую отвергнет проверка ui_image,
-          # но уже в job'е деплоя; ловим здесь.
-          if [ -z "$DIGEST" ]; then
-            echo "::error::build-push-action не вернул digest образа"
-            exit 1
-          fi
-          docker manifest inspect "${IMAGE}@${DIGEST}" > /dev/null
-          echo "образ доступен по digest: ${IMAGE}@${DIGEST}"
-
       # trivy в ci.yml смотрит образ, собранный в CI, а на стенд уезжает этот:
       # он собран заново, и пакеты базового nginx:1.30-alpine между сборками
       # могли смениться. Поэтому сканируется опубликованный digest — ровно то,
