@@ -54,6 +54,12 @@ resource "docker_container" "ui" {
   stop_signal           = "SIGQUIT"
   destroy_grace_seconds = 10
 
+  # Потолок памяти без свопа, как у контейнеров бэкенда: без него лимит — вся
+  # память хоста. nginx на стенде — пик 17 МБ; 128 МБ с запасом на потоки SSE.
+  # Переполнение убивает самый большой процесс — воркер, и мастер его поднимает.
+  memory      = 128
+  memory_swap = 128
+
   # Логи nginx — в Loki через коллектор логов бэкенда на петле хоста: он скрывает
   # IP клиентов и query в URL (коды OAuth). Опции — те же, что local.fluentd_log_opts
   # в infra бэкенда (dmc-268-api-t1, infra/README.md, «Логи контейнеров»): async —
