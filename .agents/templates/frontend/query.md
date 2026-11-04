@@ -17,7 +17,7 @@ export type ReviewRunApi = {
 import { useQuery } from '@tanstack/react-query'
 
 export function useReviewRun(id: string) {
-  const api = useReviewRunApi() // боевой клиент или mock adapter
+  const api = useReviewRunApi() // HTTP-клиент; в тестах — fakeTransport
   return useQuery({
     queryKey: ['review-run', id],
     queryFn: () => api.getRun(id),
