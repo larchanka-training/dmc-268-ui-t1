@@ -292,38 +292,19 @@ jobs:
           .github/scripts/deploy/mark.sh
           .github/scripts/deploy/apply.sh
 
-      # Проверки стенда — .github/scripts/deploy/ (shellcheck в CI) и
-      # scripts/check-routes.sh, общий с CI. Первый ответ HTTPS и /api/v1/
-      # check-site.sh и check-api-proxy.sh записывают для summary.
-      - name: Проверить, что по адресу отдаётся именно наш сайт
-        id: check_site
+      # Публичный вход — модулями blackbox (check-public.sh). Маршруты —
+      # scripts/check-routes.sh, общий с CI.
+      - name: Проверить публичный вход
+        id: check_public
         run: |
           .github/scripts/deploy/mark.sh
-          .github/scripts/deploy/check-site.sh
+          .github/scripts/deploy/check-public.sh
 
       - name: Проверить маршруты
         id: check_routes
         run: |
           .github/scripts/deploy/mark.sh
           scripts/check-routes.sh "https://${HOST}"
-
-      - name: Проверить сжатие статики
-        id: check_compression
-        run: |
-          .github/scripts/deploy/mark.sh
-          .github/scripts/deploy/check-compression.sh "https://${HOST}"
-
-      - name: Проверить HTTP/2 и HTTP/3
-        id: check_protocols
-        run: |
-          .github/scripts/deploy/mark.sh
-          .github/scripts/deploy/check-protocols.sh
-
-      - name: Проверить, что API доступен через тот же адрес
-        id: check_api_proxy
-        run: |
-          .github/scripts/deploy/mark.sh
-          .github/scripts/deploy/check-api-proxy.sh "https://${HOST}"
 
       # Исход, шаг падения, простой публичного входа, план, диск и длительность
       # шагов (summary.sh). Исходы шагов — списком, а не toJSON(steps): тот
@@ -349,11 +330,8 @@ jobs:
             pull ${{ steps.pull.outcome }} ${{ steps.pull.conclusion }}
             plan ${{ steps.plan.outcome }} ${{ steps.plan.conclusion }}
             apply ${{ steps.apply.outcome }} ${{ steps.apply.conclusion }}
-            check_site ${{ steps.check_site.outcome }} ${{ steps.check_site.conclusion }}
+            check_public ${{ steps.check_public.outcome }} ${{ steps.check_public.conclusion }}
             check_routes ${{ steps.check_routes.outcome }} ${{ steps.check_routes.conclusion }}
-            check_compression ${{ steps.check_compression.outcome }} ${{ steps.check_compression.conclusion }}
-            check_protocols ${{ steps.check_protocols.outcome }} ${{ steps.check_protocols.conclusion }}
-            check_api_proxy ${{ steps.check_api_proxy.outcome }} ${{ steps.check_api_proxy.conclusion }}
         run: |
           .github/scripts/deploy/mark.sh
           .github/scripts/deploy/summary.sh

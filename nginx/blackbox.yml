@@ -1,0 +1,87 @@
+# Модули blackbox_exporter для проверки публичного входа после деплоя
+# (.github/scripts/deploy/check-public.sh): то, что настраивает конфиг nginx
+# рядом, проверяется снаружи, с раннера. В образ интерфейса файл не попадает —
+# Dockerfile копирует из nginx/ только конфиги сервера.
+#
+# Цель задаёт шаг (target в /probe), здесь — что считается успехом. Регулярки
+# blackbox не привязаны к началу строки, кроме явных ^ и $.
+
+modules:
+  # Наш сайт по HTTPS: сертификат действителен (blackbox проверяет цепочку),
+  # 200 без редиректа, в теле — «DMC-268» из <title> лендинга, а не другой
+  # сервис или заглушка nginx. Цель — https://HOST/.
+  site:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      follow_redirects: false
+      fail_if_not_ssl: true
+      fail_if_body_not_matches_regexp: ['DMC-268']
+
+  # HTTP интерфейс не отдаёт, только перенаправляет на корень по HTTPS.
+  # Цель — http://HOST/. Адрес стенда в модуль не подставить, поэтому хост в
+  # Location не сверяется: на чужом хосте наш сайт с сертификатом не ответит.
+  http_redirect:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [301, 308]
+      follow_redirects: false
+      fail_if_header_not_matches:
+        - header: Location
+          regexp: '^https://[^/]+/$'
+
+  # Ответ по HTTPS: по TCP — HTTP/2, HSTS и Alt-Svc с h3 (зачем — в
+  # nginx/https.conf.template). Цель — https://HOST/.
+  https_headers:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      follow_redirects: false
+      valid_http_versions: ['HTTP/2.0']
+      fail_if_header_not_matches:
+        - header: Strict-Transport-Security
+          regexp: 'max-age='
+        - header: Alt-Svc
+          regexp: 'h3=":443"'
+
+  # HTTP/3 по QUIC — заодно проверка, что UDP 443 открыт до стенда.
+  # Цель — https://HOST/.
+  http3:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [200]
+      follow_redirects: false
+      enable_http2: false
+      enable_http3: true
+      valid_http_versions: ['HTTP/3.0']
+
+  # Статика сжата при сборке, nginx отдаёт готовый .gz (gzip_static). HTML
+  # приложения сжат так же, как его JS-бандл, а адрес у него постоянный — имя
+  # бандла меняется от сборки. Гостя /app/ уводит на вход, поэтому — с cookie
+  # сессии: nginx смотрит только на её наличие. Несжатый ответ проба не
+  # распакует и упадёт («gzip: invalid header»). Цель — https://HOST/app/.
+  gzip:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [200]
+      follow_redirects: false
+      headers:
+        Cookie: session=check
+        Accept-Encoding: gzip
+      compression: gzip
+
+  # API через адрес интерфейса: на путь без ручки приложение отвечает 404 с
+  # JSON-полем detail, а nginx (502) и SPA-fallback (index.html) — нет.
+  # /health наружу не публикуется. Цель — https://HOST/api/v1/.
+  api:
+    prober: http
+    timeout: 10s
+    http:
+      valid_status_codes: [404]
+      follow_redirects: false
+      fail_if_body_json_not_matches_cel: 'has(body.detail)'
