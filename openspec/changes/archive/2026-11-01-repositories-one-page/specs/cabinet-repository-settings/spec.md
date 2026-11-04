@@ -22,11 +22,10 @@
 
 ### Requirement: Сохранение настроек ревью
 
-Сохранение SHALL выполняться одним действием — запросом `PUT
-/api/v1/repositories/{repository_id}/settings`, заменяющим настройки целиком: тело запроса —
-все три поля (`auto_review_enabled`, `branch_filter`, `min_severity`). `auto_review_enabled`
+Сохранение SHALL выполняться одним запросом `PUT
+/api/v1/repositories/{repository_id}/settings`, заменяющим настройки целиком: тело — все три поля (`auto_review_enabled`, `branch_filter`, `min_severity`). `auto_review_enabled`
 SHALL отправляться таким, каким его вернул `GET …/settings`. Перед отправкой фильтр веток
-SHALL нормализоваться: обрезка пробелов, пустые паттерны — мимо, повторы не сохраняются. На
+SHALL нормализоваться. На
 время сохранения форма SHALL блокироваться; несохранённые правки SHALL оставаться в форме и
 SHALL NOT попадать в кэш данных до успешного сохранения.
 
