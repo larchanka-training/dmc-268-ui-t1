@@ -7,7 +7,7 @@
 ## What Changes
 
 - `nginx/blackbox.yml` — модули проверок рядом с конфигом nginx, который они проверяют: `site` (HTTPS с действительным сертификатом, 200, «DMC-268» в теле), `http_redirect` (HTTP → 301/308 на `https://…/`), `https_headers` (HTTP/2, `Strict-Transport-Security` с `max-age=`, `Alt-Svc` с `h3=":443"`), `http3` (HTTP/3 по QUIC), `gzip` (`/app/` с cookie сессии приходит сжатым), `api` (`/api/v1/` — 404 с JSON-полем `detail`).
-- `.github/scripts/deploy/check-public.sh` — один шаг `check_public` вместо четырёх: разовый `quay.io/prometheus/blackbox-exporter` (версия и digest закреплены, без анонимного лимита Docker Hub) на петле раннера, ожидание сайта (до 2 мин) и API (до 1 мин) с засечками в `probes` в прежнем формате, остальные модули — по одному вызову `/probe`. Не прошёл модуль — хвост лога exporter'а с причиной и ошибка; контейнер убирается в любом случае.
+- `.github/scripts/deploy/check-public.sh` — один шаг `check_public` вместо четырёх: разовый `quay.io/prometheus/blackbox-exporter` (версия и digest закреплены, без анонимного лимита Docker Hub) на петле раннера, ожидание сайта (до 2 мин) и API (до 1 мин) с засечками в `probes` в прежнем формате, остальные модули — по одному вызову `/probe`. Не прошёл модуль — лог этой пробы (`/probe?debug=true`, от уровня логов exporter'а не зависит) с причиной и ошибка; контейнер убирается в любом случае.
 - `deploy.yml`, `STEPS` в `scripts/deploy-report.mjs`, тесты отчёта деплоя — под новый шаг.
 
 ## Capabilities

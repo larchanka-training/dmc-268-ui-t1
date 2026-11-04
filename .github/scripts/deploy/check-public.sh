@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Публичный вход после выката — модулями nginx/blackbox.yml: разовый
 # blackbox_exporter на раннере, по вызову /probe на модуль. Модуль не прошёл —
-# хвост лога exporter'а (в нём причина) и выход с ошибкой; контейнер убирается
-# в любом случае.
+# лог этой пробы (`/probe?debug=true`, в нём причина) и выход с ошибкой;
+# контейнер убирается в любом случае.
 #
 # Сайт ждём до двух минут (40 попыток раз в 3 с): на чистом томе nginx
 # получает сертификат у Let's Encrypt при старте. API — до минуты: он мог
@@ -39,15 +39,18 @@ if ! curl -fsS --retry 20 --retry-all-errors --retry-delay 1 -o /dev/null "${exp
 fi
 
 passed() {
-  case "$(curl -sS -G --max-time 20 --data-urlencode "module=$1" --data-urlencode "target=$2" "${exporter}/probe" 2>&1)" in
+  case "$(curl -sS -G --max-time 20 --data-urlencode "module=$1" --data-urlencode "target=$2" "${exporter}/probe")" in
     *$'\nprobe_success 1'*) return 0 ;;
     *) return 1 ;;
   esac
 }
 
+# Лог пробы с debug=true — от уровня логов exporter'а не зависит; метрики после него не нужны.
 fail() {
   echo "::error::$3 (модуль $1, цель $2)"
-  docker logs "$name" 2>&1 | tail -n 5
+  echo "лог повторной пробы:"
+  curl -sS -G --max-time 20 --data-urlencode "module=$1" --data-urlencode "target=$2" \
+    --data-urlencode debug=true "${exporter}/probe" | sed '/^Metrics that would have been returned:/,$d'
   exit 1
 }
 

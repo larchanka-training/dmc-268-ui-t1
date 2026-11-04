@@ -142,6 +142,16 @@ jobs:
           # манифеста образа.
           provenance: false
 
+      # Пустой digest дал бы trivy невнятную ошибку ссылки: ловим его раньше.
+      - name: Проверить digest образа
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          if [ -z "$DIGEST" ]; then
+            echo "::error::build-push-action не вернул digest образа"
+            exit 1
+          fi
+
       # trivy в ci.yml смотрит образ, собранный в CI, а на стенд уезжает этот:
       # он собран заново, и пакеты базового nginx:1.30-alpine между сборками
       # могли смениться. Поэтому сканируется опубликованный digest — ровно то,

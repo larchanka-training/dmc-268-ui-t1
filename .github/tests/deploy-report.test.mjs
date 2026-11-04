@@ -109,13 +109,16 @@ exec "$@"
 
 // Подложный curl. Пробнику apply.sh (`-w %{http_code}`) отвечает кодом
 // PROBE_CODE. За blackbox_exporter в check-public.sh: здоров сразу, первые
-// CURL_FAILS проб не проходят.
+// CURL_FAILS проб не проходят, модуль FAIL_MODULE не проходит никогда, а на
+// debug=true отвечает логом пробы и метриками, как настоящий.
 const FAKE_CURL = `#!/usr/bin/env bash
 echo "curl $*" >> "$CALLS"
 case "$*" in
   *http_code*) printf '%s' "\${PROBE_CODE:-200}"; exit 0 ;;
   */-/healthy*) exit 0 ;;
+  *debug=true*) printf 'Logs for the probe:\\nmsg="Probe failed" причина пробы\\n\\n\\n\\nMetrics that would have been returned:\\nprobe_success 0\\n'; exit 0 ;;
 esac
+if [ -n "\${FAIL_MODULE:-}" ] && [[ "$*" == *"module=$FAIL_MODULE "* ]]; then printf '# HELP\\nprobe_success 0\\n'; exit 0; fi
 n=$(cat "$CALLS.curl" 2>/dev/null || echo 0)
 echo $((n + 1)) > "$CALLS.curl"
 [ "$n" -lt "\${CURL_FAILS:-0}" ] && { printf '# HELP\\nprobe_success 0\\n'; exit 0; }
@@ -655,6 +658,30 @@ describe('проверки стенда', () => {
     for (const module of ['site', 'http_redirect', 'https_headers', 'http3', 'gzip', 'api']) {
       expect(calls(box)).toContain(`module=${module} `)
     }
+    expect(calls(box)).toContain('docker rm -f check-public-')
+  })
+
+  it('check-public.sh: модуль не прошёл — ошибка с логом пробы, exporter убран', () => {
+    const box = sandbox()
+    const result = run(box, 'check-public.sh', { FAIL_MODULE: 'gzip' })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('::error::/app/ отдаётся без gzip (модуль gzip')
+    expect(result.stdout).toContain('причина пробы')
+    expect(result.stdout).not.toContain('Metrics that would have been returned')
+    expect(calls(box)).toContain('docker rm -f check-public-')
+  })
+
+  it('check-public.sh: сайт не ответил за все попытки — ошибка, дальше модули не идут', () => {
+    const box = sandbox()
+    const result = run(box, 'check-public.sh', { CURL_FAILS: '1000' })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('::error::по https://203.0.113.7/ не отвечает наш сайт')
+    // 40 попыток wait_for и повторная проба с debug=true.
+    expect(calls(box).match(/module=site /g)).toHaveLength(41)
+    expect(calls(box)).not.toContain('module=gzip ')
+    expect(calls(box)).toContain('docker rm -f check-public-')
   })
 })
 
