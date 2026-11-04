@@ -188,6 +188,20 @@ describe('статус сервиса для гостя', () => {
     expect(calls).toHaveLength(0)
   })
 
+  it('упавший запрос не повторяет сам — следующую попытку делает опрос', async () => {
+    // Через App: там клиент запросов приложения с общими повторами (`shouldRetry`), а не
+    // тестовый с `retry: false`.
+    stubFetch({})
+    const get = vi
+      .fn<ApiTransport['get']>()
+      .mockRejectedValue(new ApiError(503, 'Запрос /status завершился ошибкой 503'))
+    window.history.pushState({}, '', '/app/status')
+    render(<App transport={fakeTransport({ get })} />)
+
+    expect(await screen.findByText('Не удалось получить статус от API')).toBeInTheDocument()
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
   it('на странице входа есть ссылка «Статус сервиса»', () => {
     const html = new DOMParser().parseFromString(loginHtml, 'text/html')
     const link = [...html.querySelectorAll('a')].find((a) => a.textContent === 'Статус сервиса')

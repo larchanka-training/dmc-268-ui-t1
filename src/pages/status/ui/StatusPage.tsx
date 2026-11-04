@@ -13,9 +13,11 @@ import { formatDateTime } from '@/shared/lib'
 import { LoadingState } from '@/shared/ui'
 import { PublicLayout } from '@/widgets/app-shell'
 
-import { useServiceStatus } from '../model/serviceStatusQuery'
+import { STATUS_REFETCH_INTERVAL_MS, useServiceStatus } from '../model/serviceStatusQuery'
 
 const { Title, Text } = Typography
+
+const REFETCH_INTERVAL_SECONDS = STATUS_REFETCH_INTERVAL_MS / 1000
 
 const OVERALL_ALERT: Record<ServiceStatus, 'success' | 'warning' | 'error' | 'info'> = {
   operational: 'success',
@@ -63,7 +65,8 @@ function StatusReport({ view }: { view: ServiceStatusView }) {
           ))}
         </ul>
         <Text type="secondary" className="text-meta">
-          Проверено: {formatDateTime(view.checkedAt)}. Страница обновляется сама раз в 30 секунд.
+          Проверено: {formatDateTime(view.checkedAt)}. Страница обновляется сама раз в{' '}
+          {REFETCH_INTERVAL_SECONDS} секунд.
         </Text>
       </section>
     </>
