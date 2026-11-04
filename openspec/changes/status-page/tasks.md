@@ -3,7 +3,7 @@
 ## 1. Контракт и данные
 
 - [x] 1.1 Контракт с коммита PR бэкенда `6fbe31e` (`GET /api/v1/status`): `VERSION`, `openapi.json` байт в байт, `schema.d.ts` той же генерацией, что `pnpm api:sync`
-- [ ] 1.2 После мёржа бэкенда — `pnpm api:sync` с головы `develop`, `pnpm api:check` зелёный
+- [x] 1.2 После мёржа бэкенда — `pnpm api:sync` с головы `develop`, `pnpm api:check` зелёный
 - [x] 1.3 `entities/service-status`: схема ответа с `MatchesContract`, `fetchServiceStatus`, подписи, `ServiceStatusTag`, `viewFromReport`, `viewFromFailure`, `worstStatus`
 - [x] 1.4 Mock adapter: `/status` по типу `ServiceStatusResponse`
 
