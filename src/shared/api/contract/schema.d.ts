@@ -251,7 +251,7 @@ export interface paths {
         put?: never;
         /**
          * Запустить ревью вручную
-         * @description Не реализовано: отвечает 501 NOT_IMPLEMENTED. Описана заранее, чтобы фронтенд генерировал типы; план ручного запуска — PIPELINE_SPEC.md §4. Сейчас ревью запускает только вебхук. Когда ручка заработает: 202 с ReviewJob, 409 REVIEW_ALREADY_ACTIVE, если по этому коммиту прогон уже идёт. Требует сессию и Origin сервиса; Origin проверяется раньше сессии и разбора тела.
+         * @description Требует сессию и `Origin` сервиса; `Origin` проверяется раньше сессии и разбора тела. Запускает ревью текущего head-коммита запроса на изменение (задача #273): прогон с `trigger = manual` записывается, коммитится и ставится в очередь — `202` с `ReviewJob`. `trigger` тела принимает только `manual`, иначе `422 VALIDATION_ERROR` с `where = body.trigger` до запросов к GitHub. Проверки по порядку: репозиторий по id токеном пользователя мимо кэша видимости (`GET /repositories/{id}`) — GitHub его не отдаёт или публичный отдан только с правом чтения, репозиторий не подключён к сервису или выключен — `404 REPOSITORY_NOT_FOUND`, ответ один и тот же; у пользователя нет роли push, triage, maintain или admin (в том числе read на приватном) — `403 REPOSITORY_MANAGE_REQUIRED`; приложение не установлено на репозиторий или установка приостановлена — `404 REPOSITORY_NOT_IN_INSTALLATION`; свежие метаданные PR от имени установки: PR нет — `404 REPOSITORY_NOT_FOUND` с `detail` про запрос на изменение; PR закрыт или смёржен, открыт из форка (в том числе удалённого) автором не из `OWNER`, `MEMBER`, `COLLABORATOR` — `422 VALIDATION_ERROR` с `where = body.pull_request_number`. Повтор ревью уже проверенного коммита разрешён: завершённый прогон любого источника новому не мешает. Активный прогон на этот коммит, в том числе выигравший гонку, — `409 REVIEW_ALREADY_ACTIVE`, записей нет. Запуск работает и при `auto_review_enabled = false` — настройка управляет только автоматическим ревью по вебхуку; `branch_filter` не применяется. Известное ограничение: вебхук на коммит, уже проверенный вручную (переотправка доставки), создаёт ещё один прогон — дублем вебхук считает только прогон по вебхуку. Токен пользователя непригоден — `401 UNAUTHENTICATED`, сессия закрывается; GitHub не ответил или ответил ошибкой — `502 SCM_UNAVAILABLE`, записей нет. Сбой постановки в очередь — `500 INTERNAL_ERROR`, прогон переводится в `failed` и следующему запуску не мешает.
          */
         post: operations["createReview"];
         delete?: never;
@@ -493,7 +493,7 @@ export interface components {
              */
             pull_request_number: number;
             /**
-             * @description Источник запуска.
+             * @description Источник запуска; принимается только manual.
              * @example manual
              */
             trigger: components["schemas"]["TriggerSource"];
@@ -1499,13 +1499,15 @@ export interface components {
         };
         /**
          * RepositoryManageRequiredProblem
-         * @description `403 REPOSITORY_MANAGE_REQUIRED`: у пользователя нет прав admin или maintain на репозиторий у провайдера.
+         * @description `403 REPOSITORY_MANAGE_REQUIRED`: у пользователя нет нужной роли на репозитории у провайдера.
+         *
+         *     Заголовок общий для всех действий: нужные роли у них разные, их называет `detail` отказа.
          * @example {
          *       "code": "REPOSITORY_MANAGE_REQUIRED",
-         *       "detail": "Подключать репозиторий может только пользователь с правом admin или maintain на него.",
+         *       "detail": "Недостаточно прав на репозиторий у провайдера для этого действия.",
          *       "instance": "/api/v1/repositories",
          *       "status": 403,
-         *       "title": "Нужны права admin или maintain на репозиторий",
+         *       "title": "Недостаточно прав на репозиторий",
          *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
          *       "type": "urn:dmc-268:problem:repository-manage-required"
          *     }
@@ -1519,10 +1521,10 @@ export interface components {
             type: "urn:dmc-268:problem:repository-manage-required";
             /**
              * Title
-             * @default Нужны права admin или maintain на репозиторий
+             * @default Недостаточно прав на репозиторий
              * @constant
              */
-            title: "Нужны права admin или maintain на репозиторий";
+            title: "Недостаточно прав на репозиторий";
             /**
              * Status
              * @default 403
@@ -1853,7 +1855,8 @@ export interface components {
         };
         /**
          * ReviewAlreadyActiveProblem
-         * @description `409 REVIEW_ALREADY_ACTIVE`: ручной запуск, когда прогон по этому коммиту уже идёт.
+         * @description `409 REVIEW_ALREADY_ACTIVE`: ручной запуск (`POST /api/v1/reviews`), когда прогон по
+         *     head-коммиту PR уже идёт — в том числе прогон победителя гонки с вебхуком.
          *
          *     Вебхук на тот же случай отвечает `202` с существующим прогоном.
          * @example {
@@ -2595,7 +2598,8 @@ export interface components {
         };
         /**
          * ScmUnavailableProblem
-         * @description `502 SCM_UNAVAILABLE`: провайдер VCS не ответил или ответил ошибкой — при приёме вебхука или подключении репозитория.
+         * @description `502 SCM_UNAVAILABLE`: провайдер VCS не ответил или ответил ошибкой — при приёме вебхука,
+         *     ручном запуске ревью, подключении репозитория и чтениях кабинета.
          * @example {
          *       "code": "SCM_UNAVAILABLE",
          *       "detail": "Провайдер VCS не ответил или ответил ошибкой; прогон не создан.",
@@ -3376,7 +3380,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — у пользователя нет прав admin или maintain на репозиторий у провайдера. */
+            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — нет нужной роли на репозитории у провайдера. */
             403: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3552,7 +3556,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — у пользователя нет прав admin или maintain на репозиторий у провайдера. */
+            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — нет нужной роли на репозитории у провайдера. */
             403: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3714,7 +3718,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — у пользователя нет прав admin или maintain на репозиторий у провайдера. */
+            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — нет нужной роли на репозитории у провайдера. */
             403: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -3808,7 +3812,7 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description `REPOSITORY_NOT_FOUND` — репозитория с таким id нет или пользователь не видит его на GitHub; `REPOSITORY_NOT_IN_INSTALLATION` — приложение не установлено на репозиторий или установка приостановлена, ветка и файл у GitHub не запрашивались. */
+            /** @description `REPOSITORY_NOT_FOUND` — репозитория с таким id нет или пользователь не видит его на GitHub (у ручного запуска — и выключенный репозиторий, и запрос на изменение, которого нет: случай называет `detail`); `REPOSITORY_NOT_IN_INSTALLATION` — приложение не установлено на репозиторий или установка приостановлена, дальше GitHub не спрашивался. */
             404: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
@@ -4042,14 +4046,24 @@ export interface operations {
                     "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
                 };
             };
-            /** @description `Origin` изменяющего запроса отсутствует или не совпадает с адресом сервиса. */
+            /** @description `ORIGIN_FORBIDDEN` — `Origin` отсутствует или не совпадает с адресом сервиса; `REPOSITORY_MANAGE_REQUIRED` — нет нужной роли на репозитории у провайдера. */
             403: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["OriginForbiddenProblem"];
+                    "application/problem+json": components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RepositoryManageRequiredProblem"];
+                };
+            };
+            /** @description `REPOSITORY_NOT_FOUND` — репозитория с таким id нет или пользователь не видит его на GitHub (у ручного запуска — и выключенный репозиторий, и запрос на изменение, которого нет: случай называет `detail`); `REPOSITORY_NOT_IN_INSTALLATION` — приложение не установлено на репозиторий или установка приостановлена, дальше GitHub не спрашивался. */
+            404: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"];
                 };
             };
             /** @description По этому коммиту уже идёт прогон ревью. */
@@ -4082,14 +4096,14 @@ export interface operations {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
-            /** @description Ручка ещё не реализована. */
-            501: {
+            /** @description Провайдер VCS недоступен или ответил ошибкой; прогон не создан. */
+            502: {
                 headers: {
                     "X-Trace-ID": components["headers"]["X-Trace-ID"];
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/problem+json": components["schemas"]["NotImplementedProblem"];
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
                 };
             };
             /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
