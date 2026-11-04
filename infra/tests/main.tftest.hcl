@@ -143,6 +143,15 @@ run "ui_stops_gracefully" {
   }
 }
 
+run "ui_memory_is_capped_without_swap" {
+  command = plan
+
+  assert {
+    condition     = docker_container.ui.memory == 128 && docker_container.ui.memory_swap == 128
+    error_message = "У интерфейса потолок памяти 128 МБ без свопа (#63): без него лимит — вся память хоста."
+  }
+}
+
 run "image_without_digest_rejected" {
   command = plan
 
