@@ -21,7 +21,7 @@ export function AppHeader() {
 
   return (
     <Header className={`app-shell-header-bar app-main-header ${styles.header}`}>
-      <Typography.Text type="secondary">Учебное рабочее пространство · мок API</Typography.Text>
+      <Typography.Text type="secondary">Учебное рабочее пространство</Typography.Text>
       <Space size="middle">
         <Button
           type="text"

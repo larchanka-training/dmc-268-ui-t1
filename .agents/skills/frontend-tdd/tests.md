@@ -26,11 +26,11 @@ expect(onFilterChange).toHaveBeenCalledWith('error')
 Колбэк проверяется тогда, когда он и есть контракт компонента, — например, у переиспользуемого
 `shared/ui` элемента без собственного состояния.
 
-## Данные через адаптер, а не через мок fetch
+## Данные через фейк транспорта, а не через мок fetch
 
 ```tsx
-// ХОРОШО: подменяется граница данных
-render(<ReviewRunPage />, { wrapper: withReviewApi(mockAdapter) });
+// ХОРОШО: подменяется граница данных — ApiTransport, как в приложении
+renderWithTransport(<ReviewRunPage />, fakeTransport({ get: async () => run }));
 
 // ПЛОХО: тест знает, что внутри fetch и какой у него URL
 vi.spyOn(globalThis, "fetch").mockResolvedValue(...);

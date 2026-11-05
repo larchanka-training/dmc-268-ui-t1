@@ -38,3 +38,4 @@
 ## 8. Архив
 
 - [ ] 8.1 После архива `review-run-diff-viewer` и `session-cookie` — `openspec archive cabinet-without-mocks` (#130)
+- [ ] 8.2 При архиве — Purpose `openspec/specs/cabinet-auth/spec.md`: вход через бэкенд и cookie сессии вместо «Mock OAuth… до готовности бэкенда» (дельтой Purpose не меняется)

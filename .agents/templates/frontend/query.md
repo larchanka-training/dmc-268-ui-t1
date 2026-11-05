@@ -25,10 +25,10 @@ export function useReviewRun(id: string) {
 }
 ```
 
-Тест подменяет адаптер, а не `fetch`:
+Тест подменяет транспорт, а не `fetch`:
 
 ```tsx
-render(<ReviewRunPage id="42" />, { wrapper: withReviewApi({ getRun: async () => run }) })
+renderWithTransport(<ReviewRunPage id="42" />, fakeTransport({ get: async () => run }))
 expect(await screen.findByText('queued')).toBeInTheDocument()
 ```
 

@@ -349,7 +349,7 @@ PR #19 построен по ревизии 5.0. Чтобы соответств
   раскрывающаяся карточка замечания и остальные контролы переходят на компоненты Ant Design.
 - **Место экрана.** `ReviewRunView` переезжает из `app` в `pages/review-run/ui`, а
   `MockReviewStateSchema` и запрос экрана — из `app/model` в `pages/review-run/model` (§3).
-  Mock adapter и фикстуры остаются в `app/mocks` (удалены в ui#107: тесты — на фейке транспорта).
+  Mock adapter и фикстуры удалены в ui#107: тесты — на фейке транспорта.
 
 Остальное совпадает с реализацией PR #19: `@git-diff-view/react`, сегменты `lib/` и `ui/`,
 `ReviewCommentThread` в `entities/review-finding`, `MockReviewState.run`, `base_sha`,
