@@ -194,6 +194,8 @@ jobs:
             sleep 1
           done
           scripts/check-routes.sh http://localhost:8080
+          # stub_status для коллектора метрик — на внутреннем порту 8081 (ui#101).
+          docker exec ui-routes wget -qO- http://127.0.0.1:8081/stub_status | grep -q '^Active connections'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: dmc268-ui:ci
