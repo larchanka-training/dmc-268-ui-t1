@@ -4,7 +4,6 @@ import { lazy, Suspense, useMemo } from 'react'
 import type { DiffFile, DiffFileSummary } from '../../../entities/diff'
 import { publicationsByFinding, type PublishedComment } from '../../../entities/published-comment'
 import type { ReviewFinding } from '../../../entities/review-finding'
-import type { ReviewRun } from '../../../entities/review-run'
 import {
   applyFileFilters,
   applyFindingFilters,
@@ -26,7 +25,6 @@ const DiffViewer = lazy(() =>
 )
 
 type Props = {
-  run: ReviewRun
   files: readonly DiffFileSummary[]
   diffsByPath: Readonly<Record<string, DiffFile>>
   findings: readonly ReviewFinding[]
@@ -34,7 +32,7 @@ type Props = {
 }
 
 /** Соединяет список файлов, viewer и замечания; копию диффа не хранит (§5.2 архитектуры). */
-export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedComments }: Props) {
+export function ReviewWorkspace({ files, diffsByPath, findings, publishedComments }: Props) {
   const {
     selected_file,
     view_mode,
@@ -85,14 +83,6 @@ export function ReviewWorkspace({ run, files, diffsByPath, findings, publishedCo
   )
   const expanded = useMemo(() => new Set(expanded_context_line_ids), [expanded_context_line_ids])
 
-  // Без base revision дифф прогона не воспроизвести.
-  if (run.base_sha === null) {
-    return (
-      <EmptyState>
-        Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.
-      </EmptyState>
-    )
-  }
   if (files.length === 0) return <EmptyState>В прогоне нет изменённых файлов.</EmptyState>
 
   return (

@@ -127,14 +127,20 @@ function fakeAdapter(source: Backend | ((path: string) => Backend) = {}): ApiTra
 /** Текст области изменений: подсветка режет строку кода на отдельные узлы. */
 const progress = () => screen.getByRole('region', { name: 'Прогресс прогона' })
 
+/** Дифф уходит после прогона (ждёт `base_sha`): замечания списком видны раньше него. */
+const diffShown = () => screen.findByRole('region', { name: 'Изменения' })
+
 const changesText = () => screen.getByRole('region', { name: 'Изменения' }).textContent ?? ''
 
 let stream: FakeEventStream
 
-/** Экран живёт под маршрутом `/reviews/:reviewId`; по умолчанию — id прогона из фабрики. */
-function renderView(adapter: ApiTransport, reviewId = makeReviewRun().id) {
+/**
+ * Экран живёт под маршрутом `/reviews/:reviewId`; по умолчанию — id прогона из фабрики.
+ * `retry` — правила повтора приложения вместо «без повторов» тестов.
+ */
+function renderView(adapter: ApiTransport, reviewId = makeReviewRun().id, { retry = false } = {}) {
   const queryClient = createQueryClient()
-  queryClient.setDefaultOptions({ queries: { retry: false } })
+  if (!retry) queryClient.setDefaultOptions({ queries: { retry: false } })
   render(
     <AppProviders transport={adapter} eventStream={stream} queryClient={queryClient}>
       <MemoryRouter initialEntries={[`/reviews/${reviewId}`]}>
@@ -182,10 +188,11 @@ describe('ReviewRunView', () => {
     expect(paths).toContain('/reviews/a1b2-c3/steps')
   })
 
-  it('бэкенд ещё не отдаёт дифф и шаги (501) — замечания списком', async () => {
+  it('бэкенд не отдаёт дифф и шаги (501) — ошибка диффа, замечания списком, хода прогона нет', async () => {
     renderView(fakeAdapter({ planned: false }))
 
     const list = await screen.findByRole('region', { name: 'Замечания' })
+    expect(await screen.findByText('Не удалось загрузить дифф')).toBeInTheDocument()
     expect(within(list).getByRole('article', { name: /Токен печатается в лог/ })).toBeVisible()
     expect(within(list).getByText('app/api.py:3')).toBeInTheDocument()
     // Вердикт считается по замечаниям и без диффа.
@@ -221,26 +228,73 @@ describe('ReviewRunView', () => {
     expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
   })
 
-  it('дифф не загрузился из-за GitHub (502) — замечания списком, без ошибки', async () => {
+  it('дифф не загрузился из-за GitHub (502) — ошибка с повтором, замечания списком, повтор показывает дифф', async () => {
     const backend = fakeAdapter()
-    const requested: string[] = []
     const diffPath = reviewDiffPath(makeReviewRun().id)
+    let githubDown = true
     renderView(
       fakeTransport({
         get: async (path) => {
-          requested.push(path)
-          if (path === diffPath) throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+          if (githubDown && path === diffPath)
+            throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
           return backend.get(path)
         },
       }),
     )
 
-    expect(await screen.findByText(makeReviewRun().merge_request.title)).toBeInTheDocument()
-    await waitFor(() => expect(requested).toContain(diffPath))
-    expect(screen.queryByText(/Не удалось/)).not.toBeInTheDocument()
+    const problem = (await screen.findByText('Не удалось загрузить дифф')).closest<HTMLElement>(
+      '[role="alert"]',
+    )
+    if (!problem) throw new Error('ошибка диффа без role="alert"')
+    expect(problem).toHaveTextContent('GitHub недоступен')
     expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
     expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+
+    githubDown = false
+    await userEvent.click(within(problem).getByRole('button', { name: 'Повторить' }))
+
+    expect(await screen.findByRole('region', { name: 'Изменения' })).toBeInTheDocument()
+    expect(screen.queryByText('Не удалось загрузить дифф')).not.toBeInTheDocument()
   })
+
+  it.each([
+    ['дифф больше лимита', 422, 'DIFF_TOO_LARGE', 'Дифф слишком большой для показа'],
+    ['пары коммитов нет', 409, 'DIFF_UNAVAILABLE', 'Дифф прогона недоступен'],
+    ['коммита больше нет', 410, 'COMMIT_NOT_FOUND', 'Коммитов прогона больше нет'],
+    [
+      'приложение снято с репозитория',
+      404,
+      'REPOSITORY_NOT_IN_INSTALLATION',
+      'Приложение не установлено на репозиторий',
+    ],
+  ])(
+    'дифф недоступен насовсем (%s) — причина без повтора, запрос один, замечания списком',
+    async (_, status, code, title) => {
+      const backend = fakeAdapter()
+      const diffPath = reviewDiffPath(makeReviewRun().id)
+      const requested: string[] = []
+      renderView(
+        fakeTransport({
+          get: async (path) => {
+            requested.push(path)
+            if (path === diffPath) throw new ApiError(status, 'Причина от бэкенда.', code)
+            return backend.get(path)
+          },
+        }),
+        undefined,
+        { retry: true },
+      )
+
+      const problem = (await screen.findByText(title)).closest<HTMLElement>('[role="alert"]')
+      if (!problem) throw new Error('причина без role="alert"')
+      expect(problem).toHaveTextContent('Причина от бэкенда.')
+      expect(within(problem).queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
+      expect(screen.getByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+      // Правила повтора приложения: постоянная ошибка не перезапрашивается.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+      expect(requested.filter((path) => path === diffPath)).toHaveLength(1)
+    },
+  )
 
   it.each([
     ['GitHub недоступен (502)', 502, 'SCM_UNAVAILABLE'],
@@ -315,6 +369,7 @@ describe('ReviewRunView', () => {
   it('INT-01: под строкой с замечанием рендерится карточка на своей стороне', async () => {
     renderView(fakeAdapter())
 
+    await diffShown()
     const card = await screen.findByRole('article', { name: /Токен печатается в лог/ })
     expect(within(card).getByText('Critical')).toBeInTheDocument()
     expect(
@@ -345,6 +400,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     expect(changesText()).not.toContain('return 42')
 
@@ -361,6 +417,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     await user.click(screen.getByRole('button', { name: /^High · 1$/ }))
 
@@ -470,6 +527,7 @@ describe('ReviewRunView', () => {
     const user = userEvent.setup()
     const { queryClient } = renderView(fakeAdapter())
 
+    await diffShown()
     await screen.findByRole('article', { name: /Токен печатается/ })
     await user.click(screen.getByRole('button', { name: /Показать 2 скрытых строк$/ }))
     await user.click(screen.getByRole('button', { name: 'Одна колонка' }))
@@ -505,12 +563,23 @@ describe('ReviewRunView', () => {
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
   })
 
-  it('без базовой ревизии объясняет, почему диффа нет', async () => {
-    renderView(fakeAdapter({ run: makeReviewRun({ base_sha: null }) }))
+  it('прогон записан без base_sha — дифф не запрашивается: объяснение, замечания списком', async () => {
+    const backend = fakeAdapter({ run: makeReviewRun({ status: 'completed', base_sha: null }) })
+    const get = vi.spyOn(backend, 'get')
+    renderView(backend)
 
-    expect(await screen.findByText(/не сохранена базовая ревизия/)).toBeInTheDocument()
+    expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
+    expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.',
+      ),
+    ).toBeInTheDocument()
   })
+
   describe('статус в реальном времени', () => {
     it('INT-09: смена статуса по событию видна без перезагрузки', async () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
@@ -855,6 +924,7 @@ describe('ReviewRunView', () => {
     it('INT-17: severity и текст действуют вместе', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.click(screen.getByRole('button', { name: /^High · 1$/ }))
@@ -904,6 +974,7 @@ describe('ReviewRunView', () => {
         message: 'Токен в README',
       })
       renderView(fakeAdapter({ files, findings: [leak, removed, general, tokenHigh, tokenLow] }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.type(screen.getByRole('textbox', { name: 'Поиск по тексту замечаний' }), 'токен')
@@ -924,6 +995,7 @@ describe('ReviewRunView', () => {
     it('INT-22: счётчик замечаний у файла считается под фильтр severity', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
       const apiButton = () => within(fileList()).getByRole('button', { name: /app\/api\.py/ })
       expect(apiButton()).toHaveTextContent('замечаний: 3')
@@ -937,6 +1009,7 @@ describe('ReviewRunView', () => {
     it('INT-22: счётчик замечаний у файла считается под текстовый поиск', async () => {
       const user = userEvent.setup()
       renderView(fakeAdapter({ files, findings }))
+      await diffShown()
       await screen.findByRole('article', { name: /Токен печатается/ })
 
       await user.type(screen.getByRole('textbox', { name: 'Поиск по тексту замечаний' }), 'sql')

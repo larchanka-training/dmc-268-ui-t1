@@ -13,7 +13,7 @@ export type EventStreamHandlers = {
 }
 
 /**
- * Граница потока событий: `EventSource` и mock реализуют один контракт, как `ApiTransport`.
+ * Граница потока событий: `EventSource` и фейк из `src/test` реализуют один контракт, как `ApiTransport`.
  * Данные приходят как `unknown` — форму проверяет entity своей схемой.
  */
 export type EventStream = {

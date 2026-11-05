@@ -65,7 +65,7 @@ export function makeRunListItem(overrides: Partial<ReviewRunListItem> = {}): Rev
   }
 }
 
-/** Идентификаторы hunk и строк выводятся из пути, как в mock-данных приложения. */
+/** Идентификаторы hunk и строк выводятся из пути, как в данных бэкенда. */
 export function makeDiffFile(overrides: Partial<DiffFile> = {}): DiffFile {
   return withLineIds({
     path: 'src/example.ts',

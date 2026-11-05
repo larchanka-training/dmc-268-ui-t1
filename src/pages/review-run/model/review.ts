@@ -65,50 +65,38 @@ export function useReviewRun(reviewId: string) {
 }
 
 /**
- * Часть прогона, которую бэкенд может не отдавать: ответ со статусом из `absent` — `null`,
- * экран показывает прогон без неё. Остальные ошибки — ошибка запроса.
+ * Дифф прогона. Бэкенд его реализует (dmc-268-api-t1#87), поэтому любой отказ — ошибка
+ * запроса: экран показывает причину (`diffProblem`), а не прячет дифф молча.
+ *
+ * Без `base_sha` (он пуст только у старых прогонов, записанных до миграции `0002`) дифф
+ * не воспроизвести, поэтому он не запрашивается.
  */
-function usePlannedPart<T extends z.ZodType>(
-  reviewId: string,
-  part: string,
-  path: string,
-  schema: T,
-  absent: readonly number[],
-) {
+export function useReviewDiff(reviewId: string, baseSha: string | null | undefined) {
   const transport = useTransport()
+  const path = reviewDiffPath(reviewId)
   return useQuery({
-    queryKey: [...reviewKey(reviewId), part] as const,
-    queryFn: async (): Promise<z.infer<T> | null> => {
-      try {
-        return parseResponse(schema, path, await transport.get(path))
-      } catch (error) {
-        if (error instanceof ApiError && absent.includes(error.status)) return null
-        throw error
-      }
-    },
+    queryKey: [...reviewKey(reviewId), 'diff'] as const,
+    queryFn: async () => parseResponse(ReviewDiffSchema, path, await transport.get(path)),
+    enabled: baseSha != null,
   })
 }
 
 /**
- * Дифф прогона; `null` — бэкенд его пока не отдаёт (`501`, `404` от источника без пути).
- *
- * TODO: когда бэкенд реализует дифф (dmc-268-api-t1#87), убрать `404` — настоящий `404`
- * на под-ресурсе сейчас маскируется под «части нет».
- */
-export function useReviewDiff(reviewId: string) {
-  return usePlannedPart(reviewId, 'diff', reviewDiffPath(reviewId), ReviewDiffSchema, [501, 404])
-}
-
-/**
  * Шаги прогона; `null` — бэкенд их не отдаёт (`501`). `GET /steps` реализован
- * (dmc-268-api-t1#90), поэтому `404` — «прогона нет», это ошибка, а не «части нет».
+ * (dmc-268-api-t1#90), поэтому `404` — «прогона нет», это ошибка, а не «шагов нет».
  */
 export function useReviewSteps(reviewId: string) {
-  return usePlannedPart(
-    reviewId,
-    'steps',
-    reviewStepsPath(reviewId),
-    ReviewRunStepListSchema,
-    [501],
-  )
+  const transport = useTransport()
+  const path = reviewStepsPath(reviewId)
+  return useQuery({
+    queryKey: [...reviewKey(reviewId), 'steps'] as const,
+    queryFn: async () => {
+      try {
+        return parseResponse(ReviewRunStepListSchema, path, await transport.get(path))
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 501) return null
+        throw error
+      }
+    },
+  })
 }

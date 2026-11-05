@@ -17,7 +17,7 @@ export type ReviewRunApi = {
 import { useQuery } from '@tanstack/react-query'
 
 export function useReviewRun(id: string) {
-  const api = useReviewRunApi() // боевой клиент или mock adapter
+  const api = useReviewRunApi() // HTTP-клиент; в тестах — fakeTransport
   return useQuery({
     queryKey: ['review-run', id],
     queryFn: () => api.getRun(id),
@@ -25,10 +25,10 @@ export function useReviewRun(id: string) {
 }
 ```
 
-Тест подменяет адаптер, а не `fetch`:
+Тест подменяет транспорт, а не `fetch`:
 
 ```tsx
-render(<ReviewRunPage id="42" />, { wrapper: withReviewApi({ getRun: async () => run }) })
+renderWithTransport(<ReviewRunPage id="42" />, fakeTransport({ get: async () => run }))
 expect(await screen.findByText('queued')).toBeInTheDocument()
 ```
 

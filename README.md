@@ -49,8 +49,8 @@ Dev-сервер запускается на `http://localhost:3000` и авто
 По этому адресу открывается лендинг; приложение — под `http://localhost:3000/app/`. Так же устроен стенд:
 `/app/*` отдаёт приложение, остальное — статика, несуществующий путь вне `/app/` получает страницу 404.
 На стенде гостя без cookie `session` nginx уводит с `/app/*` на `/login?redirect=<путь>`; dev-сервер этого
-не делает — там приложение работает на моках. Открыть приложение в контейнере без бэкенда:
-`curl -b session=dev …` или cookie `session` с любым значением в DevTools.
+не делает — туда уводит само приложение, когда бэкенд ответил `401`. Без бэкенда открываются только
+лендинг и статичные страницы: данных кабинета и входа нет — см. «Локальный запуск против бэкенда».
 
 Абсолютный адрес для canonical, Open Graph, `sitemap.xml` и `robots.txt` берётся из переменной сборки
 `PUBLIC_ORIGIN` (по умолчанию `http://localhost:3000`), в образе — из аргумента сборки:
@@ -65,38 +65,45 @@ scripts/check-routes.sh http://localhost:8080   # маршруты поднят�
 httpOnly cookie `session`. Кабинет берёт профиль из `GET /api/v1/auth/me`, на `401` от любой ручки уводит на
 `/login?redirect=<путь>`, выход — `POST /api/v1/auth/logout`. Токенов в JS нет.
 
-Локально (по умолчанию, с моком) dev-сервер сам отвечает на `/api/v1/auth/me` и `/logout`: с cookie `session` с любым значением —
-профиль-заглушка, без неё — `401`. Чтобы войти, поставьте в DevTools на `localhost:3000` cookie `session=dev`.
-
-## Кабинет (mock API)
+## Кабинет
 
 - Сессия в httpOnly cookie, профиль из `/api/v1/auth/me`, выход через `/api/v1/auth/logout`
 - App shell: sidebar, header, навигация, статус авторизации, светлая/тёмная тема
 - Одна страница «Репозитории»: все репозитории установок GitHub App с переключателем ревью и переходом в настройки репозитория
 - Публичная «Помощь» (`/app/help`)
 - Публичный «Статус сервиса» (`/app/status`): API, обработка ревью и очередь задач по `GET /api/v1/status`, опрос раз в 30 секунд
-- Данные экранов — по контракту бэкенда через `ApiTransport`: mock adapter по умолчанию, бэкенд при `VITE_USE_MOCK_API=false`. Ручки, которые бэкенд ещё не реализовал, отвечают `501`, и экран говорит об этом
+- Данные экранов — с бэкенда по контракту через `ApiTransport` и поток событий на `EventSource`. Моков в приложении нет: тесты подменяют транспорт и поток фейком из `src/test`
 
 ### UI: Ant Design и Tailwind
 
 Кабинет собран на **antd** (формы, таблицы, layout). **Tailwind v4** подключён только как утилиты (`theme` + `utilities` в `src/index.css`, без preflight), чтобы не перебивать стили antd. Палитра и токены antd синхронизируются из `src/shared/theme/palette.ts` (CSS-переменные `--app-*`).
 
-Дополнительные переменные (опционально). `VITE_USE_MOCK_API`, `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
+Дополнительные переменные (опционально). `VITE_API_PROXY_TARGET` и `PUBLIC_ORIGIN`
 читаются из `.env`, `.env.local` и окружения оболочки:
 
 | Переменная               | По умолчанию            | Описание                                                                                                                   |
 | ------------------------ | ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `VITE_USE_MOCK_API`      | `true`                  | `false` — мока нет: данные кабинета и вход идут на бэкенд, dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET`         |
-| `VITE_API_PROXY_TARGET`  | `http://localhost:8000` | Адрес бэкенда для прокси `/api` при `VITE_USE_MOCK_API=false`                                                              |
+| `VITE_API_PROXY_TARGET`  | `http://localhost:8000` | Адрес бэкенда, на который dev-сервер проксирует `/api`                                                                     |
 | `VITE_API_BASE_URL`      | `/api/v1`               | Базовый URL API (OpenAPI v1)                                                                                               |
 | `VITE_OTEL_EXPORTER_URL` | —                       | Приёмник OTLP/HTTP для ошибок и трейсов кабинета, путь на том же адресе (`/otlp/v1/traces`). Без него телеметрия выключена |
 | `VITE_OTEL_ENVIRONMENT`  | `local`                 | `deployment.environment.name` телеметрии                                                                                   |
 | `VITE_APP_VERSION`       | `dev`                   | `service.version` телеметрии; при деплое — sha коммита                                                                     |
 
-Против настоящего бэкенда: `VITE_USE_MOCK_API=false pnpm dev`. Прокси не переписывает путь и пропускает
-cookie, а `Origin` браузера остаётся `http://localhost:3000` — поэтому у API должен стоять
-`PUBLIC_ORIGIN=http://localhost:3000`, иначе изменяющие запросы получат `403 ORIGIN_FORBIDDEN`, а в GitHub App —
-callback `http://localhost:3000/api/v1/auth/github/callback`.
+### Локальный запуск против бэкенда
+
+Dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` (по умолчанию `http://localhost:8000`): путь не
+переписывается, cookie проходят как есть, и браузер остаётся на одном origin с API — как на стенде.
+
+1. Поднимите бэкенд по `docs/LOCAL_RUN.md` репозитория
+   [`dmc-268-api-t1`](https://github.com/larchanka-training/dmc-268-api-t1/blob/develop/docs/LOCAL_RUN.md):
+   своя dev GitHub App (не командная: у App один Webhook URL, и стенд перестанет получать вебхуки) и
+   `make run-local`. В `.env` бэкенда — `PUBLIC_ORIGIN=http://localhost:3000`, в
+   GitHub App — Callback URL `http://localhost:3000/api/v1/auth/github/callback`: `Origin` браузера —
+   адрес dev-сервера, иначе изменяющие запросы получат `403 ORIGIN_FORBIDDEN`, а вход — `redirect_uri mismatch`.
+2. `pnpm dev` и вход через GitHub на `http://localhost:3000/login`.
+
+Проксировать на стенд нельзя: OAuth callback, cookie `session` и проверка `Origin` привязаны к домену
+стенда, и с `localhost` вход не состоится.
 
 ## Скрипты
 

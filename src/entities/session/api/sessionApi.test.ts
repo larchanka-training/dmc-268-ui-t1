@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { MOCK_USER } from '../../../build/mockAuth'
-
 import { currentUserSchema, fetchCurrentUser } from '@/entities/session/api/sessionApi'
 import { ContractError } from '@/shared/api'
 import { ME, stubFetch } from '@/test/api'
@@ -38,10 +36,7 @@ describe('fetchCurrentUser', () => {
 // TEST_PLAN: фикстуры проходят ту же схему, что и ответ API, — иначе мок
 // dev-сервера или тестов молча разойдётся с контрактом бэкенда.
 describe('фикстуры /auth/me', () => {
-  it.each([
-    ['мок dev-сервера', MOCK_USER],
-    ['фикстура тестов', ME],
-  ])('%s соответствует схеме ответа', (_, fixture) => {
-    expect(currentUserSchema.safeParse(fixture).success).toBe(true)
+  it('фикстура тестов соответствует схеме ответа', () => {
+    expect(currentUserSchema.safeParse(ME).success).toBe(true)
   })
 })

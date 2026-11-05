@@ -64,7 +64,7 @@ const WORKFLOW = join(ROOT, '.github/workflows/deploy.yml')
 const fixture = (name) => readFileSync(join(FIXTURES, name), 'utf8')
 
 const IMAGE_B = 'e5fd7fb11a0571f2321929ebaf4821db809f7cf7ba24ee334b35801779493244'
-const IMAGE = `ghcr.io/larchanka-training/dmc-268-ui-t1:0a83d25-mock@sha256:${IMAGE_B}`
+const IMAGE = `ghcr.io/larchanka-training/dmc-268-ui-t1:0a83d25@sha256:${IMAGE_B}`
 const SECRET = 'ghs_секрет-реестра'
 
 // Подложный tofu: `plan -out` создаёт файл плана (и при ошибке — как
@@ -757,7 +757,7 @@ describe('summary', () => {
     expect(text).toContain('| `/` | корень, Docker (`/var/lib/docker`) | 48.2 ГиБ | 38% |')
     expect(text).toContain('| Применить конфигурацию | `success` | 7.0 |')
     expect(text).toContain("| Длительность job'а, с | `dmc268.deploy.duration` | 60.0 |")
-    expect(text).toContain('`container.image.tags` | `0a83d25-mock`')
+    expect(text).toContain('`container.image.tags` | `0a83d25`')
     expect(text).toContain('| Адрес | `url.full` | https://203.0.113.7 |')
     expect(text).not.toContain(SECRET)
   })
