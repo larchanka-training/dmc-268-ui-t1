@@ -164,8 +164,8 @@ Git-хуки настраиваются через `core.hooksPath` — скри
 
 - **pre-commit** — запускает `lint-staged`, который линтит и форматирует только staged-файлы
   (ESLint + Prettier для JS/TS, Stylelint + Prettier для CSS, Prettier для JSON/MD/HTML).
-- **pre-push** — запускает `pnpm test && pnpm check-types && pnpm build`, чтобы убедиться,
-  что проект полностью работоспособен перед отправкой.
+- **pre-push** запускает `pnpm test && pnpm build`: `build` уже проверяет типы (`tsc`), так что
+  проект перед отправкой проверен полностью.
 
 Для обхода хуков в исключительных ситуациях используйте `--no-verify`:
 

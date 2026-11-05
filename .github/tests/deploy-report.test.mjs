@@ -6,7 +6,7 @@
  * Сторож — единственное, что стоит между планом, уничтожающим том ACME, и
  * `tofu apply`; узнавать о его поломке деплоем нельзя. Поэтому `plan.sh`,
  * `apply.sh`, `summary.sh` и проверки стенда гоняются настоящим bash с
- * подложными `tofu`, `ssh`, `timeout`, `curl` и `sleep`, а вход — настоящие
+ * подложными `tofu`, `ssh`, `timeout`, `curl`, `docker` и `sleep`, а вход — настоящие
  * данные из репетиции на `docker:29-dind` (Docker 29.9.2, OpenTofu 1.13.2):
  * `plan-*.json` — урезанный до `resource_changes` вывод `tofu show -json`
  * (замена образа и плана, где блок тома удалён из конфигурации),
@@ -107,23 +107,27 @@ shift
 exec "$@"
 `
 
-// Подложный curl для проверок стенда: CURL_FAILS первых запросов к телу
-// страницы не отвечают, дальше — лендинг или JSON API. Пробнику apply.sh
-// (`-w %{http_code}`) отвечает кодом PROBE_CODE.
+// Подложный curl. Пробнику apply.sh (`-w %{http_code}`) отвечает кодом
+// PROBE_CODE. За blackbox_exporter в check-public.sh: здоров сразу, первые
+// CURL_FAILS проб не проходят, модуль FAIL_MODULE не проходит никогда, а на
+// debug=true отвечает логом пробы и метриками, как настоящий.
 const FAKE_CURL = `#!/usr/bin/env bash
 echo "curl $*" >> "$CALLS"
 case "$*" in
   *http_code*) printf '%s' "\${PROBE_CODE:-200}"; exit 0 ;;
-  *redirect_url*) printf 'https://%s/' "$HOST"; exit 0 ;;
-  *" -D "*) printf 'HTTP/2 200\\r\\nstrict-transport-security: max-age=86400\\r\\n'; exit 0 ;;
+  */-/healthy*) exit 0 ;;
+  *debug=true*) printf 'Logs for the probe:\\nmsg="Probe failed" причина пробы\\n\\n\\n\\nMetrics that would have been returned:\\nprobe_success 0\\n'; exit 0 ;;
 esac
+if [ -n "\${FAIL_MODULE:-}" ] && [[ "$*" == *"module=$FAIL_MODULE "* ]]; then printf '# HELP\\nprobe_success 0\\n'; exit 0; fi
 n=$(cat "$CALLS.curl" 2>/dev/null || echo 0)
 echo $((n + 1)) > "$CALLS.curl"
-[ "$n" -lt "\${CURL_FAILS:-0}" ] && exit 7
-case "$*" in
-  */api/v1/*) echo '{"detail":"Not Found"}' ;;
-  *) echo '<title>DMC-268</title>' ;;
-esac
+[ "$n" -lt "\${CURL_FAILS:-0}" ] && { printf '# HELP\\nprobe_success 0\\n'; exit 0; }
+printf '# HELP\\nprobe_success 1\\n'
+`
+
+// Подложный docker: blackbox_exporter «запускается» и убирается, вызовы — в журнал.
+const FAKE_DOCKER = `#!/usr/bin/env bash
+echo "docker $*" >> "$CALLS"
 `
 
 const GNU_DF = `Filesystem     1024-blocks     Used Available Capacity Mounted on
@@ -155,6 +159,7 @@ function sandbox() {
     ssh: FAKE_SSH,
     timeout: FAKE_TIMEOUT,
     curl: FAKE_CURL,
+    docker: FAKE_DOCKER,
     sleep: '#!/bin/sh\n',
   }
   for (const [name, body] of Object.entries(fakes)) {
@@ -200,13 +205,12 @@ function summary(box, env = {}) {
   return readFileSync(out, 'utf8')
 }
 
-/** Полный успешный выкат: план, apply, проверки сайта и API. */
+/** Полный успешный выкат: план, apply, проверка публичного входа. */
 function deploy(box, env = {}) {
   for (const [script, args] of [
     ['plan.sh', []],
     ['apply.sh', []],
-    ['check-site.sh', []],
-    ['check-api-proxy.sh', ['https://203.0.113.7']],
+    ['check-public.sh', []],
   ]) {
     const result = run(box, script, { args, ...env })
     expect(result.status, `${script}: ${result.stdout}${result.stderr}`).toBe(0)
@@ -435,7 +439,7 @@ describe('apply.sh', () => {
     const seen = lines()
     expect(seen.length).toBeGreaterThan(0)
     for (const line of seen) expect(line).toMatch(/^\d+(\.\d+)? 200$/)
-    // Адрес — тот же, что у check-site.sh; ответ ждётся не дольше секунды.
+    // Адрес — тот же, что у пробы site в check-public.sh; ответ ждётся не дольше секунды.
     expect(calls(box)).toContain(
       'curl -s -o /dev/null --max-time 1 -w %{http_code} https://203.0.113.7/',
     )
@@ -641,21 +645,43 @@ describe('простой публичного входа', () => {
 // --- проверки стенда пишут ответы для отчёта ------------------------------------
 
 describe('проверки стенда', () => {
-  it('check-site.sh записывает первую попытку, последнюю неуспешную и ответ', () => {
+  it('check-public.sh записывает первую попытку, последнюю неуспешную и ответ HTTPS и API', () => {
     const box = sandbox()
-    const result = run(box, 'check-site.sh', { CURL_FAILS: '2' })
+    const result = run(box, 'check-public.sh', { CURL_FAILS: '2' })
 
     expect(result.status, result.stdout + result.stderr).toBe(0)
-    const { https } = readProbes(reportFile(box, 'probes'))
+    const { https, api } = readProbes(reportFile(box, 'probes'))
     expect(https.tries).toBe(3)
     expect(https.failed).toBeGreaterThanOrEqual(https.first)
     expect(https.answered).toBeGreaterThanOrEqual(https.failed)
+    expect(api).toMatchObject({ failed: null, tries: 1 })
+    for (const module of ['site', 'http_redirect', 'https_headers', 'http3', 'gzip', 'api']) {
+      expect(calls(box)).toContain(`module=${module} `)
+    }
+    expect(calls(box)).toContain('docker rm -f check-public-')
   })
 
-  it('check-api-proxy.sh записывает ответ API', () => {
+  it('check-public.sh: модуль не прошёл — ошибка с логом пробы, exporter убран', () => {
     const box = sandbox()
-    expect(run(box, 'check-api-proxy.sh', { args: ['https://203.0.113.7'] }).status).toBe(0)
-    expect(readProbes(reportFile(box, 'probes')).api).toMatchObject({ failed: null, tries: 1 })
+    const result = run(box, 'check-public.sh', { FAIL_MODULE: 'gzip' })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('::error::/app/ отдаётся без gzip (модуль gzip')
+    expect(result.stdout).toContain('причина пробы')
+    expect(result.stdout).not.toContain('Metrics that would have been returned')
+    expect(calls(box)).toContain('docker rm -f check-public-')
+  })
+
+  it('check-public.sh: сайт не ответил за все попытки — ошибка, дальше модули не идут', () => {
+    const box = sandbox()
+    const result = run(box, 'check-public.sh', { CURL_FAILS: '1000' })
+
+    expect(result.status).toBe(1)
+    expect(result.stdout).toContain('::error::по https://203.0.113.7/ не отвечает наш сайт')
+    // 40 попыток wait_for и повторная проба с debug=true.
+    expect(calls(box).match(/module=site /g)).toHaveLength(41)
+    expect(calls(box)).not.toContain('module=gzip ')
+    expect(calls(box)).toContain('docker rm -f check-public-')
   })
 })
 
@@ -709,7 +735,7 @@ describe('summary', () => {
     }
     writeFileSync(
       join(box.report, 'marks'),
-      'start 100\nplan 110\napply 118\ncheck_site 125\nsummary 160\n',
+      'start 100\nplan 110\napply 118\ncheck_public 125\nsummary 160\n',
     )
 
     const text = summary(box)

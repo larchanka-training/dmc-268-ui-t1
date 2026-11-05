@@ -34,7 +34,7 @@
  *   рядом — сервер не ответил (код ssh или timeout); `ui_url` — выход tofu;
  * - `ui-probe` — ответы пробника публичного входа все время apply (`apply.sh`);
  * - `probes` — первый успешный ответ снаружи по HTTPS и `/api/v1/` через прокси
- *   (`check-site.sh`, `check-api-proxy.sh`);
+ *   (`.github/scripts/deploy/check-public.sh`);
  * - `disk.txt` — `df -Pk` корня и каталога Docker (`summary.sh`).
  *
  * Нет файла — нет и раздела, а не падение: summary пишется и после упавшего шага.
@@ -77,11 +77,8 @@ export const STEPS = [
   ['pull', 'Скачать образ на сервер', ['login', 'pull']],
   ['plan', 'Спланировать и проверить план', ['plan']],
   ['apply', 'Применить конфигурацию', ['apply']],
-  ['check_site', 'Проверить, что по адресу отдаётся именно наш сайт', ['check_site']],
+  ['check_public', 'Проверить публичный вход', ['check_public']],
   ['check_routes', 'Проверить маршруты', ['check_routes']],
-  ['check_compression', 'Проверить сжатие статики', ['check_compression']],
-  ['check_protocols', 'Проверить HTTP/2 и HTTP/3', ['check_protocols']],
-  ['check_api_proxy', 'Проверить, что API доступен через тот же адрес', ['check_api_proxy']],
 ]
 // Засечка шага summary закрывает последний шаг и весь job.
 export const SUMMARY_MARK = 'summary'

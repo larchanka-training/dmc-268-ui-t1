@@ -49,7 +49,7 @@ Git hooks SHALL быть настроены через `core.hooksPath`, ука�
 
 ### Requirement: pre-push хук — полные проверки
 
-Хук `.githooks/pre-push` SHALL запускать `pnpm test && pnpm check-types && pnpm build`. Хук SHALL блокировать push при падении любой из проверок.
+Хук `.githooks/pre-push` SHALL запускать `pnpm test && pnpm build`; типы проверяет `tsc` внутри `pnpm build`. Хук SHALL блокировать push при падении любой из проверок.
 
 #### Scenario: Успешный push
 
