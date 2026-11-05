@@ -44,6 +44,7 @@ RUN apk upgrade --no-cache \
        -e '1i worker_shutdown_timeout 1s;' /etc/nginx/nginx.conf \
     && mkdir -p /var/lib/nginx-acme
 COPY nginx/site.conf nginx/http.conf nginx/https.conf.template /etc/nginx/
+COPY nginx/status.conf /etc/nginx/conf.d/status.conf
 COPY --chmod=755 nginx/select-site.sh /docker-entrypoint.d/40-select-site.sh
 COPY --from=build /build/dist /usr/share/nginx/html
 EXPOSE 80 443 443/udp
