@@ -8,7 +8,7 @@ import {
 } from '../../../entities/review-run'
 import { ConnectionNotice, useRunLiveStatus } from '../../../features/live-run-status'
 import { ApiError } from '../../../shared/api'
-import { ErrorState, LoadingState, RefreshErrorNotice } from '../../../shared/ui'
+import { EmptyState, ErrorState, LoadingState, RefreshErrorNotice } from '../../../shared/ui'
 import { ReviewSummary, RunHeader, RunProgress } from '../../../widgets/review-run-view'
 import { ReviewWorkspace } from '../../../widgets/review-workspace'
 import { RunInspector } from '../../../widgets/run-inspector'
@@ -48,7 +48,8 @@ export function ReviewRunView() {
   // Маршрут `/reviews/:reviewId`; id — UUID прогона на бэкенде.
   const { reviewId = '' } = useParams()
   const review = useReviewRun(reviewId)
-  // Без `base_sha` дифф не запрашиваем: бэкенд ответил бы `409`, а прогон просто ещё в очереди.
+  // `base_sha = null` бывает только у прогонов, записанных до миграции `0002`: дифф
+  // не воспроизвести, поэтому он не запрашивается.
   const diff = useReviewDiff(reviewId, review.data?.base_sha)
   const steps = useReviewSteps(reviewId)
   // Ключ — в зависимостях эффекта подписки: новый массив на каждый рендер переоткрывал бы поток.
@@ -122,9 +123,13 @@ export function ReviewRunView() {
       {/* Дифф не загрузился — причина на месте области изменений, замечания списком ниже.
           Постоянная причина (дифф велик, коммитов нет) без повтора: ответ не изменится. */}
       {diff.isLoadingError && <DiffProblemNotice error={diff.error} onRetry={diff.refetch} />}
+      {run.base_sha === null && (
+        <EmptyState>
+          Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.
+        </EmptyState>
+      )}
       {workspace ? (
         <ReviewWorkspace
-          run={run}
           files={workspace.files}
           diffsByPath={workspace.diffsByPath}
           findings={findings}

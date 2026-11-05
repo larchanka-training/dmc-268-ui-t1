@@ -68,8 +68,8 @@ export function useReviewRun(reviewId: string) {
  * Дифф прогона. Бэкенд его реализует (dmc-268-api-t1#87), поэтому любой отказ — ошибка
  * запроса: экран показывает причину (`diffProblem`), а не прячет дифф молча.
  *
- * Пока воркер не узнал `base_sha`, бэкенд отвечает `409 DIFF_UNAVAILABLE` — это не ошибка, а
- * «ещё рано»: запрос ждёт ревизию и уходит сам, как только она появится в прогоне.
+ * Без `base_sha` (он пуст только у старых прогонов, записанных до миграции `0002`) дифф
+ * не воспроизвести, поэтому он не запрашивается.
  */
 export function useReviewDiff(reviewId: string, baseSha: string | null | undefined) {
   const transport = useTransport()

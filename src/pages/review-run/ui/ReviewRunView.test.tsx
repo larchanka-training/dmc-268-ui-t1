@@ -563,23 +563,23 @@ describe('ReviewRunView', () => {
     expect(screen.getByText('Вердикт появится после завершения')).toBeInTheDocument()
   })
 
-  it.each([
-    ['прогон в очереди', 'queued'],
-    ['старый прогон без колонки base_sha', 'completed'],
-  ] as const)(
-    'без base_sha (%s) дифф не запрашивается: ошибки диффа нет, замечания списком',
-    async (_, status) => {
-      const backend = fakeAdapter({ run: makeReviewRun({ status, base_sha: null }) })
-      const get = vi.spyOn(backend, 'get')
-      renderView(backend)
+  it('прогон записан без base_sha — дифф не запрашивается: объяснение, замечания списком', async () => {
+    const backend = fakeAdapter({ run: makeReviewRun({ status: 'completed', base_sha: null }) })
+    const get = vi.spyOn(backend, 'get')
+    renderView(backend)
 
-      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
-      await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
-      expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
-      expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
-      expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
-    },
-  )
+    expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
+    expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.',
+      ),
+    ).toBeInTheDocument()
+  })
+
   describe('статус в реальном времени', () => {
     it('INT-09: смена статуса по событию видна без перезагрузки', async () => {
       renderView(fakeAdapter({ run: makeReviewRun({ status: 'analysing' }) }))
@@ -712,21 +712,6 @@ describe('ReviewRunView', () => {
       expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
       expect(within(progress()).getByText('Публикация')).toHaveTextContent('завершён')
       expect(stream.active()).toBe(0)
-    })
-
-    it('ревизия появилась в прогоне после run.finished — дифф запрашивается и показан', async () => {
-      let backend: Backend = { run: makeReviewRun({ status: 'queued', base_sha: null }) }
-      renderView(fakeAdapter(() => backend))
-      expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
-      expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
-
-      backend = { run: makeReviewRun({ status: 'completed' }) }
-      act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
-
-      expect(
-        await screen.findByRole('navigation', { name: 'Изменённые файлы' }),
-      ).toBeInTheDocument()
-      expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
     })
 
     it('перезапрос после run.finished упал (502) — прогон остаётся, плашка с повтором', async () => {
