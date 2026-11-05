@@ -3,30 +3,21 @@
 # Хранилище (контейнер dmc268-s3) поднимает и обслуживает деплой бэкенда —
 # .github/actions/s3-backend в dmc-268-api-t1: по спеке frontend-delivery его
 # стек применяется раньше. Интерфейсу нужен только доступ к хранилищу,
-# поэтому здесь один туннель, а не копия s3-backend. SSH к стенду (хост
-# `stand` в ~/.ssh/config) готовит .github/actions/stand-ssh — его шаг должен
-# стоять раньше.
+# поэтому здесь один туннель, а не копия s3-backend. Вызывающий один — деплой
+# в deploy.yml, поэтому порт константой: тот же, что в endpoints
+# infra/backend.tf. SSH к стенду (хост `stand` в ~/.ssh/config) готовит
+# .github/actions/stand-ssh шагом раньше.
 name: State tunnel
 description: Открывает SSH-туннель к хранилищу состояния бэкенда на стенде. SSH к стенду готовит stand-ssh.
-
-inputs:
-  port:
-    description: Порт хранилища на петле сервера, он же локальный конец туннеля
-    required: true
 
 runs:
   using: composite
   steps:
     - name: Открыть туннель к хранилищу состояния
       shell: bash
-      env:
-        STATE_PORT: ${{ inputs.port }}
       run: |
         set -euo pipefail
-        if ! grep -qx 'Host stand' ~/.ssh/config 2>/dev/null; then
-          echo "::error::нет хоста stand в ~/.ssh/config: шаг .github/actions/stand-ssh должен стоять до state-tunnel"
-          exit 1
-        fi
+        STATE_PORT=9000
 
         # ExitOnForwardFailure обязателен: без него ssh уходит в фон даже когда
         # проброс не удался, и всё падает позже с невнятной ошибкой.
