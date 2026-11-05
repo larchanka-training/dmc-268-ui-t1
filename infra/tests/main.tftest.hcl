@@ -84,8 +84,9 @@ run "container_joins_only_backend_networks" {
   command = plan
 
   assert {
-    condition     = [for n in docker_container.ui.networks_advanced : n.name] == ["dmc268", "dmc268-otlp"]
-    error_message = "Контейнер подключён ровно к двум сетям стека бэкенда: dmc268 (там dmc268-api) и dmc268-otlp (там коллектор трейсов)."
+    # networks_advanced — set: порядок элементов по имени, а не по ui.tf.
+    condition     = toset([for n in docker_container.ui.networks_advanced : n.name]) == toset(["dmc268", "dmc268-otlp", "dmc268-grafana-proxy"])
+    error_message = "Контейнер подключён ровно к трём сетям стека бэкенда: dmc268 (там dmc268-api), dmc268-otlp (там коллектор трейсов) и dmc268-grafana-proxy (там Grafana)."
   }
 
   assert {

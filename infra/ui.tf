@@ -90,6 +90,10 @@ resource "docker_container" "ui" {
     name = data.docker_network.otlp.name
   }
 
+  networks_advanced {
+    name = data.docker_network.grafana_proxy.name
+  }
+
   volumes {
     volume_name    = docker_volume.acme.name
     container_path = "/var/lib/nginx-acme"

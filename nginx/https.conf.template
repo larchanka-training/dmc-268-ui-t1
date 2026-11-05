@@ -14,6 +14,34 @@ resolver 127.0.0.11 valid=10s ipv6=off;
 # покрывают и офис за одним NAT.
 limit_req_zone $binary_remote_addr zone=otlp:1m rate=5r/s;
 
+# Вход в Grafana (location = /grafana/login в site.conf): считаются только
+# POST — попытки входа; у GET ключ пустой, и nginx его не учитывает. 10 попыток
+# в минуту с адреса и запас 10 подряд хватает человеку, ошибившемуся паролем,
+# и режут перебор.
+map $request_method $grafana_login_key {
+    POST    $binary_remote_addr;
+    default "";
+}
+limit_req_zone $grafana_login_key zone=grafana_login:1m rate=10r/m;
+
+# Переход на WebSocket для Grafana Live (location /grafana/ в site.conf):
+# запросу с Upgrade — Connection: upgrade, остальным — close, как без map.
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ""      close;
+}
+
+# HSTS и Alt-Svc — переменными, а не строкой в add_header: их ставят и server
+# ниже, и location /grafana/ в site.conf, у которой своё наследование
+# заголовков (add_header_inherit off). Значение — в одном месте. В http.conf
+# те же переменные пустые.
+map $host $strict_transport_security {
+    default "max-age=86400";
+}
+map $host $alt_svc {
+    default 'h3=":443"; ma=86400';
+}
+
 acme_issuer letsencrypt {
     uri ${ACME_DIRECTORY};
     # На IP Let's Encrypt выдаёт сертификаты только с этим профилем: 160
@@ -47,13 +75,14 @@ server {
     http3 on;
     server_name ${PUBLIC_HOST};
 
-    add_header Alt-Svc 'h3=":443"; ma=86400' always;
+    add_header Alt-Svc $alt_svc always;
     # HSTS: браузер, получивший заголовок, сам переписывает http:// на
     # https:// и не делает открытого запроса, который можно перехватить и
     # подменить. Только в HTTPS-сервере: по HTTP браузер его игнорирует.
     # Срок — сутки: браузер помнит его весь max-age, и откат стенда на HTTP
-    # заперёт уже заходивших. Увеличить, когда HTTPS на стенде устоится.
-    add_header Strict-Transport-Security "max-age=86400" always;
+    # заперёт уже заходивших. Увеличить, когда HTTPS на стенде устоится
+    # (значение — в map $strict_transport_security выше).
+    add_header Strict-Transport-Security $strict_transport_security always;
     # Без merge location со своим add_header (index.html, /assets/ в
     # site.conf) теряет Alt-Svc и HSTS — а index.html браузер получает первым.
     # add_header_inherit merge задан в site.conf, на уровне этого же server:

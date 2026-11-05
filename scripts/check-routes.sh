@@ -197,7 +197,22 @@ fetch /sitemap.xml
 fetch /otlp/v1/traces
 [ "$status" = 403 ] || fail "GET /otlp/v1/traces вернул ${status}, ожидался 403: приём трейсов — только POST"
 
+# Grafana стенда под /grafana/. В CI её нет, и ответ 502, на стенде — 200;
+# статус поэтому не сверяем, кроме 404: он значит, что location пропала.
+# Заголовки — свои: CSP кабинета (script-src 'self') сломал бы Grafana, а
+# запрет фрейма и nosniff остаются.
+fetch /grafana
+[ "$status" = 301 ] || fail "/grafana вернул ${status}, ожидался 301"
+location_is /grafana/ || fail "/grafana не перенаправляет на /grafana/"
+
+fetch /grafana/login
+[ "$status" = 404 ] && fail "/grafana/login вернул 404: прокси на Grafana нет"
+header_has X-Content-Type-Options nosniff || fail "у /grafana/login нет X-Content-Type-Options: nosniff"
+header_has Referrer-Policy strict-origin-when-cross-origin || fail "у /grafana/login нет Referrer-Policy: strict-origin-when-cross-origin"
+header_has Content-Security-Policy "frame-ancestors 'none'" || fail "у /grafana/login в CSP нет frame-ancestors 'none'"
+if header_has Content-Security-Policy "script-src"; then fail "у /grafana/login CSP кабинета со script-src: Grafana под ней не работает"; fi
+
 if [ "$failed" = 0 ]; then
-  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help, /app/help/, /app/status и /app/status/ (гость), /app/help/x, /app/helpx, /app/status/x, /app/statusx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces"
+  echo "маршруты и заголовки безопасности в порядке: /, /app/, /app/reviews/123, /app (гость и вошедший), /login (гость и вошедший), /login.html, /app/help, /app/help/, /app/status и /app/status/ (гость), /app/help/x, /app/helpx, /app/status/x, /app/statusx и /app/repositories (гость на вход), /nope, /robots.txt, /sitemap.xml, /otlp/v1/traces, /grafana, /grafana/login"
 fi
 exit "$failed"

@@ -168,10 +168,14 @@ jobs:
           --entrypoint sh dmc268-ui:ci
           -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
       # Лендинг, приложение под /app/, редирект и 404 — в режиме HTTP.
+      # Своя сеть, как на стенде: в сети по умолчанию нет DNS докера
+      # (127.0.0.11), и прокси на /grafana/ ждал бы резолвер 30 с вместо
+      # быстрого 502 — у Grafana в CI контейнера нет.
       - name: Маршруты в режиме HTTP
         run: |
-          docker run -d --name ui-routes -p 8080:80 dmc268-ui:ci
-          trap 'docker logs ui-routes; docker rm -f ui-routes' EXIT
+          docker network create ui-routes
+          docker run -d --name ui-routes --network ui-routes -p 8080:80 dmc268-ui:ci
+          trap 'docker logs ui-routes; docker rm -f ui-routes; docker network rm ui-routes' EXIT
           for _ in $(seq 1 20); do
             curl -fsS -o /dev/null http://localhost:8080/ && break
             sleep 1
