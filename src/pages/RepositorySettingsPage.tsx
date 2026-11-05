@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Form, Radio, Result, Select, Skeleton, Space, Typography } from 'antd'
 import { useParams } from 'react-router-dom'
-import { isNotImplemented, ApiError, ContractError } from '@/shared/api'
+import { ApiError, ContractError } from '@/shared/api'
 import { ErrorState, LinkButton } from '@/shared/ui'
 import {
   branchFilterProblem,
@@ -37,18 +37,6 @@ function isNotFound(error: unknown): boolean {
   return error instanceof ApiError && (error.status === 404 || error.status === 422)
 }
 
-/** Блок на ручке-заглушке: она описана в контракте, но бэкенд отвечает `501 NOT_IMPLEMENTED`. */
-function NotImplementedNote({ title }: { title: string }) {
-  return (
-    <Alert
-      type="info"
-      showIcon
-      title={title}
-      description="Ручка описана в контракте API, но бэкенд ещё не реализовал её и отвечает заглушкой 501. Данные появятся, когда он заработает."
-    />
-  )
-}
-
 function SettingsForm({ repositoryId }: { repositoryId: string }) {
   const [form] = Form.useForm<RepositorySettings>()
   const [isDirty, setIsDirty] = useState(false)
@@ -64,8 +52,6 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
     return <Skeleton active paragraph={{ rows: 4 }} />
   }
   if (!data) {
-    if (isNotImplemented(error))
-      return <NotImplementedNote title="Настройки ревью пока недоступны" />
     return (
       <ErrorState
         title="Не удалось загрузить настройки"
@@ -175,7 +161,6 @@ function RulesPanel({ repositoryId }: { repositoryId: string }) {
     return <Skeleton active paragraph={{ rows: 6 }} />
   }
   if (!data) {
-    if (isNotImplemented(error)) return <NotImplementedNote title="Статус правил пока недоступен" />
     return (
       <ErrorState
         title="Не удалось загрузить статус правил"

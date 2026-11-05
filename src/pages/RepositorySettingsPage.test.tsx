@@ -452,45 +452,6 @@ describe('RepositorySettingsPage: статус правил', () => {
   })
 })
 
-describe('RepositorySettingsPage: 501 от ручек-заглушек', () => {
-  const notImplemented = () => new ApiError(501, 'Не реализовано', 'NOT_IMPLEMENTED')
-
-  it.each([
-    {
-      block: 'настройки',
-      fail: (backend: Backend) => {
-        backend.failures.settings = notImplemented()
-      },
-      note: 'Настройки ревью пока недоступны',
-      alive: async () => {
-        expect(await screen.findByText('Кастомные правила')).toBeInTheDocument()
-      },
-    },
-    {
-      block: 'статус правил',
-      fail: (backend: Backend) => {
-        backend.failures.rules = notImplemented()
-      },
-      note: 'Статус правил пока недоступен',
-      alive: async () => {
-        expect(await screen.findByRole('radio', { name: 'High' })).toBeChecked()
-      },
-    },
-  ])(
-    '$block: «пока недоступно», а не ошибка, остальные блоки живы',
-    async ({ fail, note, alive }) => {
-      const backend = createBackend()
-      fail(backend)
-      renderSettingsPage('repo-1', backend)
-
-      expect(await screen.findByText(note)).toBeInTheDocument()
-      expect(screen.getByText(/отвечает заглушкой 501/)).toBeInTheDocument()
-      expect(screen.queryByText(/Не удалось загрузить/)).not.toBeInTheDocument()
-      await alive()
-    },
-  )
-})
-
 describe('RepositorySettingsPage: черновик', () => {
   it('черновик не переезжает при смене репозитория', async () => {
     const user = userEvent.setup()

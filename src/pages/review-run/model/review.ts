@@ -6,7 +6,7 @@ import { PublishedCommentSchema } from '../../../entities/published-comment'
 import { ReviewFindingSchema } from '../../../entities/review-finding'
 import { mergeRunSnapshot, ReviewRunSchema } from '../../../entities/review-run'
 import { ReviewRunStepListSchema } from '../../../entities/review-run-step'
-import { ApiError, parseResponse, useTransport } from '../../../shared/api'
+import { parseResponse, useTransport } from '../../../shared/api'
 import type { ApiSchemas, MatchesContract } from '../../../shared/api/contract'
 
 /** Ответ `GET /api/v1/reviews/{id}`: прогон, его замечания и опубликованные комментарии. */
@@ -82,21 +82,14 @@ export function useReviewDiff(reviewId: string, baseSha: string | null | undefin
 }
 
 /**
- * Шаги прогона; `null` — бэкенд их не отдаёт (`501`). `GET /steps` реализован
- * (dmc-268-api-t1#90), поэтому `404` — «прогона нет», это ошибка, а не «шагов нет».
+ * Шаги прогона. `GET /steps` реализован (dmc-268-api-t1#90), поэтому `404` — «прогона нет»,
+ * это ошибка, а не «шагов нет».
  */
 export function useReviewSteps(reviewId: string) {
   const transport = useTransport()
   const path = reviewStepsPath(reviewId)
   return useQuery({
     queryKey: [...reviewKey(reviewId), 'steps'] as const,
-    queryFn: async () => {
-      try {
-        return parseResponse(ReviewRunStepListSchema, path, await transport.get(path))
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 501) return null
-        throw error
-      }
-    },
+    queryFn: async () => parseResponse(ReviewRunStepListSchema, path, await transport.get(path)),
   })
 }

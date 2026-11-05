@@ -1,5 +1,5 @@
 export { TransportContext, useTransport } from './transport'
-export { ApiError, isNotImplemented } from './errors'
+export { ApiError } from './errors'
 export type { ApiTransport } from './transport'
 export { ContractError, parseResponse } from './parse'
 export { apiFetch, createHttpTransport } from './http'

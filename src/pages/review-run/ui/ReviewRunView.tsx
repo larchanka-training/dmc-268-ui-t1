@@ -138,7 +138,7 @@ export function ReviewRunView() {
       ) : (
         <FindingsList findings={findings} publishedComments={published_comments} />
       )}
-      {/* Ход прогона не загрузился — ошибка с повтором в его месте; `501` — блока нет. */}
+      {/* Ход прогона не загрузился — ошибка с повтором в его месте. */}
       {steps.isLoadingError ? (
         <ErrorState
           title="Не удалось загрузить ход прогона"

@@ -70,7 +70,7 @@ export async function fetchRepository(
   return parseResponse(RepositorySchema, path, await transport.get(path))
 }
 
-/** Ручки блока настроек — `GET/PUT …/settings` и `GET …/rules` контракта (заглушки 501). */
+/** Ручки блока настроек — `GET/PUT …/settings` и `GET …/rules` контракта. */
 export function repositoryPath(repositoryId: string) {
   return `${REPOSITORIES_PATH}/${encodeURIComponent(repositoryId)}`
 }
