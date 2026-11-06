@@ -404,52 +404,67 @@ CI SHALL на каждый пул-реквест проверять конфиг
 
 ### Requirement: Публичный вход проксирует Grafana стенда
 
-Интерфейс SHALL перенаправлять запросы под `/grafana/` в Grafana стенда внутри серверного сетевого окружения, а `/grafana` — на `/grafana/`. Путь SHALL доходить до Grafana с префиксом `/grafana/`: Grafana отдаёт себя из подпути сама. Grafana SHALL получать адрес стенда из запроса, адрес клиента и схему. Переход на WebSocket SHALL проходить. Без Grafana интерфейс SHALL запускаться и работать.
+Интерфейс SHALL отдавать Grafana стенда через свой публичный вход на отдельном порту `8443` — отдельном от кабинета origin с тем же адресом и сертификатом: на общем origin XSS в Grafana читал бы API кабинета с сессией пользователя. Запросы под `/grafana/` на этом порту SHALL уходить в Grafana стенда внутри серверного сетевого окружения, а `/grafana` — на `/grafana/` с сохранением параметров запроса. Путь SHALL доходить до Grafana с префиксом `/grafana/`: Grafana отдаёт себя из подпути сама. Запросы `/grafana` и под `/grafana/` на origin кабинета SHALL перенаправляться на origin Grafana с сохранением пути и параметров. Grafana SHALL получать адрес стенда из запроса, адрес клиента и схему. Переход на WebSocket SHALL проходить. Без Grafana интерфейс SHALL запускаться и работать.
 
 #### Scenario: Открытие Grafana
 
-- **WHEN** браузер открывает `/grafana/login` по адресу стенда
+- **WHEN** браузер открывает `https://<стенд>:8443/grafana/login`
 - **THEN** Grafana получает запрос на `/grafana/login` и отдаёт страницу входа, а её статика под `/grafana/public/` загружается
+
+#### Scenario: Старый адрес на кабинете
+
+- **WHEN** браузер открывает на origin кабинета `/grafana` или путь под `/grafana/`, например `/grafana/d/abc?orgId=1`
+- **THEN** ответ — `301` на тот же путь с теми же параметрами на origin Grafana, `https://<стенд>:8443/grafana/d/abc?orgId=1`
 
 #### Scenario: Адрес без слеша
 
-- **WHEN** браузер открывает `/grafana`
-- **THEN** ответ — `301` на `/grafana/`
+- **WHEN** браузер открывает на origin Grafana `/grafana?orgId=1`
+- **THEN** ответ — `301` на `/grafana/?orgId=1`
 
 #### Scenario: Grafana Live
 
 - **WHEN** браузер открывает WebSocket на `/grafana/api/live/ws`
 - **THEN** соединение переходит на WebSocket с Grafana
 
-#### Scenario: Grafana недоступна
+#### Scenario: Grafana нет
 
-- **WHEN** контейнера Grafana нет или он не отвечает
-- **THEN** `/grafana/` отвечает 502, остальные маршруты работают
+- **WHEN** контейнера Grafana нет
+- **THEN** `/grafana/` отвечает 502, остальные маршруты кабинета работают
+
+#### Scenario: Grafana не отвечает
+
+- **WHEN** контейнер Grafana есть, но не отвечает на запрос
+- **THEN** по истечении тайм-аута прокси `/grafana/` отвечает 504, остальные маршруты кабинета работают
 
 ### Requirement: Вход в Grafana — по личной учётной записи
 
-Доступ к Grafana под `/grafana/` SHALL решать сама Grafana по личной учётной записи: cookie сессии кабинета для `/grafana/` SHALL NOT проверяться. Частота попыток входа `POST /grafana/login` с одного адреса SHALL быть ограничена; открытие страницы входа (`GET`) в лимит SHALL NOT засчитываться.
+Доступ к Grafana под `/grafana/` SHALL решать сама Grafana по личной учётной записи: cookie сессии кабинета для `/grafana/` SHALL NOT проверяться. Cookie сессии кабинета `session` SHALL NOT доходить до Grafana: браузер прикладывает её и на порт Grafana, потому что cookie портом не разделяются; остальные cookie, в том числе `grafana_session`, SHALL проходить. Частота попыток входа `POST /grafana/login` и `POST /grafana/login/` с одного адреса SHALL быть ограничена; открытие страницы входа (`GET`) в лимит SHALL NOT засчитываться.
 
 #### Scenario: Гость кабинета открывает Grafana
 
 - **WHEN** клиент без cookie сессии кабинета открывает `/grafana/login`
 - **THEN** он получает страницу входа Grafana, а не редирект на `/login` кабинета
 
+#### Scenario: Сессия кабинета не уходит в Grafana
+
+- **WHEN** браузер с cookie `session` кабинета и `grafana_session` открывает `/grafana/`
+- **THEN** Grafana получает `grafana_session` и остальные cookie, но не `session`
+
 #### Scenario: Перебор пароля
 
-- **WHEN** попытки входа `POST /grafana/login` с одного адреса превышают лимит частоты
+- **WHEN** попытки входа `POST /grafana/login` или `POST /grafana/login/` с одного адреса превышают лимит частоты
 - **THEN** ответ 429, Grafana запроса не получает
 
 ### Requirement: Ответы Grafana несут свои заголовки безопасности
 
-Ответы под `/grafana/` SHALL содержать `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` и `Content-Security-Policy`, запрещающую встраивание во фрейм, а по HTTPS — ещё `Strict-Transport-Security` и `Alt-Svc`. Политика содержимого кабинета на них SHALL NOT распространяться: под ней Grafana не работает.
+Ответы origin Grafana SHALL содержать `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` и `Content-Security-Policy`, запрещающую встраивание во фрейм, а по HTTPS — ещё `Strict-Transport-Security`. Политика содержимого кабинета на них SHALL NOT распространяться: под ней Grafana не работает.
 
 #### Scenario: Заголовки ответа Grafana
 
-- **WHEN** приходит ответ под `/grafana/`, в том числе 502
+- **WHEN** приходит ответ origin Grafana, в том числе 502 или 504
 - **THEN** в нём `X-Content-Type-Options`, `Referrer-Policy` и `Content-Security-Policy` с `frame-ancestors 'none'`, но без `script-src` кабинета
 
 #### Scenario: Ответ Grafana по HTTPS
 
-- **WHEN** ответ под `/grafana/` идёт по HTTPS
-- **THEN** в нём есть `Strict-Transport-Security` с `max-age` и `Alt-Svc` с `h3`
+- **WHEN** ответ origin Grafana идёт по HTTPS
+- **THEN** в нём есть `Strict-Transport-Security` с `max-age`

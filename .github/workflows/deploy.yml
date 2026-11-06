@@ -280,7 +280,9 @@ jobs:
           .github/scripts/deploy/apply.sh
 
       # Публичный вход — модулями blackbox (check-public.sh). Маршруты —
-      # scripts/check-routes.sh, общий с CI.
+      # scripts/check-routes.sh, общий с CI: кабинет и сервер Grafana на 8443.
+      # Проверка лимита входа шлёт до 25 POST на /grafana/login/ стенда: адрес
+      # раннера упирается в 429 примерно на минуту, другим это не мешает.
       - name: Проверить публичный вход
         id: check_public
         run: |
@@ -291,7 +293,7 @@ jobs:
         id: check_routes
         run: |
           .github/scripts/deploy/mark.sh
-          scripts/check-routes.sh "https://${HOST}"
+          scripts/check-routes.sh "https://${HOST}" "https://${HOST}:8443"
 
       # Исход, шаг падения, простой публичного входа, план, диск и длительность
       # шагов (summary.sh). Исходы шагов — списком, а не toJSON(steps): тот

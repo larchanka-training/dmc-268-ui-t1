@@ -121,4 +121,22 @@ resource "docker_container" "ui" {
       protocol = ports.value
     }
   }
+
+  # Grafana — на своём порту, то есть на своём origin (nginx/grafana.conf): на
+  # общем с кабинетом XSS в Grafana читал бы /api/v1 кабинета с cookie
+  # пользователя. Только при TLS: cookie Grafana — Secure
+  # (GF_SECURITY_COOKIE_SECURE=true в стеке бэкенда), по HTTP браузер её не
+  # вернёт. Только tcp: HTTP/3 у сервера Grafana нет. Блок — после 443, чтобы
+  # прежние элементы списка ports не сдвинулись и не дали diff. Порт 8443 —
+  # и снаружи: на него ведут редирект кабинета ($grafana_origin в nginx) и
+  # GF_SERVER_ROOT_URL бэкенда, поэтому переменной он не вынесен.
+  dynamic "ports" {
+    for_each = var.public_tls ? ["tcp"] : []
+    content {
+      internal = 8443
+      external = 8443
+      ip       = var.bind_ip
+      protocol = "tcp"
+    }
+  }
 }

@@ -169,18 +169,19 @@ jobs:
           -c '/docker-entrypoint.d/40-select-site.sh && nginx -t'
       # Лендинг, приложение под /app/, редирект и 404 — в режиме HTTP.
       # Своя сеть, как на стенде: в сети по умолчанию нет DNS докера
-      # (127.0.0.11), и прокси на /grafana/ ждал бы резолвер 30 с вместо
-      # быстрого 502 — у Grafana в CI контейнера нет.
+      # (127.0.0.11), и сервер Grafana на 8443 ждал бы резолвер 30 с вместо
+      # быстрого 502 — у Grafana в CI контейнера нет. Порт 8443 — с тем же
+      # номером на хосте: редирект кабинета ведёт на $host:8443.
       - name: Маршруты в режиме HTTP
         run: |
           docker network create ui-routes
-          docker run -d --name ui-routes --network ui-routes -p 8080:80 dmc268-ui:ci
+          docker run -d --name ui-routes --network ui-routes -p 8080:80 -p 8443:8443 dmc268-ui:ci
           trap 'docker logs ui-routes; docker rm -f ui-routes; docker network rm ui-routes' EXIT
           for _ in $(seq 1 20); do
             curl -fsS -o /dev/null http://localhost:8080/ && break
             sleep 1
           done
-          scripts/check-routes.sh http://localhost:8080
+          scripts/check-routes.sh http://localhost:8080 http://localhost:8443
           # stub_status для коллектора метрик — на внутреннем порту 8081 (ui#101).
           docker exec ui-routes wget -qO- http://127.0.0.1:8081/stub_status | grep -q '^Active connections'
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
