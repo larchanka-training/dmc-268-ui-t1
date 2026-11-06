@@ -91,8 +91,6 @@ type Backend = {
   files?: DiffFile[]
   findings?: ReviewFinding[]
   steps?: ReviewRunStep[]
-  /** `false` — дифф и шаги бэкенд ещё не реализовал: оба пути отвечают `501`. */
-  planned?: boolean
 }
 
 /** Подменяем adapter данных, а не `fetch`: та же граница, что у HTTP-клиента. */
@@ -104,7 +102,6 @@ function fakeAdapter(source: Backend | ((path: string) => Backend) = {}): ApiTra
         files = [api, util],
         findings = [leak, removed, general],
         steps = [],
-        planned = true,
       } = typeof source === 'function' ? source(path) : source
       if (path === reviewPath(run.id)) {
         return {
@@ -113,12 +110,8 @@ function fakeAdapter(source: Backend | ((path: string) => Backend) = {}): ApiTra
           published_comments: [makePublishedComment({ finding_id: 'leak' })],
         }
       }
-      if (path === reviewDiffPath(run.id) || path === reviewStepsPath(run.id)) {
-        if (!planned) throw new ApiError(501, path, 'NOT_IMPLEMENTED')
-        return path === reviewDiffPath(run.id)
-          ? { files: files.map(toApiDiffFile) }
-          : { items: steps }
-      }
+      if (path === reviewDiffPath(run.id)) return { files: files.map(toApiDiffFile) }
+      if (path === reviewStepsPath(run.id)) return { items: steps }
       throw new ApiError(404, path)
     },
   })
@@ -186,19 +179,6 @@ describe('ReviewRunView', () => {
     expect(paths).toContain('/reviews/a1b2-c3')
     expect(paths).toContain('/reviews/a1b2-c3/diff')
     expect(paths).toContain('/reviews/a1b2-c3/steps')
-  })
-
-  it('бэкенд не отдаёт дифф и шаги (501) — ошибка диффа, замечания списком, хода прогона нет', async () => {
-    renderView(fakeAdapter({ planned: false }))
-
-    const list = await screen.findByRole('region', { name: 'Замечания' })
-    expect(await screen.findByText('Не удалось загрузить дифф')).toBeInTheDocument()
-    expect(within(list).getByRole('article', { name: /Токен печатается в лог/ })).toBeVisible()
-    expect(within(list).getByText('app/api.py:3')).toBeInTheDocument()
-    // Вердикт считается по замечаниям и без диффа.
-    expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
-    expect(screen.queryByRole('region', { name: 'Изменения' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Ход прогона' })).not.toBeInTheDocument()
   })
 
   it('неизвестный id — «Прогон не найден», без повтора', async () => {
@@ -569,6 +549,7 @@ describe('ReviewRunView', () => {
     renderView(backend)
 
     expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+    expect(screen.getByText('app/api.py:3')).toBeInTheDocument()
     await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
     expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
     expect(screen.queryByText('Дифф прогона недоступен')).not.toBeInTheDocument()
