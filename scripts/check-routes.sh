@@ -8,6 +8,8 @@
 #   BASE_URL    — кабинет (например http://localhost:8080);
 #   GRAFANA_URL — сервер Grafana на своём порту (например http://localhost:8443).
 #   Без него проверяется только редирект кабинета на Grafana.
+# GRAFANA_COOKIE_ECHO=1 — вместо Grafana эхо заголовка Cookie (CI): тогда
+#   проверяется и то, что до Grafana доходят остальные cookie без session.
 #
 # Без конвейеров с `grep -q`: с `set -o pipefail` короткий grep закрывает
 # канал, curl получает SIGPIPE, и проверка падает при работающем сервисе.
@@ -245,8 +247,8 @@ if [ -n "$grafana" ]; then
   [ "$status" = 301 ] || fail "Grafana: /grafana?orgId=1 вернул ${status}, ожидался 301"
   location_is '/grafana/?orgId=1' || fail "Grafana: /grafana?orgId=1 не перенаправляет на /grafana/?orgId=1"
 
-  # В CI Grafana нет, и ответ 502, на стенде — 200; статус поэтому не
-  # сверяем, кроме 404: он значит, что location пропала. Заголовки — свои:
+  # Статус не сверяем, кроме 404: он значит, что location пропала. Без
+  # Grafana ответ 502, с ней — 200. Заголовки — свои:
   # CSP кабинета (script-src 'self') сломал бы Grafana, а запрет фрейма и
   # nosniff остаются.
   fetch /grafana/login
@@ -255,6 +257,21 @@ if [ -n "$grafana" ]; then
   header_has Referrer-Policy strict-origin-when-cross-origin || fail "у /grafana/login нет Referrer-Policy: strict-origin-when-cross-origin"
   header_has Content-Security-Policy "frame-ancestors 'none'" || fail "у /grafana/login в CSP нет frame-ancestors 'none'"
   if header_has Content-Security-Policy "script-src"; then fail "у /grafana/login CSP кабинета со script-src: Grafana под ней не работает"; fi
+
+  # Cookie сессии кабинета до Grafana не доходит (map $cookie_without_session
+  # в nginx/http.conf). Отрицательная проверка безвредна и на стенде: Grafana
+  # cookie в ответ не возвращает. Положительная — только с эхом вместо
+  # Grafana: без неё сломанное эхо (502) делало бы проверку пустой.
+  fetch /grafana/cookie-check 'grafana_session=keep; session=leak; foo=1'
+  has "$body" 'session=leak' && fail "Grafana: cookie session кабинета дошла до Grafana"
+  if [ "${GRAFANA_COOKIE_ECHO:-}" = 1 ]; then
+    [ "$body" = 'grafana_session=keep; foo=1' ] || fail "Grafana: до эха дошло «${body}», ожидалось «grafana_session=keep; foo=1»"
+    fetch /grafana/cookie-check 'session=leak'
+    [ "$body" = '' ] || fail "Grafana: при одной cookie session до эха дошло «${body}», ожидался пустой Cookie"
+    fetch /grafana/cookie-check 'grafana_session=keep'
+    [ "$body" = 'grafana_session=keep' ] || fail "Grafana: одна grafana_session дошла как «${body}»"
+    checked_grafana="${checked_grafana}, cookie без session"
+  fi
 
   # Лимит входа (зона grafana_login: 10 в минуту, burst 10) — последним: он
   # расходует зону для адреса, с которого идёт проверка. 429 отдаёт nginx до

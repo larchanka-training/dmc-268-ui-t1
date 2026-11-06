@@ -102,6 +102,9 @@ Dev-сервер проксирует `/api` на `VITE_API_PROXY_TARGET` (по 
    адрес dev-сервера, иначе изменяющие запросы получат `403 ORIGIN_FORBIDDEN`, а вход — `redirect_uri mismatch`.
 2. `pnpm dev` и вход через GitHub на `http://localhost:3000/login`.
 
+Grafana локально — только через SSH-туннель к стенду: без TLS порт `8443` не публикуется, и редирект
+кабинета с `/grafana` на `http://localhost:8443/grafana/` получит «connection refused».
+
 Проксировать на стенд нельзя: OAuth callback, cookie `session` и проверка `Origin` привязаны к домену
 стенда, и с `localhost` вход не состоится.
 

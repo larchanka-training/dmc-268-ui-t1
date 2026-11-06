@@ -41,9 +41,6 @@ run "tls_publishes_443_tcp_udp_and_grafana_8443" {
   }
 }
 
-# Внешний порт Grafana задаётся, внутренний остаётся 8443 — его слушает nginx.
-
-
 run "http_without_tls" {
   command = plan
 
