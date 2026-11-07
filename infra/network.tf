@@ -11,3 +11,10 @@ data "docker_network" "dmc268" {
 data "docker_network" "otlp" {
   name = "dmc268-otlp"
 }
+
+# Сеть публичного входа в Grafana: в ней nginx находит dmc268-grafana
+# (location /grafana/ в nginx/site.conf). Создаёт её стек бэкенда, как и
+# dmc268-otlp; без неё поиск падает на plan — до изменений на сервере.
+data "docker_network" "grafana_proxy" {
+  name = "dmc268-grafana-proxy"
+}

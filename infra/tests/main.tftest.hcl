@@ -10,7 +10,7 @@ variables {
   ui_image = "ghcr.io/larchanka-training/dmc-268-ui-t1@sha256:2e0b81d60597f449baa56dc25d355367869d2dca4cd57e866f1e2b52af3eb55f"
 }
 
-run "tls_publishes_443_tcp_and_udp" {
+run "tls_publishes_443_tcp_udp_and_grafana_8443" {
   command = plan
 
   variables {
@@ -25,8 +25,9 @@ run "tls_publishes_443_tcp_and_udp" {
       "0.0.0.0:80->80/tcp",
       "0.0.0.0:443->443/tcp",
       "0.0.0.0:443->443/udp",
+      "0.0.0.0:8443->8443/tcp",
     ]
-    error_message = "При public_tls публикуются 80/tcp, 443/tcp и 443/udp (HTTP/3) на bind_ip."
+    error_message = "При public_tls публикуются 80/tcp, 443/tcp, 443/udp (HTTP/3) и 8443/tcp (Grafana) на bind_ip, 8443 — последним."
   }
 
   assert {
@@ -47,7 +48,7 @@ run "http_without_tls" {
     condition = [for p in docker_container.ui.ports : "${p.ip}:${p.external}->${p.internal}/${p.protocol}"] == [
       "127.0.0.1:8080->80/tcp",
     ]
-    error_message = "Без TLS публикуется только HTTP-порт, 443 нет."
+    error_message = "Без TLS публикуется только HTTP-порт: ни 443, ни 8443 Grafana нет."
   }
 
   assert {
@@ -84,8 +85,9 @@ run "container_joins_only_backend_networks" {
   command = plan
 
   assert {
-    condition     = [for n in docker_container.ui.networks_advanced : n.name] == ["dmc268", "dmc268-otlp"]
-    error_message = "Контейнер подключён ровно к двум сетям стека бэкенда: dmc268 (там dmc268-api) и dmc268-otlp (там коллектор трейсов)."
+    # networks_advanced — set: порядок элементов по имени, а не по ui.tf.
+    condition     = toset([for n in docker_container.ui.networks_advanced : n.name]) == toset(["dmc268", "dmc268-otlp", "dmc268-grafana-proxy"])
+    error_message = "Контейнер подключён ровно к трём сетям стека бэкенда: dmc268 (там dmc268-api), dmc268-otlp (там коллектор трейсов) и dmc268-grafana-proxy (там Grafana)."
   }
 
   assert {
