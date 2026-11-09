@@ -2,47 +2,93 @@
 
 ## Purpose
 
-Mock OAuth и клиентская сессия для кабинета до готовности бэкенда.
+Вход в кабинет через GitHub OAuth на бэкенде и сессия в cookie: профиль, защищённые маршруты, выход.
 
 ## Requirements
 
-### Requirement: Mock OAuth login
-
-The application SHALL offer sign-in via GitHub and GitLab in mock mode by redirecting to `/oauth/callback` with `code` and `state` query parameters after the user selects a provider.
-
-#### Scenario: Successful mock callback
-
-- **WHEN** the user completes mock OAuth and lands on `/oauth/callback` with a valid `state` matching session storage
-- **THEN** the application exchanges the code for a session (mock)
-- **AND** redirects the authenticated user to the repositories page
-
-#### Scenario: Invalid OAuth state
-
-- **WHEN** the callback `state` does not match the value stored for the login attempt
-- **THEN** the application SHALL show an error in Russian
-- **AND** SHALL NOT create a session
-
-### Requirement: Persisted session validation
-
-Data read from `localStorage` at the session boundary SHALL be treated as `unknown` and validated before use. Invalid data SHALL be removed from storage and SHALL NOT crash the application.
-
-#### Scenario: Corrupt session JSON
-
-- **WHEN** stored session value is `{}`, a partial object, or non-object JSON
-- **THEN** `loadSession` SHALL return `null`
-- **AND** SHALL clear the storage key
-
-#### Scenario: Valid session restore
-
-- **WHEN** stored session matches the expected shape and access token is not expired
-- **THEN** the user SHALL be treated as authenticated after reload
-
 ### Requirement: Protected routes
 
-Routes under the cabinet shell SHALL require authentication and SHALL redirect anonymous users to `/login` with return path preserved.
+Маршруты кабинета SHALL открываться только пользователю с действительной сессией. Сессию SHALL проверять запрос `GET /api/v1/auth/me`; ответ `401` на него или на любой другой запрос к API SHALL переводить браузер на статичную `/login?redirect=<путь>`, где путь — текущий адрес под `/app/`.
 
 #### Scenario: Anonymous user opens a cabinet route
 
-- **WHEN** an anonymous user opens `/repositories`
-- **THEN** the application SHALL redirect to `/login`
-- **AND** SHALL keep `/repositories` as the return path
+- **WHEN** пользователь без сессии открывает `/app/repositories`
+- **THEN** браузер оказывается на `/login?redirect=/app/repositories`
+
+#### Scenario: Сессия истекла посреди работы
+
+- **WHEN** пользователь на `/app/repositories` и очередной запрос к API получил `401`
+- **THEN** браузер переходит на `/login?redirect=/app/repositories`
+
+#### Scenario: Экран прогона
+
+- **WHEN** пользователь без сессии открывает `/app/reviews/42`
+- **THEN** браузер оказывается на `/login?redirect=/app/reviews/42`
+
+#### Scenario: Выход в другой вкладке
+
+- **WHEN** пользователь вернулся во вкладку кабинета, а сессия закончилась в другой вкладке
+- **THEN** профиль перезапрашивается, получает `401`, и браузер переходит на `/login?redirect=<путь>`
+
+#### Scenario: Ответ 403 не означает потерю сессии
+
+- **WHEN** запрос к API получил `403` с кодом `ORIGIN_FORBIDDEN`
+- **THEN** браузер остаётся на экране, ошибка несёт код ответа
+
+#### Scenario: Пользователь с сессией
+
+- **WHEN** `GET /api/v1/auth/me` ответил `200`
+- **THEN** кабинет открывается, в шапке — логин и аватар пользователя
+
+### Requirement: Профиль из сессии на бэкенде
+
+Профиль пользователя SHALL приходить из `GET /api/v1/auth/me` как `unknown`, SHALL проверяться схемой перед использованием и SHALL жить в кэше TanStack Query, а не в `localStorage` или store. Ответ вне схемы SHALL считаться ошибкой контракта, а не входом.
+
+#### Scenario: Ответ без логина
+
+- **WHEN** `GET /api/v1/auth/me` вернул `200` без поля `login`
+- **THEN** кабинет показывает ошибку загрузки, а не пустой профиль
+
+#### Scenario: Профиль без имени и аватара
+
+- **WHEN** `GET /api/v1/auth/me` вернул `name` и `avatar_url` равными `null` или пустой строке
+- **THEN** приветствие на обзоре показывает логин, а в шапке вместо аватара — первая буква логина
+
+### Requirement: Запросы к API несут cookie сессии
+
+Каждый запрос к API SHALL отправляться с `credentials: 'include'` и SHALL NOT нести заголовок `Authorization`. Ни один токен SHALL NOT храниться в JS.
+
+Все запросы к API, включая HTTP-реализацию транспорта данных, SHALL идти через общий `apiFetch`, чтобы обработка `401` не обходилась.
+
+#### Scenario: Запрос данных кабинета
+
+- **WHEN** кабинет запрашивает данные у API
+- **THEN** запрос идёт с cookie сессии и без `Authorization`
+
+### Requirement: Выход
+
+Выход SHALL отправлять `POST /api/v1/auth/logout` и после ответа SHALL переводить браузер на `/`. Сбой запроса, включая `401` и `403`, SHALL NOT оставлять пользователя в кабинете: переход на `/` выполняется и тогда, ровно один, без промежуточного `/login`.
+
+#### Scenario: Выход из шапки
+
+- **WHEN** пользователь нажал «Выйти»
+- **THEN** уходит `POST /api/v1/auth/logout`, затем открывается `/`
+
+#### Scenario: Сессия уже закончилась
+
+- **WHEN** `POST /api/v1/auth/logout` ответил `401`
+- **THEN** открывается `/`, перехода на `/login` не было
+
+### Requirement: Dev-сервер проксирует API
+
+В режиме разработки dev-сервер Vite SHALL проксировать `/api` на `VITE_API_PROXY_TARGET` (по умолчанию `http://localhost:8000`) без переписывания пути, пропуская cookie, и SHALL NOT отвечать на `/api` сам. Код экранов SHALL NOT зависеть от того, запущен ли он в dev-сервере.
+
+#### Scenario: Локальный запуск против бэкенда
+
+- **WHEN** dev-сервер запущен, и приложение запросило `GET /api/v1/auth/me`
+- **THEN** запрос уходит на `VITE_API_PROXY_TARGET` по тому же пути `/api/v1/auth/me` вместе с cookie `session`
+
+#### Scenario: Локальный запуск без сессии
+
+- **WHEN** разработчик открыл `/app/` в dev-сервере без cookie `session`, а бэкенд ответил на `GET /api/v1/auth/me` `401`
+- **THEN** приложение уводит на `/login`

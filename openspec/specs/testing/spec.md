@@ -37,20 +37,6 @@ Vitest SHALL быть настроен через секцию `test` в `vite.c
 - **THEN** после завершения теста компонент автоматически размонтируется через `cleanup()`
 - **AND** последующие тесты начинают с чистого DOM
 
-### Requirement: Smoke-тест App
-
-Файл `src/App.test.tsx` SHALL содержать smoke-тест, проверяющий рендер компонента `App` и взаимодействие с кнопкой-счётчиком через `@testing-library/user-event`.
-
-#### Scenario: Рендер кнопки счётчика
-
-- **WHEN** компонент `App` рендерится в тесте
-- **THEN** кнопка с ролью `button` присутствует в документе
-
-#### Scenario: Инкремент счётчика по клику
-
-- **WHEN** пользователь кликает по кнопке счётчика
-- **THEN** текст кнопки меняется с «Count is 0» на «Count is 1»
-
 ### Requirement: TypeScript-типы для тестов
 
 При `globals: true` глобальные функции Vitest (`describe`, `it`, `expect`, `vi` и др.) SHALL быть типизированы через `/// <reference types="vitest/globals" />` в `src/vite-env.d.ts`. Команда `pnpm check-types` SHALL проходить без ошибок типизации на тестовых файлах.
@@ -63,12 +49,12 @@ Vitest SHALL быть настроен через секцию `test` в `vite.c
 
 ### Requirement: Co-location тестов
 
-Тестовые файлы SHALL располагаться рядом с тестируемым модулем: `Foo.tsx` → `Foo.test.tsx`. Глобальный setup SHALL быть единственным в `src/test/setup.ts`.
+Тестовые файлы SHALL располагаться рядом с тестируемым модулем: `Foo.tsx` → `Foo.test.tsx`. Глобальный setup SHALL быть единственным в `src/test/setup.ts`. Фабрики тестовых данных SHALL располагаться в `src/test/factories.ts`.
 
 #### Scenario: Структура тестовых файлов
 
 - **WHEN** проверяется структура `src/`
-- **THEN** тест `App.test.tsx` находится рядом с `App.tsx`
+- **THEN** тест `ReviewRunView.test.tsx` находится рядом с `ReviewRunView.tsx`
 - **AND** единственный setup-файл находится в `src/test/setup.ts`
 
 ### Requirement: Игнорирование артефактов тестирования
@@ -79,3 +65,17 @@ Vitest SHALL быть настроен через секцию `test` в `vite.c
 
 - **WHEN** выполняется `git status` после `pnpm test:coverage`
 - **THEN** каталог `coverage/` не отображается как untracked
+
+### Requirement: Smoke-тест экрана прогона
+
+Интеграционный тест `src/pages/review-run/ui/ReviewRunView.test.tsx` SHALL рендерить экран прогона с подменённым adapter данных и проверять её наблюдаемое поведение через `@testing-library/user-event`. Данные SHALL подменяться на уровне `ApiTransport`, а не `fetch`.
+
+#### Scenario: Рендер экрана прогона
+
+- **WHEN** экран прогона рендерится в тесте с подменённым adapter
+- **THEN** заголовок «Прогон ревью» присутствует в документе
+
+#### Scenario: Выбор файла пользователем
+
+- **WHEN** пользователь выбирает другой файл в списке изменённых файлов
+- **THEN** показывается дифф выбранного файла
