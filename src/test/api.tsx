@@ -6,6 +6,7 @@ import { vi } from 'vitest'
 import { TransportContext, type ApiTransport } from '@/shared/api'
 
 export const ME = {
+  id: '0b6f1c0e-6a53-4a63-9f7b-3d2f6f6c1a11',
   provider: 'github',
   login: 'octocat',
   name: 'The Octocat',

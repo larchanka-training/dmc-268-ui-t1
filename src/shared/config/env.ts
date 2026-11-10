@@ -10,5 +10,11 @@ export const OTEL_EXPORTER_URL = import.meta.env.VITE_OTEL_EXPORTER_URL || undef
 /** Окружение сборки для `deployment.environment.name`. */
 export const OTEL_ENVIRONMENT = import.meta.env.VITE_OTEL_ENVIRONMENT || 'local'
 
+/**
+ * Payment Link Stripe для пополнения баланса. Без него кнопки «Пополнить» нет.
+ * Публичный адрес тестового режима, не секрет.
+ */
+export const STRIPE_PAYMENT_LINK = import.meta.env.VITE_STRIPE_PAYMENT_LINK || undefined
+
 /** Версия сборки — sha коммита (`service.version`). */
 export const APP_VERSION = import.meta.env.VITE_APP_VERSION || 'dev'

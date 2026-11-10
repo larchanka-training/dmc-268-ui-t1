@@ -11,6 +11,7 @@ describe('fetchCurrentUser', () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
 
     await expect(fetchCurrentUser()).resolves.toEqual({
+      id: ME.id,
       provider: 'github',
       login: 'octocat',
       name: 'The Octocat',

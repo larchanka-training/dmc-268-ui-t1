@@ -3,6 +3,7 @@ import { Button, Card, Col, Modal, Row, Statistic, Typography, message, theme } 
 import type { PaidRepository } from '@/entities/session'
 import { useCurrentUser } from '@/features/auth'
 import { usePendingPayerChanges, useRepositories, useStopPayment } from '@/features/repository'
+import { TopupLink, TopupNotice } from '@/features/topup'
 import { formatEuro, isNegativeAmount } from '@/shared/lib'
 
 /** Блок «Я плачу за»: репозитории из `paid_repositories` профиля и отказ от оплаты. */
@@ -74,6 +75,7 @@ export function OverviewPage() {
       <Typography.Paragraph type="secondary">
         Управляйте подключёнными репозиториями и статусом синхронизации в рабочем пространстве.
       </Typography.Paragraph>
+      <TopupNotice className="page-section" />
       <Row gutter={[16, 16]} className="page-section">
         <Col xs={24} sm={12} md={12} lg={6}>
           <Card className="app-content-card">
@@ -104,9 +106,7 @@ export function OverviewPage() {
                   : undefined
               }
             />
-            <Typography.Text type="secondary" className="text-meta">
-              Пополняет администратор сервиса
-            </Typography.Text>
+            <TopupLink userId={user.id} />
           </Card>
         </Col>
         <Col xs={24} sm={12} md={12} lg={6}>

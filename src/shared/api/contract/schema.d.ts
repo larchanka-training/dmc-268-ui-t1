@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/webhooks/stripe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Принять thin-событие Stripe и зачислить оплату на баланс
+         * @description Без сессии и без проверки Origin: доставку подтверждает подпись `Stripe-Signature`. По `v1.checkout.session.completed` и `v1.checkout.session.async_payment_succeeded` сервис запрашивает сессию Checkout у Stripe и, если у неё `mode = payment`, `payment_status = paid` и валюта `eur`, зачисляет `amount_total / 100` € пользователю из `client_reference_id` — не больше одного раза на сессию и не сверх потолка `STRIPE_TOPUP_LIMIT_EUR` на пользователя. Остальное — `200` без зачисления.
+         */
+        post: operations["receiveStripeWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/{provider}": {
         parameters: {
             query?: never;
@@ -344,6 +364,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Аналитика замечаний и длительности прогонов
+         * @description Требует сессию; параметры проверяются раньше обращения к GitHub. Агрегаты дашборда за период: замечания по UTC-дням, категориям и важности; число, средняя и p95 длительность прогонов — всего и по каждому репозиторию. Пользователю видны только прогоны репозиториев, к которым у него есть доступ на GitHub (любая роль; публичный репозиторий, на котором у пользователя роли нет, не виден), — то же правило, что у GET /repositories. Учитываются прогоны в статусе completed, сделавшие ревью: прогон без денег (coverage_reason = balance) модель не вызывал и в аналитику не входит. Считаются новые замечания: повтор открытого или закрытого человеком треда не считается. Период — по created_at прогона: created_from включительно, created_to исключительно, время с зоной; по умолчанию created_to — сейчас, created_from — за 30 дней до created_to. Замечание относится к UTC-дню своего прогона. Крайние дни периода неполные, дней без замечаний в findings_by_day нет: нули по периоду достраивает фронтенд. created_from позже created_to — 422 VALIDATION_ERROR в query.created_to, а без created_to — в query.created_from; период длиннее 180 дней — 422 VALIDATION_ERROR в query.created_from; без created_to конец берётся по часам сервера, поэтому для периода ровно в 180 дней передавайте обе границы. repository_id — только этот репозиторий; невидимый или несуществующий — 404 REPOSITORY_NOT_FOUND, как у GET /repositories/{repository_id}. В by_repository — только репозитории, у которых в периоде есть учтённые прогоны, по full_name.
+         */
+        get: operations["getAnalytics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events": {
         parameters: {
             query?: never;
@@ -389,6 +429,37 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AnalyticsResponse
+         * @description Агрегаты дашборда кабинета за период.
+         */
+        AnalyticsResponse: {
+            /**
+             * Created From
+             * Format: date-time
+             * @description Начало периода, включительно.
+             * @example 2026-10-11T10:00:00Z
+             */
+            created_from: string;
+            /**
+             * Created To
+             * Format: date-time
+             * @description Конец периода, исключительно.
+             * @example 2026-10-11T10:00:00Z
+             */
+            created_to: string;
+            /**
+             * Findings By Day
+             * @description По дню, затем по категории и важности в порядке перечислений; пар без замечаний нет.
+             */
+            findings_by_day: components["schemas"]["FindingsDayCountResponse"][];
+            runs: components["schemas"]["RunDurationsResponse"];
+            /**
+             * By Repository
+             * @description По full_name; только репозитории с прогонами.
+             */
+            by_repository: components["schemas"]["RepositoryAnalyticsResponse"][];
+        };
+        /**
          * AnyProblem
          * @description Любая ошибка — по модели на код, выбор по `code`.
          *
@@ -397,7 +468,7 @@ export interface components {
          *     `HTTP_ERROR` (прочий отказ фреймворка) и `INTERNAL_ERROR` (сбой сервера). Остальные коды
          *     операция объявляет в своих ответах; `413` — ещё и каждая операция с телом.
          */
-        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["DiffUnavailableProblem"] | components["schemas"]["CommitNotFoundProblem"] | components["schemas"]["DiffExpiredProblem"] | components["schemas"]["DiffTooLargeProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
+        AnyProblem: components["schemas"]["ValidationProblem"] | components["schemas"]["ReviewNotFoundProblem"] | components["schemas"]["RepositoryNotFoundProblem"] | components["schemas"]["RepositoryNotInInstallationProblem"] | components["schemas"]["RepositoryAlreadyConnectedProblem"] | components["schemas"]["RepositoryManageRequiredProblem"] | components["schemas"]["ProviderNotSupportedProblem"] | components["schemas"]["ReviewAlreadyActiveProblem"] | components["schemas"]["WebhookSignatureInvalidProblem"] | components["schemas"]["ScmUnavailableProblem"] | components["schemas"]["DiffUnavailableProblem"] | components["schemas"]["CommitNotFoundProblem"] | components["schemas"]["DiffExpiredProblem"] | components["schemas"]["DiffTooLargeProblem"] | components["schemas"]["UnauthenticatedProblem"] | components["schemas"]["OriginForbiddenProblem"] | components["schemas"]["RouteNotFoundProblem"] | components["schemas"]["MethodNotAllowedProblem"] | components["schemas"]["RequestBodyTooLargeProblem"] | components["schemas"]["NotImplementedProblem"] | components["schemas"]["PaymentsDisabledProblem"] | components["schemas"]["PaymentProviderUnavailableProblem"] | components["schemas"]["HttpErrorProblem"] | components["schemas"]["InternalErrorProblem"];
         /**
          * CommentKind
          * @description Форма комментария, публикуемого обратно на хостинг.
@@ -894,6 +965,23 @@ export interface components {
          */
         FindingSeverity: "low" | "medium" | "high" | "critical";
         /**
+         * FindingsDayCountResponse
+         * @description Сколько замечаний одной категории и важности нашли прогоны одного UTC-дня.
+         */
+        FindingsDayCountResponse: {
+            /**
+             * Date
+             * Format: date
+             * @description UTC-день created_at прогона.
+             * @example 2026-11-10
+             */
+            date: string;
+            category: components["schemas"]["FindingCategory"];
+            severity: components["schemas"]["FindingSeverity"];
+            /** Count */
+            count: number;
+        };
+        /**
          * HttpErrorProblem
          * @description `HTTP_ERROR`: прочий отказ фреймворка или зависимости со статусом, у которого нет своего кода.
          *
@@ -1333,6 +1421,118 @@ export interface components {
             full_name: string;
         };
         /**
+         * PaymentProviderUnavailableProblem
+         * @description `502 PAYMENT_PROVIDER_UNAVAILABLE`: сессию оплаты не удалось получить у Stripe — сеть,
+         *     тайм-аут, отказ API или ключа; ничего не зачислено. Stripe повторит доставку.
+         * @example {
+         *       "code": "PAYMENT_PROVIDER_UNAVAILABLE",
+         *       "detail": "Stripe не отдал сессию оплаты: ничего не зачислено, Stripe повторит доставку.",
+         *       "instance": "/api/v1/webhooks/stripe",
+         *       "status": 502,
+         *       "title": "Платёжный провайдер недоступен",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:payment-provider-unavailable"
+         *     }
+         */
+        PaymentProviderUnavailableProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:payment-provider-unavailable
+             * @constant
+             */
+            type: "urn:dmc-268:problem:payment-provider-unavailable";
+            /**
+             * Title
+             * @default Платёжный провайдер недоступен
+             * @constant
+             */
+            title: "Платёжный провайдер недоступен";
+            /**
+             * Status
+             * @default 502
+             * @constant
+             */
+            status: 502;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "PAYMENT_PROVIDER_UNAVAILABLE";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
+         * PaymentsDisabledProblem
+         * @description `503 PAYMENTS_DISABLED`: приём оплаты Stripe на этом стенде не настроен (`STRIPE_WEBHOOK_SECRET`
+         *     или `STRIPE_API_KEY` пуст); событие не прочитано, ничего не зачислено. Stripe повторит доставку.
+         * @example {
+         *       "code": "PAYMENTS_DISABLED",
+         *       "detail": "Приём оплаты Stripe не настроен: событие не принято, ничего не зачислено.",
+         *       "instance": "/api/v1/webhooks/stripe",
+         *       "status": 503,
+         *       "title": "Приём оплаты выключен",
+         *       "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+         *       "type": "urn:dmc-268:problem:payments-disabled"
+         *     }
+         */
+        PaymentsDisabledProblem: {
+            /**
+             * Type
+             * @default urn:dmc-268:problem:payments-disabled
+             * @constant
+             */
+            type: "urn:dmc-268:problem:payments-disabled";
+            /**
+             * Title
+             * @default Приём оплаты выключен
+             * @constant
+             */
+            title: "Приём оплаты выключен";
+            /**
+             * Status
+             * @default 503
+             * @constant
+             */
+            status: 503;
+            /**
+             * Detail
+             * @description Что случилось в этом запросе, по-русски, без значений из запроса.
+             */
+            detail: string;
+            /**
+             * Instance
+             * Format: uri-reference
+             * @description Путь запроса без query в том виде, в каком он пришёл, — закодированный (`/api/v1/a%20b`). Это ссылка на запрос, а не эхо ввода: запрет повторять переданное значение относится к `detail` и `errors`.
+             */
+            instance: string;
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            code: "PAYMENTS_DISABLED";
+            /**
+             * Trace Id
+             * @description Trace id запроса — 32 строчных hex-символа (формат trace-id W3C Trace Context). Тот же, что в заголовке `X-Trace-ID` и в строке лога сервера о сбое.
+             * @example 4bf92f3577b34da6a3ce929d0e0e4736
+             */
+            trace_id: string;
+        };
+        /**
          * Provider
          * @description Хостинг системы контроля версий, где живёт репозиторий.
          * @enum {string}
@@ -1532,6 +1732,43 @@ export interface components {
              * @example 4bf92f3577b34da6a3ce929d0e0e4736
              */
             trace_id: string;
+        };
+        /**
+         * RepositoryAnalyticsResponse
+         * @description Аналитика одного репозитория за период.
+         */
+        RepositoryAnalyticsResponse: {
+            /**
+             * Repository Id
+             * Format: uuid
+             */
+            repository_id: string;
+            /**
+             * Full Name
+             * @description Имя репозитория, записанное при подключении.
+             * @example octo-org/api
+             */
+            full_name: string;
+            /**
+             * Runs Count
+             * @description Сколько прогонов учтено.
+             */
+            runs_count: number;
+            /**
+             * Average Duration Seconds
+             * @description Средняя. Длительность прогона в секундах — от захвата воркером до завершения.
+             */
+            average_duration_seconds: number;
+            /**
+             * P95 Duration Seconds
+             * @description 95-й перцентиль (percentile_cont). Длительность прогона в секундах — от захвата воркером до завершения.
+             */
+            p95_duration_seconds: number;
+            /**
+             * Findings Count
+             * @description Замечания учтённых прогонов.
+             */
+            findings_count: number;
         };
         /**
          * RepositoryListItem
@@ -2738,6 +2975,27 @@ export interface components {
             status: "unavailable";
         };
         /**
+         * RunDurationsResponse
+         * @description Учтённые прогоны периода и их длительность.
+         */
+        RunDurationsResponse: {
+            /**
+             * Count
+             * @description Сколько прогонов учтено.
+             */
+            count: number;
+            /**
+             * Average Duration Seconds
+             * @description Средняя. Длительность прогона в секундах — от захвата воркером до завершения. null — прогонов нет.
+             */
+            average_duration_seconds: number | null;
+            /**
+             * P95 Duration Seconds
+             * @description 95-й перцентиль с интерполяцией (percentile_cont). Длительность прогона в секундах — от захвата воркером до завершения. null — прогонов нет.
+             */
+            p95_duration_seconds: number | null;
+        };
+        /**
          * RunUsageResponse
          * @description Расход вызовов модели прогона: токены по видам и стоимость у провайдера.
          *
@@ -2854,6 +3112,18 @@ export interface components {
             checked_at: string;
         };
         /**
+         * StripeWebhookReceived
+         * @description Тело `200` приёма события Stripe.
+         */
+        StripeWebhookReceived: {
+            /**
+             * Status
+             * @description `credited` — оплата зачислена; `duplicate` — эта сессия оплаты уже зачислена; `ignored` — событие ничего не зачисляет: другое событие, не разовая оплата, неоплаченная сессия, не евро, неизвестный пользователь в `client_reference_id`, превышен потолок пополнений через Stripe.
+             * @enum {string}
+             */
+            status: "credited" | "duplicate" | "ignored";
+        };
+        /**
          * TriggerSource
          * @description Из-за чего был создан прогон ревью.
          * @enum {string}
@@ -2919,6 +3189,12 @@ export interface components {
          * @description Пользователь кабинета — учётная запись у провайдера входа.
          */
         UserResponse: {
+            /**
+             * Id
+             * Format: uuid
+             * @description Id пользователя сервиса. Ссылка оплаты Stripe (Payment Link) передаёт его в параметре `client_reference_id`: по нему вебхук находит, чей баланс пополнить.
+             */
+            id: string;
             /**
              * @description Провайдер, через которого выполнен вход.
              * @example github
@@ -3072,7 +3348,8 @@ export interface components {
         };
         /**
          * WebhookSignatureInvalidProblem
-         * @description `401 WEBHOOK_SIGNATURE_INVALID`: подписи вебхука нет или она не сошлась.
+         * @description `WEBHOOK_SIGNATURE_INVALID`: подписи вебхука нет или она не сошлась — GitHub `401`,
+         *     Stripe `400`, как велит его документация.
          * @example {
          *       "code": "WEBHOOK_SIGNATURE_INVALID",
          *       "detail": "Подписи X-Hub-Signature-256 нет, или она не совпала с телом доставки.",
@@ -3098,10 +3375,9 @@ export interface components {
             title: "Подпись вебхука не прошла проверку";
             /**
              * Status
-             * @default 401
-             * @constant
+             * @enum {integer}
              */
-            status: 401;
+            status: 400 | 401;
             /**
              * Detail
              * @description Что случилось в этом запросе, по-русски, без значений из запроса.
@@ -3147,6 +3423,77 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    receiveStripeWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Событие принято; в `status` — зачислено ли. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StripeWebhookReceived"];
+                };
+            };
+            /** @description Подписи `Stripe-Signature` нет, она не совпала с телом или старше 300 с, или тело не thin-событие Stripe; ничего не зачислено. */
+            400: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["WebhookSignatureInvalidProblem"];
+                };
+            };
+            /** @description Тело больше лимита (вебхук — `WEBHOOK_BODY_MAX_BYTES`, 2 МиБ; остальные — `REQUEST_BODY_MAX_BYTES`, 1 МиБ): по `Content-Length` отказ без чтения тела, поток без него обрывается на лимите. Ни разбора тела, ни сессии, ни подписи до отказа нет; соединение закрывается. */
+            413: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RequestBodyTooLargeProblem"];
+                };
+            };
+            /** @description Stripe не отдал сессию оплаты (сеть, тайм-аут, отказ API или ключа); ничего не зачислено, Stripe повторит доставку. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["PaymentProviderUnavailableProblem"];
+                };
+            };
+            /** @description `STRIPE_WEBHOOK_SECRET` или `STRIPE_API_KEY` не задан: приём оплаты выключен, событие не прочитано, ничего не зачислено. */
+            503: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["PaymentsDisabledProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
     receiveWebhook: {
         parameters: {
             query?: never;
@@ -4658,6 +5005,84 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ReviewNotFoundProblem"];
+                };
+            };
+            /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
+            422: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description GitHub не ответил или ответил ошибкой, когда считался набор видимых репозиториев или обновлялся токен пользователя. */
+            502: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ScmUnavailableProblem"];
+                };
+            };
+            /** @description Любая другая ошибка — тело из каталога, клиент ветвится по `code`. Так приходят `404 ROUTE_NOT_FOUND`, `405 METHOD_NOT_ALLOWED`, `413 REQUEST_BODY_TOO_LARGE`, `HTTP_ERROR` и `500 INTERNAL_ERROR`. */
+            default: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["AnyProblem"];
+                };
+            };
+        };
+    };
+    getAnalytics: {
+        parameters: {
+            query?: {
+                /** @description Только этот репозиторий; не задан — все видимые. */
+                repository_id?: string | null;
+                /** @description Начало периода (включительно), время с зоной; по умолчанию — за 30 дней до created_to. */
+                created_from?: string | null;
+                /** @description Конец периода (исключительно), время с зоной; по умолчанию — сейчас. */
+                created_to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Агрегаты за период. */
+            200: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalyticsResponse"];
+                };
+            };
+            /** @description Нет действительной сессии. Пришедшая недействительная cookie `session` удаляется в том же ответе. */
+            401: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["UnauthenticatedProblem"];
+                };
+            };
+            /** @description Репозитория с таким id нет. */
+            404: {
+                headers: {
+                    "X-Trace-ID": components["headers"]["X-Trace-ID"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["RepositoryNotFoundProblem"];
                 };
             };
             /** @description Параметр пути, запроса или тело не прошли проверку; в `errors` — где и почему, без самого значения. */
