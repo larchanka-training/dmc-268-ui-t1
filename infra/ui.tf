@@ -60,6 +60,39 @@ resource "docker_container" "ui" {
   memory      = 128
   memory_swap = 128
 
+  # Мастер nginx стартует от root, воркеры работают от пользователя nginx. Из
+  # capabilities оставлено то, без чего nginx не обслуживает запросы (проверено
+  # на Docker 29 с выпуском сертификата у pebble, #79): CHOWN — мастер отдаёт
+  # nginx каталоги /var/cache/nginx/*_temp и том ACME; SETUID и SETGID — переход
+  # воркеров на nginx, без них жив только мастер; NET_BIND_SERVICE — порты 80 и
+  # 443. Docker открывает их и без него (ip_unprivileged_port_start = 0 в сети
+  # контейнера), но это настройка демона, а не образа.
+  #
+  # read_only нет: tmpfs поверх conf.d прячет status.conf образа (счётчики и
+  # healthcheck на 8081 молча пропадают), а тела вебхуков до 25 МБ nginx
+  # буферизует в /var/cache/nginx — в tmpfs они легли бы в потолок памяти.
+  # Воркеры, принимающие трафик, и так пишут только туда и на том ACME.
+  security_opts = ["no-new-privileges:true"]
+
+  capabilities {
+    add  = ["CHOWN", "NET_BIND_SERVICE", "SETGID", "SETUID"]
+    drop = ["ALL"]
+  }
+
+  # stub_status (nginx/status.conf) отвечает в обоих режимах, без TLS и без
+  # бэкенда. Ловит то, чего без проверки не видит Docker: мастер жив, а воркеров
+  # нет. Деплой healthcheck не ждёт: готовность меряет снаружи пробник apply.sh.
+  # shortcut: правку healthcheck провайдер планирует на месте, а Docker её не
+  # применяет (infra/app.tf бэкенда); контейнер пересоздаётся только с новым
+  # digest образа, а он новый на каждом деплое. Ручной apply со старым ui_image
+  # оставит прежнюю проверку: тогда replace_triggered_by, как в бэкенде.
+  healthcheck {
+    test     = ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/stub_status"]
+    interval = "30s"
+    timeout  = "5s"
+    retries  = 3
+  }
+
   # Логи nginx — в Loki через коллектор логов бэкенда на петле хоста: он скрывает
   # IP клиентов и query в URL (коды OAuth). Опции — те же, что local.fluentd_log_opts
   # в infra бэкенда (dmc-268-api-t1, infra/README.md, «Логи контейнеров»): async —
