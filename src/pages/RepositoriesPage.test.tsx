@@ -299,6 +299,8 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
     await waitFor(() => expect(reviewSwitch('larchanka-training/docs')).toBeChecked())
     expect(post).toHaveBeenCalledWith('/repositories', { provider: 'github', provider_id: '102' })
     expect(backend.get).toHaveBeenCalledTimes(2)
+    // Подключивший стал плательщиком: `/auth/me` перечитан.
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
     expect(
       screen.getByRole('link', { name: 'Настройки larchanka-training/docs' }),
     ).toBeInTheDocument()
@@ -531,7 +533,43 @@ describe('RepositoriesPage — плательщик', () => {
     expect(await screen.findByText('octocat')).toBeInTheDocument()
     expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined)
     expect(backend.get).toHaveBeenCalledTimes(2)
+    // `paid_repositories` изменился: `/auth/me` перечитан.
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
     expect(payButton('acme/alice-pays')).not.toBeInTheDocument()
+  })
+
+  it('две строки подряд: первая ждёт ответа — её кнопка занята и после второго подтверждения', async () => {
+    const user = userEvent.setup()
+    // Первый POST не отвечает, второй отвечает сразу.
+    const post = vi.fn((path: string) =>
+      path === '/repositories/repo-5/payer' ? new Promise<null>(() => {}) : Promise.resolve(null),
+    )
+    renderRepositoriesPage({ get: listBackend([NO_PAYER, ALICE]).get, post })
+    const payFor = async (name: string, title: string) => {
+      await user.click(payButton(name)!)
+      // Закрытое окно в jsdom остаётся в DOM (анимация не кончается), а id заголовка у окон
+      // один и тот же: нужное окно ищем по тексту, а не по имени.
+      const dialog = await waitFor(() => {
+        const found = screen.getAllByRole('dialog').find((d) => d.textContent?.includes(title))
+        expect(found).toBeDefined()
+        return found!
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Платить' }))
+    }
+
+    await screen.findByText('acme/no-payer')
+    await payFor('acme/no-payer', 'Платить за acme/no-payer?')
+    await waitFor(() => expect(payButton('acme/no-payer')).toHaveAttribute('aria-busy', 'true'))
+    await payFor('acme/alice-pays', 'Платить за acme/alice-pays?')
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined))
+    await waitFor(() => expect(payButton('acme/alice-pays')).toHaveAttribute('aria-busy', 'false'))
+    expect(payButton('acme/no-payer')).toHaveAttribute('aria-busy', 'true')
+    // Занятая кнопка не принимает нажатие: нового подтверждения и второго POST нет.
+    const dialogs = screen.getAllByRole('dialog').length
+    await user.click(payButton('acme/no-payer')!)
+    expect(screen.getAllByRole('dialog')).toHaveLength(dialogs)
+    expect(post).toHaveBeenCalledTimes(2)
   })
 
   it.each([

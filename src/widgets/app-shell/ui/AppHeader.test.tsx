@@ -132,9 +132,8 @@ describe('Баланс в шапке', () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '0' } } })
     renderAppHeader()
 
-    const { node, text } = await balance()
+    const { text } = await balance()
     expect(text).toBe('Баланс: 0,00 €')
-    expect(node).not.toHaveClass('ant-typography-danger')
   })
 
   it('отрицательный баланс выделен', async () => {
@@ -143,6 +142,8 @@ describe('Баланс в шапке', () => {
 
     const { node, text } = await balance()
     expect(text).toBe('Баланс: -0,01 €')
+    // Исключение из правила «без селекторов по классам»: цвет у Typography задаёт CSS-переменная
+    // темы, а jsdom её не вычисляет, так что выделение видно только по классу `type="danger"`.
     expect(node).toHaveClass('ant-typography-danger')
   })
 })

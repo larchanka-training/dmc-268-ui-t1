@@ -43,7 +43,8 @@ PR (change `review-limits`), показ удалённого по сроку д�
 
 - Код: `src/shared/api/contract/*` (генерация), `src/shared/lib/format.ts` (`formatEuro`),
   `src/entities/session`, `src/entities/repository`, `src/entities/review-run`,
-  `src/features/repository` (мутации плательщика), `src/features/auth`, `src/pages/OverviewPage.tsx`,
+  `src/features/repository` (мутации плательщика), `src/features/auth`,
+  `src/features/live-run-status` (перечитать `/auth/me` по `run.finished`), `src/pages/OverviewPage.tsx`,
   `src/pages/RepositoriesPage.tsx`, `src/pages/reviews`, `src/pages/review-run`,
   `src/widgets/app-shell`, `src/widgets/review-run-view`; `tsconfig.json` — библиотека
   `ES2023.Intl` для форматирования десятичной строки.

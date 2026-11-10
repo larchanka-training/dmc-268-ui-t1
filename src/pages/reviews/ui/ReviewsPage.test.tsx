@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RepositoryListItem } from '@/entities/repository'
 import type { ReviewRunListItem } from '@/entities/review-run'
+import { CURRENT_USER_KEY } from '@/entities/session'
 import { LIST_REFETCH_THROTTLE } from '@/features/live-run-status'
 import { ApiError, EventStreamContext, TransportContext } from '@/shared/api'
-import { fakeTransport } from '@/test/api'
+import { fakeTransport, ME } from '@/test/api'
 import { createFakeEventStream, type FakeEventStream } from '@/test/fakeEventStream'
 import { makeRunListItem } from '@/test/factories'
 
@@ -122,7 +123,7 @@ function renderPage(url = '/reviews') {
     </QueryClientProvider>,
   )
   const search = () => new URLSearchParams(router.state.location.search)
-  return { router, search, unmount }
+  return { router, search, unmount, client }
 }
 
 /** Следующие ответы списка ждут `release()`: снимок прочитан сейчас, а придёт позже. */
@@ -332,6 +333,20 @@ describe('ReviewsPage: обновления из потока', () => {
     expect(within(rows[0]).getByText('#200 Свежий PR')).toBeInTheDocument()
     expect(screen.getByText('Найдено прогонов: 4')).toBeInTheDocument()
     expect(backend.calls).toHaveLength(calls)
+  })
+
+  it('run.finished помечает профиль устаревшим: баланс в шапке перечитается', async () => {
+    const { client } = renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    client.setQueryData(CURRENT_USER_KEY, ME)
+    const profileStale = () => client.getQueryState(CURRENT_USER_KEY)?.isInvalidated
+    const run = { ...makeRuns(1)[0], updated_at: '2026-09-20T12:05:00Z' }
+
+    act(() => stream.emitRun({ ...run, status: 'publishing' }))
+    expect(profileStale()).toBe(false)
+
+    act(() => stream.emitRun({ ...run, status: 'completed' }, 'run.finished'))
+    expect(profileStale()).toBe(true)
   })
 
   it('событие старше строки её не меняет', async () => {

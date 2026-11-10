@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { theme } from 'antd'
 import { MemoryRouter } from 'react-router-dom'
 
 import { RequireAuth } from '@/features/auth'
@@ -124,20 +125,17 @@ describe('OverviewPage', () => {
       )
     }
 
-    /** Значение карточки «Баланс» с обычными пробелами вместо неразрывных. */
-    async function balanceCard() {
-      const title = await screen.findByText('Баланс')
-      const card = title.closest('.ant-card') as HTMLElement
-      return { card, text: card.textContent?.replace(/\s/g, ' ') ?? '' }
-    }
+    // Цвет ошибки — токен темы по умолчанию: тест рендерит без `ThemeProvider`.
+    const errorColor = theme.getDesignToken().colorError
 
     it('баланс в евро; положительный — без выделения', async () => {
       stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '4.75' } } })
       renderOverview()
 
-      const { text } = await balanceCard()
-      expect(text).toContain('4,75 €')
-      expect(text).toContain('Пополняет администратор сервиса')
+      expect(await screen.findByText('Баланс')).toBeInTheDocument()
+      // Intl ставит неразрывные пробелы, нормализатор Testing Library сводит их к обычным.
+      expect(screen.getByText('4,75 €')).not.toHaveStyle({ color: errorColor })
+      expect(screen.getByText('Пополняет администратор сервиса')).toBeInTheDocument()
     })
 
     it('отрицательный баланс выделен цветом, знаки после запятой не теряются', async () => {
@@ -146,9 +144,7 @@ describe('OverviewPage', () => {
       })
       renderOverview()
 
-      const { card, text } = await balanceCard()
-      expect(text).toContain('-1 234,0000000001 €')
-      expect(card.querySelector('.ant-statistic-content')).toHaveStyle({ color: '#cf1322' })
+      expect(await screen.findByText('-1 234,0000000001 €')).toHaveStyle({ color: errorColor })
     })
 
     it('не платит ни за что — так и сказано', async () => {
@@ -186,6 +182,47 @@ describe('OverviewPage', () => {
       expect(screen.getByText('acme/web')).toBeInTheDocument()
       expect(fetchCalls).toHaveLength(2)
       expect(get).toHaveBeenCalledTimes(2)
+    })
+
+    it('две строки подряд: первая ждёт ответа — её кнопка занята и после второго подтверждения', async () => {
+      const user = userEvent.setup()
+      stubFetch({
+        'GET /api/v1/auth/me': { status: 200, body: { ...ME, paid_repositories: PAID } },
+      })
+      // Первый DELETE не отвечает, второй отвечает сразу.
+      const del = vi.fn((path: string) =>
+        path === '/repositories/repo-1/payer' ? new Promise<null>(() => {}) : Promise.resolve(null),
+      )
+      renderOverview(fakeTransport({ get: noRepositories.get, delete: del }))
+      const stopButton = (name: string) =>
+        screen.getByRole('button', { name: `Перестать платить за ${name}` })
+      const confirmStop = async (name: string) => {
+        await user.click(stopButton(name))
+        // Закрытое окно в jsdom остаётся в DOM (анимация не кончается), а id заголовка у окон
+        // один и тот же: нужное окно ищем по тексту, а не по имени.
+        const dialog = await waitFor(() => {
+          const found = screen
+            .getAllByRole('dialog')
+            .find((d) => d.textContent?.includes(`Перестать платить за ${name}?`))
+          expect(found).toBeDefined()
+          return found!
+        })
+        await user.click(within(dialog).getByRole('button', { name: 'Перестать платить' }))
+      }
+
+      await screen.findByText('acme/api')
+      await confirmStop('acme/api')
+      await waitFor(() => expect(stopButton('acme/api')).toHaveAttribute('aria-busy', 'true'))
+      await confirmStop('acme/web')
+
+      await waitFor(() => expect(del).toHaveBeenCalledWith('/repositories/repo-2/payer'))
+      await waitFor(() => expect(stopButton('acme/web')).toHaveAttribute('aria-busy', 'false'))
+      expect(stopButton('acme/api')).toHaveAttribute('aria-busy', 'true')
+      // Занятая кнопка не принимает нажатие: нового подтверждения и второго DELETE нет.
+      const dialogs = screen.getAllByRole('dialog').length
+      await user.click(stopButton('acme/api'))
+      expect(screen.getAllByRole('dialog')).toHaveLength(dialogs)
+      expect(del).toHaveBeenCalledTimes(2)
     })
 
     it('404 REPOSITORY_NOT_FOUND — виден detail ответа', async () => {

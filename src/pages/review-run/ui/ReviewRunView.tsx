@@ -115,11 +115,7 @@ export function ReviewRunView() {
           onRetry={() => void review.refetch()}
         />
       )}
-      {/* Прогон без денег модель не вызывал: «можно мёржить» по пустому списку было бы ложью. */}
-      <RunHeader
-        run={run}
-        verdict={isRefusedForBalance(run) ? null : runVerdict(run.status, findings)}
-      />
+      <RunHeader run={run} verdict={runVerdict(run, findings)} />
       {!isTerminalStatus(run.status) && (
         <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />
       )}

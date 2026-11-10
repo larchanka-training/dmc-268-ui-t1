@@ -3,6 +3,7 @@ export {
   formatDuration,
   formatEuro,
   formatNumber,
+  isNegativeAmount,
   safeExternalUrl,
   shortSha,
 } from './format'

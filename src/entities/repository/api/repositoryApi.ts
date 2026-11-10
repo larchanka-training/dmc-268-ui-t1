@@ -1,5 +1,4 @@
 import {
-  RepositoryPayerSchema,
   RepositorySchema,
   RepositoryListSchema,
   type ConnectRepositoryRequest,
@@ -65,11 +64,14 @@ export async function disconnectRepository(
 
 /**
  * «Платить за этот репозиторий»: плательщиком становится вызывающий. Без роли admin или
- * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или неподключённый — `404`.
+ * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или неподключённый — `404`. Тело ответа
+ * не нужно: после ответа перечитываются список и профиль.
  */
-export async function takeOverPayment(transport: ApiTransport, repositoryId: string) {
-  const path = `${repositoryPath(repositoryId)}/payer`
-  return parseResponse(RepositoryPayerSchema, path, await transport.post(path, undefined))
+export async function takeOverPayment(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<void> {
+  await transport.post(`${repositoryPath(repositoryId)}/payer`, undefined)
 }
 
 /** «Перестать платить»: `204`; не плательщику и при повторе — `404 REPOSITORY_NOT_FOUND`. */

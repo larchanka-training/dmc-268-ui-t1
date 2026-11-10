@@ -9,7 +9,7 @@ import {
   type ReviewRunListItem,
   type RunStage,
 } from '../../../entities/review-run'
-import { fetchCurrentUser } from '../../../entities/session'
+import { CURRENT_USER_KEY, fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
 import { usePageVisible } from '../../../shared/lib'
 import { API_V1_BASE_URL } from '../../../shared/config/env'
@@ -120,6 +120,12 @@ export function useRunLiveStatus<TData>({
           // запросом, а поток прогону больше не нужен.
           close()
           void queryClient.invalidateQueries({ queryKey })
+          // Прогон списал или вернул резерв плательщика: баланс в шапке и на «Обзоре» устарел.
+          // `cancelRefetch: false` — уже идущий запрос профиля не обрывается, а переиспользуется.
+          void queryClient.invalidateQueries(
+            { queryKey: CURRENT_USER_KEY },
+            { cancelRefetch: false },
+          )
         }
       },
     })

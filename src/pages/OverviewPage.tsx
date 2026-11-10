@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom'
-import { Button, Card, Col, Modal, Row, Statistic, Typography, message } from 'antd'
+import { Button, Card, Col, Modal, Row, Statistic, Typography, message, theme } from 'antd'
 import type { PaidRepository } from '@/entities/session'
 import { useCurrentUser } from '@/features/auth'
-import { useRepositories, useStopPayment } from '@/features/repository'
-import { formatEuro } from '@/shared/lib'
+import { usePendingPayerChanges, useRepositories, useStopPayment } from '@/features/repository'
+import { formatEuro, isNegativeAmount } from '@/shared/lib'
 
 /** Блок «Я плачу за»: репозитории из `paid_repositories` профиля и отказ от оплаты. */
 function PaidRepositoriesCard({ repositories }: { repositories: PaidRepository[] }) {
   const stop = useStopPayment()
+  const pending = usePendingPayerChanges()
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
 
@@ -45,7 +46,8 @@ function PaidRepositoriesCard({ repositories }: { repositories: PaidRepository[]
               <Button
                 size="small"
                 aria-label={`Перестать платить за ${repo.fullName}`}
-                loading={stop.isPending && stop.variables === repo.id}
+                aria-busy={pending.includes(repo.id)}
+                loading={pending.includes(repo.id)}
                 onClick={() => confirmStop(repo)}
               >
                 Перестать платить
@@ -60,7 +62,7 @@ function PaidRepositoriesCard({ repositories }: { repositories: PaidRepository[]
 
 export function OverviewPage() {
   const user = useCurrentUser()
-  const negativeBalance = user.balanceEur.startsWith('-')
+  const { token } = theme.useToken()
   const { data, isLoading, isLoadingError, refetch } = useRepositories()
   const connectedCount = data?.items.filter((repo) => repo.connected).length
 
@@ -96,7 +98,11 @@ export function OverviewPage() {
             <Statistic
               title="Баланс"
               value={formatEuro(user.balanceEur)}
-              valueStyle={negativeBalance ? { color: '#cf1322' } : undefined}
+              styles={
+                isNegativeAmount(user.balanceEur)
+                  ? { content: { color: token.colorError } }
+                  : undefined
+              }
             />
             <Typography.Text type="secondary" className="text-meta">
               Пополняет администратор сервиса

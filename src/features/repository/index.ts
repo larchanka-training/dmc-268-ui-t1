@@ -2,6 +2,7 @@ export {
   repositoryKeys,
   useConnectRepository,
   useDisconnectRepository,
+  usePendingPayerChanges,
   usePendingReviewToggles,
   useRepositories,
   useRepository,

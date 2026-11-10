@@ -20,6 +20,7 @@ import { useCurrentUser } from '@/features/auth'
 import {
   useConnectRepository,
   useDisconnectRepository,
+  usePendingPayerChanges,
   usePendingReviewToggles,
   useRepositories,
   useTakeOverPayment,
@@ -112,6 +113,7 @@ export function RepositoriesPage() {
   const pending = usePendingReviewToggles()
   const user = useCurrentUser()
   const takeOver = useTakeOverPayment()
+  const payerPending = usePendingPayerChanges()
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -308,7 +310,8 @@ export function RepositoriesPage() {
                 size="small"
                 className="px-0"
                 aria-label={`Платить за этот репозиторий: ${record.full_name}`}
-                loading={takeOver.isPending && takeOver.variables === record.id}
+                aria-busy={payerPending.includes(record.id)}
+                loading={payerPending.includes(record.id)}
                 onClick={() => payFor(record)}
               >
                 Платить за этот репозиторий

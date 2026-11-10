@@ -19,6 +19,7 @@ export const repositoryKeys = {
   list: ['repositories', 'list'] as const,
   connect: ['repositories', 'connect'] as const,
   disconnect: ['repositories', 'disconnect'] as const,
+  payer: ['repositories', 'payer'] as const,
   repository: (repositoryId: string) => ['repositories', repositoryId] as const,
   settings: (repositoryId: string) => ['repositories', repositoryId, 'settings'] as const,
   rules: (repositoryId: string) => ['repositories', repositoryId, 'rules'] as const,
@@ -94,16 +95,26 @@ export function usePendingReviewToggles() {
  * Смена плательщика меняет и строку списка (`payer_login`), и профиль (`paid_repositories`):
  * перечитываются оба, и после ошибки тоже — плательщика могли сменить параллельно.
  */
-function usePayerMutation(request: (transport: ApiTransport, id: string) => Promise<unknown>) {
+function usePayerMutation(request: (transport: ApiTransport, id: string) => Promise<void>) {
   const transport = useTransport()
   const queryClient = useQueryClient()
   return useMutation({
+    mutationKey: repositoryKeys.payer,
     mutationFn: (repositoryId: string) => request(transport, repositoryId),
     onSettled: () =>
       Promise.all([
         queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
         queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
       ]),
+  })
+}
+
+/** Репозитории, у которых смена плательщика ждёт ответа; из кэша мутаций — как `usePendingReviewToggles`. */
+export function usePendingPayerChanges() {
+  return useMutationState({
+    filters: { mutationKey: repositoryKeys.payer, status: 'pending' },
+    // Переменные мутации с этим ключом — всегда id репозитория из `usePayerMutation`.
+    select: (mutation) => mutation.state.variables as string,
   })
 }
 

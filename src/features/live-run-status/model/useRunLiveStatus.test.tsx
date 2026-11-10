@@ -9,6 +9,7 @@ import {
   type ReviewRun,
   type ReviewRunListItem,
 } from '../../../entities/review-run'
+import { CURRENT_USER_KEY } from '../../../entities/session'
 import { EventStreamContext } from '../../../shared/api'
 import { navigation } from '../../../shared/lib'
 import { ME, stubFetch } from '../../../test/api'
@@ -88,6 +89,7 @@ function renderHarness(initial: Partial<ReviewRun> = { status: 'analysing' }) {
       </EventStreamContext>
     </QueryClientProvider>,
   )
+  return queryClient
 }
 
 function setVisibility(state: 'visible' | 'hidden') {
@@ -232,6 +234,18 @@ describe('useRunLiveStatus', () => {
     // Запоздавшие события после завершения запросов не плодят.
     act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
     expect(fetches).toBe(1)
+  })
+
+  it('run.finished помечает профиль устаревшим, промежуточные события — нет', () => {
+    const queryClient = renderHarness()
+    queryClient.setQueryData(CURRENT_USER_KEY, ME)
+    const profileStale = () => queryClient.getQueryState(CURRENT_USER_KEY)?.isInvalidated
+
+    act(() => stream.emitRun({ status: 'publishing', updated_at: '2026-09-20T14:20:00Z' }))
+    expect(profileStale()).toBe(false)
+
+    act(() => stream.emitRun({ status: 'completed' }, 'run.finished'))
+    expect(profileStale()).toBe(true)
   })
 
   it('run.finished закрывает подписку, даже если кэш после него не терминальный', async () => {

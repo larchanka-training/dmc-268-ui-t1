@@ -33,9 +33,6 @@ export const RepositoryListItemSchema = z.object({
   payer_login: z.string().nullable(),
 })
 
-/** Ответ `POST …/payer`: плательщиком стал вызывающий. */
-export const RepositoryPayerSchema = z.object({ payer_login: z.string() })
-
 /** Список и адрес экрана установки приложения; `install_url` — `null`, если slug неизвестен. */
 export const RepositoryListSchema = z.object({
   items: z.array(RepositoryListItemSchema),
@@ -52,6 +49,5 @@ export type ConnectRepositoryRequest = ApiSchemas['ConnectRepositoryRequest']
 const contractCheck: [
   MatchesContract<z.infer<typeof RepositorySchema>, ApiSchemas['RepositoryResponse']>,
   MatchesContract<z.infer<typeof RepositoryListSchema>, ApiSchemas['RepositoryListResponse']>,
-  MatchesContract<z.infer<typeof RepositoryPayerSchema>, ApiSchemas['RepositoryPayerResponse']>,
-] = [true, true, true]
+] = [true, true]
 void contractCheck

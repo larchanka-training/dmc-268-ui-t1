@@ -47,6 +47,11 @@ export function formatEuro(amount: string): string {
   return DECIMAL.test(amount) ? euroFormat.format(amount as `${number}`) : `${amount} €`
 }
 
+/** Отрицательная ли сумма из десятичной строки API: выделяется цветом ошибки. */
+export function isNegativeAmount(amount: string): boolean {
+  return amount.startsWith('-')
+}
+
 /** Внешняя ссылка из API допустима только по http(s): `javascript:` и прочие схемы отбрасываются. */
 export function safeExternalUrl(url: string): string | null {
   try {
