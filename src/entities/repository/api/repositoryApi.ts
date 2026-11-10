@@ -64,7 +64,7 @@ export async function disconnectRepository(
 
 /**
  * «Платить за этот репозиторий»: плательщиком становится вызывающий. Без роли admin или
- * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или неподключённый — `404`. Тело ответа
+ * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или несуществующий — `404`. Тело ответа
  * не нужно: после ответа перечитываются список и профиль.
  */
 export async function takeOverPayment(
