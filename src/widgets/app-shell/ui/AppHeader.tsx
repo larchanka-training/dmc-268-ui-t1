@@ -2,6 +2,7 @@ import { MoonOutlined, SunOutlined } from '@ant-design/icons'
 import { Avatar, Button, Dropdown, Layout, Space, Tag, Typography } from 'antd'
 import { useCurrentUser, useLogout } from '@/features/auth'
 import { useAppTheme } from '@/features/theme'
+import { formatEuro, isNegativeAmount } from '@/shared/lib'
 import styles from '@/widgets/app-shell/ui/AppHeader.module.css'
 
 const { Header } = Layout
@@ -23,6 +24,9 @@ export function AppHeader() {
     <Header className={`app-shell-header-bar app-main-header ${styles.header}`}>
       <Typography.Text type="secondary">Учебное рабочее пространство</Typography.Text>
       <Space size="middle">
+        <Typography.Text type={isNegativeAmount(user.balanceEur) ? 'danger' : 'secondary'}>
+          Баланс: {formatEuro(user.balanceEur)}
+        </Typography.Text>
         <Button
           type="text"
           icon={mode === 'light' ? <MoonOutlined /> : <SunOutlined />}

@@ -102,6 +102,17 @@ describe('applyRunEvent', () => {
     expect(next.id).toBe(run.id)
   })
 
+  it('переносит coverage_reason: прогон без денег сразу не выглядит чистым ревью', () => {
+    const run = makeReviewRun({ status: 'analysing', coverage_reason: null })
+
+    const next = applyRunEvent(
+      run,
+      makeRunListItem({ status: 'completed', coverage_reason: 'balance' }),
+    )
+
+    expect(next).toMatchObject({ status: 'completed', coverage_reason: 'balance' })
+  })
+
   it('событие старше прогона проигрывает, равное по updated_at — применяется', () => {
     const run = makeReviewRun({ status: 'analysing', updated_at: '2026-09-20T14:07:14.5Z' })
 

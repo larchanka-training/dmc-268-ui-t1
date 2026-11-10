@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDateTime, formatDuration, safeExternalUrl, shortSha } from './format'
+import { formatDateTime, formatDuration, formatEuro, safeExternalUrl, shortSha } from './format'
 
 describe('formatDuration', () => {
   it.each([
@@ -37,5 +37,25 @@ describe('safeExternalUrl', () => {
 
   it.each(['javascript:alert(1)', 'data:text/html,x', 'не адрес'])('отбрасывает %s', (url) => {
     expect(safeExternalUrl(url)).toBeNull()
+  })
+})
+
+describe('formatEuro', () => {
+  it.each([
+    ['4.75', '4,75 €'],
+    ['0', '0,00 €'],
+    ['-0.01', '-0,01 €'],
+    ['-12.5', '-12,50 €'],
+    ['1234567.89', '1 234 567,89 €'],
+    // Через Number здесь потерялся бы последний знак: 17 значащих цифр больше точности double.
+    ['1234567890.0000000001', '1 234 567 890,0000000001 €'],
+    ['0.0001234567', '0,0001234567 €'],
+  ])('%s → %s', (amount, expected) => {
+    // Intl ставит неразрывные пробелы: сравниваем с обычными.
+    expect(formatEuro(amount).replace(/\s/g, ' ')).toBe(expected)
+  })
+
+  it('не число показывает как есть', () => {
+    expect(formatEuro('abc')).toBe('abc €')
   })
 })

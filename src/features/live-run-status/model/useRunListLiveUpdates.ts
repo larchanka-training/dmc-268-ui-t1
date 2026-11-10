@@ -8,7 +8,7 @@ import {
   type ReviewRunListItem,
   type ReviewRunListPage,
 } from '../../../entities/review-run'
-import { fetchCurrentUser } from '../../../entities/session'
+import { CURRENT_USER_KEY, fetchCurrentUser } from '../../../entities/session'
 import { ContractError, useEventStream, type StreamState } from '../../../shared/api'
 import { usePageVisible } from '../../../shared/lib'
 import { EVENTS_PATH } from './useRunLiveStatus'
@@ -145,6 +145,14 @@ export function useRunListLiveUpdates({
         if (!parsed.success) {
           console.error(new ContractError(`${EVENTS_PATH} ${type}`, parsed.error.message))
           return
+        }
+        // Завершённый прогон мог изменить баланс плательщика: профиль перечитывается.
+        // Пачка `run.finished` не обрывает уже идущий запрос профиля, а ждёт его.
+        if (type === 'run.finished') {
+          void queryClient.invalidateQueries(
+            { queryKey: CURRENT_USER_KEY },
+            { cancelRefetch: false },
+          )
         }
         const { queryKey: key, listKey: root, canUpsert: upsert, pageSize: size } = current.current
         // Другие страницы и фильтры из кэша устарели: при возврате к ним — перезапрос.

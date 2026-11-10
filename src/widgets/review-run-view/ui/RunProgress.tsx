@@ -2,6 +2,7 @@ import { Alert, Steps } from 'antd'
 import { useEffect, useState } from 'react'
 
 import {
+  isRefusedForBalance,
   isRunStage,
   isTerminalStatus,
   RUN_STAGES,
@@ -62,6 +63,9 @@ function describeProgress(run: ReviewRun, seenStage: RunStage | null): View {
     case 'queued':
       return { steps: allSteps('wait'), caption: 'В очереди' }
     case 'completed':
+      // Без денег прогон остановился после сбора контекста: анализа и публикации не было.
+      if (isRefusedForBalance(run))
+        return { steps: stepsAround('analysing', 'wait'), caption: null }
       return { steps: allSteps('finish'), caption: null }
     case 'failed': {
       const stage = isRunStage(run.failed_stage) ? run.failed_stage : seenStage

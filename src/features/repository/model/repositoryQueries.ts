@@ -7,15 +7,19 @@ import {
   fetchRepositorySettings,
   fetchRulesStatus,
   saveRepositorySettings,
+  stopPayment,
+  takeOverPayment,
   type ConnectRepositoryRequest,
   type RepositorySettingsUpdate,
 } from '@/entities/repository'
-import { ApiError, useTransport } from '@/shared/api'
+import { CURRENT_USER_KEY } from '@/entities/session'
+import { ApiError, useTransport, type ApiTransport } from '@/shared/api'
 
 export const repositoryKeys = {
   list: ['repositories', 'list'] as const,
   connect: ['repositories', 'connect'] as const,
   disconnect: ['repositories', 'disconnect'] as const,
+  payer: ['repositories', 'payer'] as const,
   repository: (repositoryId: string) => ['repositories', repositoryId] as const,
   settings: (repositoryId: string) => ['repositories', repositoryId, 'settings'] as const,
   rules: (repositoryId: string) => ['repositories', repositoryId, 'rules'] as const,
@@ -50,7 +54,12 @@ export function useConnectRepository() {
         if (!alreadyConnected) throw error
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+    // Первое подключение делает подключившего плательщиком: меняется и `paid_repositories`.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+        queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
+      ]),
   })
 }
 
@@ -80,6 +89,43 @@ export function usePendingReviewToggles() {
     select: (mutation) => mutation.state.variables as string,
   })
   return { connecting, disconnecting }
+}
+
+/**
+ * Смена плательщика меняет и строку списка (`payer_login`), и профиль (`paid_repositories`):
+ * перечитываются оба, и после ошибки тоже — плательщика могли сменить параллельно.
+ */
+function usePayerMutation(request: (transport: ApiTransport, id: string) => Promise<void>) {
+  const transport = useTransport()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationKey: repositoryKeys.payer,
+    mutationFn: (repositoryId: string) => request(transport, repositoryId),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+        queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
+      ]),
+  })
+}
+
+/** Репозитории, у которых смена плательщика ждёт ответа; из кэша мутаций — как `usePendingReviewToggles`. */
+export function usePendingPayerChanges() {
+  return useMutationState({
+    filters: { mutationKey: repositoryKeys.payer, status: 'pending' },
+    // Переменные мутации с этим ключом — всегда id репозитория из `usePayerMutation`.
+    select: (mutation) => mutation.state.variables as string,
+  })
+}
+
+/** «Платить за этот репозиторий» — `POST …/payer`. */
+export function useTakeOverPayment() {
+  return usePayerMutation(takeOverPayment)
+}
+
+/** «Перестать платить» — `DELETE …/payer`. */
+export function useStopPayment() {
+  return usePayerMutation(stopPayment)
 }
 
 /** Заголовок экрана настроек: один репозиторий `GET /repositories/{id}`, без списка. */

@@ -65,6 +65,13 @@ describe('RunProgress', () => {
     expect(stepStates()).toEqual(['завершён', 'завершён', 'завершён'])
   })
 
+  it('прогон без денег: контекст собран, анализ и публикация не начинались', () => {
+    renderProgress({ status: 'completed', coverage_reason: 'balance' })
+
+    expect(stepStates()).toEqual(['завершён', 'ожидает', 'ожидает'])
+    expect(stepClasses()).toEqual(['finish', 'wait', 'wait'])
+  })
+
   it('сбой на известном этапе: ошибка на нём, причина рядом', () => {
     renderProgress({
       status: 'failed',

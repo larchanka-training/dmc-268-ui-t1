@@ -29,6 +29,8 @@ export const RepositoryListItemSchema = z.object({
   id: z.string().nullable(),
   can_connect: z.boolean(),
   connected_at: z.string().nullable(),
+  /** Логин плательщика; `null` — плательщика нет, и ревью репозитория не идёт. */
+  payer_login: z.string().nullable(),
 })
 
 /** Список и адрес экрана установки приложения; `install_url` — `null`, если slug неизвестен. */

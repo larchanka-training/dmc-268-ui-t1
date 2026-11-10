@@ -23,6 +23,7 @@ const LIST_ITEM: RepositoryListItem = {
   id: REPOSITORY_ID,
   can_connect: true,
   connected_at: '2026-09-28T08:30:00Z',
+  payer_login: 'octocat',
 }
 
 const REPOSITORY: Repository = {

@@ -62,6 +62,23 @@ export async function disconnectRepository(
   await transport.delete(repositoryPath(repositoryId))
 }
 
+/**
+ * «Платить за этот репозиторий»: плательщиком становится вызывающий. Без роли admin или
+ * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или несуществующий — `404`. Тело ответа
+ * не нужно: после ответа перечитываются список и профиль.
+ */
+export async function takeOverPayment(
+  transport: ApiTransport,
+  repositoryId: string,
+): Promise<void> {
+  await transport.post(`${repositoryPath(repositoryId)}/payer`, undefined)
+}
+
+/** «Перестать платить»: `204`; не плательщику и при повторе — `404 REPOSITORY_NOT_FOUND`. */
+export async function stopPayment(transport: ApiTransport, repositoryId: string): Promise<void> {
+  await transport.delete(`${repositoryPath(repositoryId)}/payer`)
+}
+
 export async function fetchRepository(
   transport: ApiTransport,
   repositoryId: string,

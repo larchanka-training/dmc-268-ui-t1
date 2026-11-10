@@ -1,10 +1,13 @@
 import { useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
 
-import { fetchCurrentUser, logoutSession, type CurrentUser } from '@/entities/session'
+import {
+  CURRENT_USER_KEY,
+  fetchCurrentUser,
+  logoutSession,
+  type CurrentUser,
+} from '@/entities/session'
 import { navigation } from '@/shared/lib'
-
-const CURRENT_USER_KEY = ['auth', 'me'] as const
 
 /** Профиль считается свежим полминуты: чаще при возврате в вкладку не перезапрашиваем. */
 const PROFILE_STALE_TIME_MS = 30_000

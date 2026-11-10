@@ -8,7 +8,7 @@ import {
   SeverityBadge,
   type ReviewFinding,
 } from '../../../entities/review-finding'
-import { isTerminalStatus, type ReviewRun } from '../../../entities/review-run'
+import { isRefusedForBalance, isTerminalStatus, type ReviewRun } from '../../../entities/review-run'
 
 type Props = {
   run: ReviewRun
@@ -63,7 +63,8 @@ export function ReviewSummary({ run, findings, publishedComments }: Props) {
           Прогон не дошёл до конца — список замечаний может быть неполным.
         </p>
       )}
-      {findings.length === 0 && !partial && (
+      {/* Без денег ревью не было: «Замечаний нет» выдавало бы его за чистое, причина — в шапке. */}
+      {findings.length === 0 && !partial && !isRefusedForBalance(run) && (
         <p className="mt-4 text-sm text-slate-600">
           {finished ? 'Замечаний нет.' : 'Ревью ещё идёт — замечания появятся по мере анализа.'}
         </p>

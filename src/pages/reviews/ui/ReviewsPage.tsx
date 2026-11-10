@@ -1,10 +1,15 @@
 import { ExportOutlined } from '@ant-design/icons'
-import { Select, Table, Typography } from 'antd'
+import { Select, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
-import { RUN_TRIGGER_LABELS, RunStatusBadge, type ReviewRunListItem } from '@/entities/review-run'
+import {
+  isRefusedForBalance,
+  RUN_TRIGGER_LABELS,
+  RunStatusBadge,
+  type ReviewRunListItem,
+} from '@/entities/review-run'
 import { ConnectionNotice, useRunListLiveUpdates } from '@/features/live-run-status'
 import {
   clampPage,
@@ -72,7 +77,13 @@ const columns: ColumnsType<ReviewRunListItem> = [
   {
     title: 'Статус',
     key: 'status',
-    render: (_, run) => <RunStatusBadge status={run.status} />,
+    render: (_, run) => (
+      <Space size={4} wrap>
+        <RunStatusBadge status={run.status} />
+        {/* «Завершён» без вызова модели — не чистое ревью: видно без открытия прогона. */}
+        {isRefusedForBalance(run) && <Tag color="warning">Нет средств</Tag>}
+      </Space>
+    ),
   },
   {
     title: 'Запуск',

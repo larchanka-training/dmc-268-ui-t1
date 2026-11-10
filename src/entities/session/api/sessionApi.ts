@@ -6,12 +6,18 @@ import type { ApiSchemas, MatchesContract } from '@/shared/api/contract'
 
 const ME_PATH = '/auth/me'
 
+/** Ключ кэша профиля: его перечитывают и мутации, меняющие баланс или оплачиваемые репозитории. */
+export const CURRENT_USER_KEY = ['auth', 'me'] as const
+
 // Поля в snake_case — как отвечает бэкенд (контракт, `UserResponse`).
 export const currentUserSchema = z.object({
   provider: z.enum(['github', 'gitlab']),
   login: z.string().min(1),
   name: z.string().nullable(),
   avatar_url: z.string().nullable(),
+  // Точная десятичная строка в евро, может быть отрицательной: в число не переводим.
+  balance_eur: z.string(),
+  paid_repositories: z.array(z.object({ id: z.string(), full_name: z.string() })),
 })
 
 // Ответ разбирается ровно в тип `UserResponse` из контракта; разойдутся — упадёт typecheck.
@@ -26,7 +32,17 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
   const response = await apiFetch(ME_PATH)
   const data: unknown = await response.json()
   const me = parseResponse(currentUserSchema, ME_PATH, data)
-  return { provider: me.provider, login: me.login, name: me.name, avatarUrl: me.avatar_url }
+  return {
+    provider: me.provider,
+    login: me.login,
+    name: me.name,
+    avatarUrl: me.avatar_url,
+    balanceEur: me.balance_eur,
+    paidRepositories: me.paid_repositories.map((repo) => ({
+      id: repo.id,
+      fullName: repo.full_name,
+    })),
+  }
 }
 
 /** Удаляет сессию на бэкенде; cookie удаляет ответ. */

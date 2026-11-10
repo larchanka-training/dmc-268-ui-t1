@@ -6,9 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { RepositoryListItem } from '@/entities/repository'
 import type { ReviewRunListItem } from '@/entities/review-run'
+import { CURRENT_USER_KEY } from '@/entities/session'
 import { LIST_REFETCH_THROTTLE } from '@/features/live-run-status'
 import { ApiError, EventStreamContext, TransportContext } from '@/shared/api'
-import { fakeTransport } from '@/test/api'
+import { fakeTransport, ME } from '@/test/api'
 import { createFakeEventStream, type FakeEventStream } from '@/test/fakeEventStream'
 import { makeRunListItem } from '@/test/factories'
 
@@ -26,6 +27,7 @@ const repository = (n: number, name: string): RepositoryListItem => ({
   connected: true,
   can_connect: true,
   connected_at: '2026-09-01T10:00:00Z',
+  payer_login: null,
 })
 
 /** Репозиторий без записи в сервисе: прогонов у него нет, в фильтр он не попадает. */
@@ -121,7 +123,7 @@ function renderPage(url = '/reviews') {
     </QueryClientProvider>,
   )
   const search = () => new URLSearchParams(router.state.location.search)
-  return { router, search, unmount }
+  return { router, search, unmount, client }
 }
 
 /** Следующие ответы списка ждут `release()`: снимок прочитан сейчас, а придёт позже. */
@@ -193,6 +195,16 @@ describe('ReviewsPage: таблица и URL', () => {
       'https://github.com/acme/api/pull/7',
     )
     expect(screen.getByText('Найдено прогонов: 1')).toBeInTheDocument()
+  })
+
+  it('прогон без денег отличается от чистого ревью меткой «Нет средств»', async () => {
+    const [refused, clean] = makeRuns(2).map((run) => ({ ...run, status: 'completed' }))
+    backend.rows = [{ ...refused, coverage_reason: 'balance' }, clean]
+    renderPage()
+
+    await screen.findByText('#100 Изменение 1')
+    expect(within(rowOf('#100 Изменение 1')).getByText('Нет средств')).toBeInTheDocument()
+    expect(within(rowOf('#99 Изменение 2')).queryByText('Нет средств')).not.toBeInTheDocument()
   })
 
   it('берёт поиск, фильтры, страницу и размер из URL', async () => {
@@ -321,6 +333,20 @@ describe('ReviewsPage: обновления из потока', () => {
     expect(within(rows[0]).getByText('#200 Свежий PR')).toBeInTheDocument()
     expect(screen.getByText('Найдено прогонов: 4')).toBeInTheDocument()
     expect(backend.calls).toHaveLength(calls)
+  })
+
+  it('run.finished помечает профиль устаревшим: баланс в шапке перечитается', async () => {
+    const { client } = renderPage()
+    await screen.findByText('Найдено прогонов: 3')
+    client.setQueryData(CURRENT_USER_KEY, ME)
+    const profileStale = () => client.getQueryState(CURRENT_USER_KEY)?.isInvalidated
+    const run = { ...makeRuns(1)[0], updated_at: '2026-09-20T12:05:00Z' }
+
+    act(() => stream.emitRun({ ...run, status: 'publishing' }))
+    expect(profileStale()).toBe(false)
+
+    act(() => stream.emitRun({ ...run, status: 'completed' }, 'run.finished'))
+    expect(profileStale()).toBe(true)
   })
 
   it('событие старше строки её не меняет', async () => {

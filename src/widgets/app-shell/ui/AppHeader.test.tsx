@@ -119,3 +119,31 @@ describe('Профиль без имени и аватара', () => {
     expect(screen.getByText('O')).toBeInTheDocument()
   })
 })
+
+describe('Баланс в шапке', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  const balance = async () => {
+    const node = await screen.findByText(/^Баланс:/)
+    return { node, text: node.textContent?.replace(/\s/g, ' ') }
+  }
+
+  it('баланс в евро рядом с профилем', async () => {
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '0' } } })
+    renderAppHeader()
+
+    const { text } = await balance()
+    expect(text).toBe('Баланс: 0,00 €')
+  })
+
+  it('отрицательный баланс выделен', async () => {
+    stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '-0.01' } } })
+    renderAppHeader()
+
+    const { node, text } = await balance()
+    expect(text).toBe('Баланс: -0,01 €')
+    // Исключение из правила «без селекторов по классам»: цвет у Typography задаёт CSS-переменная
+    // темы, а jsdom её не вычисляет, так что выделение видно только по классу `type="danger"`.
+    expect(node).toHaveClass('ant-typography-danger')
+  })
+})

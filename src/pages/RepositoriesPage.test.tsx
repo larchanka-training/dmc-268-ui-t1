@@ -1,16 +1,29 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
 import { RouterProvider, createMemoryRouter } from 'react-router-dom'
 import type { ConnectRepositoryRequest, RepositoryListItem } from '@/entities/repository'
 import { ApiError, type ApiTransport } from '@/shared/api'
 import { RepositoriesPage } from '@/pages/RepositoriesPage'
 import { RepositorySettingsPage } from '@/pages/RepositorySettingsPage'
-import { fakeTransport, renderWithTransport } from '@/test/api'
+import { RequireAuth } from '@/features/auth'
+import { fakeTransport, ME, renderWithTransport, stubFetch } from '@/test/api'
 
 const INSTALL_URL = 'https://github.com/apps/dmc-268-review/installations/new'
 const NO_RIGHTS =
   'Включать и выключать ревью может участник с ролью admin или maintain в этом репозитории'
+
+afterEach(() => vi.unstubAllGlobals())
+
+/**
+ * Профиль — из `fetch` (`RequireAuth`), как в приложении: по логину строка решает, показывать ли
+ * «Платить за этот репозиторий».
+ */
+function withProfile(ui: ReactNode) {
+  stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+  return <RequireAuth>{ui}</RequireAuth>
+}
 
 /** Строка списка: подключённый (по умолчанию), `connected: false` — выключенный или новый. */
 function repository(
@@ -27,6 +40,7 @@ function repository(
     id: `repo-${n}`,
     can_connect: true,
     connected_at: '2026-09-28T08:30:00Z',
+    payer_login: 'octocat',
     ...overrides,
   }
 }
@@ -61,7 +75,7 @@ function renderRepositoriesPage(
     { initialEntries: [url] },
   )
   const view = renderWithTransport(
-    <RouterProvider router={router} />,
+    withProfile(<RouterProvider router={router} />),
     fakeTransport(typeof transport === 'function' ? { get: transport } : transport),
   )
   return { ...view, router }
@@ -285,6 +299,8 @@ describe('RepositoriesPage — переключатель «Ревью»', () =>
     await waitFor(() => expect(reviewSwitch('larchanka-training/docs')).toBeChecked())
     expect(post).toHaveBeenCalledWith('/repositories', { provider: 'github', provider_id: '102' })
     expect(backend.get).toHaveBeenCalledTimes(2)
+    // Подключивший стал плательщиком: `/auth/me` перечитан.
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
     expect(
       screen.getByRole('link', { name: 'Настройки larchanka-training/docs' }),
     ).toBeInTheDocument()
@@ -475,6 +491,108 @@ describe('RepositoriesPage — ошибки выключения', () => {
   })
 })
 
+describe('RepositoriesPage — плательщик', () => {
+  const PAY = 'Платить за этот репозиторий'
+  const payButton = (name: string) => screen.queryByRole('button', { name: `${PAY}: ${name}` })
+  const NO_PAYER = repository(5, 'acme/no-payer', { payer_login: null })
+  const ALICE = repository(6, 'acme/alice-pays', { payer_login: 'alice' })
+  const NO_RIGHTS = repository(7, 'acme/no-rights', { payer_login: 'bob', can_connect: false })
+
+  it('колонка «Плательщик»: логин, «нет» с предупреждением; кнопка — где платит не текущий пользователь', async () => {
+    renderRepositoriesPage(listBackend([ON, NO_PAYER, ALICE, NO_RIGHTS, OFF]).get)
+
+    await screen.findByText('acme/no-payer')
+    expect(screen.getByRole('columnheader', { name: 'Плательщик' })).toBeInTheDocument()
+    expect(screen.getByText('alice')).toBeInTheDocument()
+    expect(screen.getByText('нет')).toBeInTheDocument()
+    expect(screen.getAllByText('Без плательщика ревью не запускается')).toHaveLength(1)
+    // `ON` оплачивает сам octocat, у `OFF` нет записи в сервисе — кнопки нет.
+    expect(payButton('larchanka-training/platform-api')).not.toBeInTheDocument()
+    expect(payButton('larchanka-training/docs')).not.toBeInTheDocument()
+    expect(payButton('acme/no-payer')).toBeInTheDocument()
+    expect(payButton('acme/alice-pays')).toBeInTheDocument()
+    // Без admin или maintain кнопки нет: бэкенд ответил бы 403.
+    expect(payButton('acme/no-rights')).not.toBeInTheDocument()
+  })
+
+  it('«Платить за этот репозиторий»: подтверждение, POST …/payer, список перечитан', async () => {
+    const user = userEvent.setup()
+    const backend = listBackend([ALICE])
+    const post = vi.fn(async () => {
+      backend.state.items = [{ ...ALICE, payer_login: 'octocat' }]
+      return { payer_login: 'octocat' }
+    })
+    renderRepositoriesPage({ get: backend.get, post })
+
+    await screen.findByText('alice')
+    await user.click(payButton('acme/alice-pays')!)
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('вместо баланса alice')
+    await user.click(within(dialog).getByRole('button', { name: 'Платить' }))
+
+    expect(await screen.findByText('octocat')).toBeInTheDocument()
+    expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined)
+    expect(backend.get).toHaveBeenCalledTimes(2)
+    // `paid_repositories` изменился: `/auth/me` перечитан.
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2))
+    expect(payButton('acme/alice-pays')).not.toBeInTheDocument()
+  })
+
+  it('две строки подряд: первая ждёт ответа — её кнопка занята и после второго подтверждения', async () => {
+    const user = userEvent.setup()
+    // Первый POST не отвечает, второй отвечает сразу.
+    const post = vi.fn((path: string) =>
+      path === '/repositories/repo-5/payer' ? new Promise<null>(() => {}) : Promise.resolve(null),
+    )
+    renderRepositoriesPage({ get: listBackend([NO_PAYER, ALICE]).get, post })
+    const payFor = async (name: string, title: string) => {
+      await user.click(payButton(name)!)
+      // Закрытое окно в jsdom остаётся в DOM (анимация не кончается), а id заголовка у окон
+      // один и тот же: нужное окно ищем по тексту, а не по имени.
+      const dialog = await waitFor(() => {
+        const found = screen.getAllByRole('dialog').find((d) => d.textContent?.includes(title))
+        expect(found).toBeDefined()
+        return found!
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Платить' }))
+    }
+
+    await screen.findByText('acme/no-payer')
+    await payFor('acme/no-payer', 'Платить за acme/no-payer?')
+    await waitFor(() => expect(payButton('acme/no-payer')).toHaveAttribute('aria-busy', 'true'))
+    await payFor('acme/alice-pays', 'Платить за acme/alice-pays?')
+
+    await waitFor(() => expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined))
+    await waitFor(() => expect(payButton('acme/alice-pays')).toHaveAttribute('aria-busy', 'false'))
+    expect(payButton('acme/no-payer')).toHaveAttribute('aria-busy', 'true')
+    // Занятая кнопка не принимает нажатие: нового подтверждения и второго POST нет.
+    const dialogs = screen.getAllByRole('dialog').length
+    await user.click(payButton('acme/no-payer')!)
+    expect(screen.getAllByRole('dialog')).toHaveLength(dialogs)
+    expect(post).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    [403, 'REPOSITORY_MANAGE_REQUIRED'],
+    [404, 'REPOSITORY_NOT_FOUND'],
+  ])('%i %s — detail ответа, плательщик прежний', async (status, code) => {
+    const user = userEvent.setup()
+    const post = vi.fn(async () => {
+      throw new ApiError(status, 'detail бэкенда', code)
+    })
+    renderRepositoriesPage({ get: listBackend([NO_PAYER]).get, post })
+
+    await screen.findByText('acme/no-payer')
+    await user.click(payButton('acme/no-payer')!)
+    await user.click(
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Платить' }),
+    )
+
+    expect(await screen.findByText('detail бэкенда')).toBeInTheDocument()
+    expect(screen.getByText('нет')).toBeInTheDocument()
+  })
+})
+
 describe('RepositoriesPage — возврат с GitHub', () => {
   it.each([
     ['?connected=2', 'Подключено репозиториев: 2'],
@@ -535,7 +653,7 @@ function renderPaginatedAt(url: string) {
     initialEntries: [url],
   })
   renderWithTransport(
-    <RouterProvider router={router} />,
+    withProfile(<RouterProvider router={router} />),
     fakeTransport({ get: async () => list(many) }),
   )
   return router
@@ -653,7 +771,7 @@ function renderFilteredAt(url: string) {
     initialEntries: [url],
   })
   renderWithTransport(
-    <RouterProvider router={router} />,
+    withProfile(<RouterProvider router={router} />),
     fakeTransport({ get: async () => list(mixed) }),
   )
   return router

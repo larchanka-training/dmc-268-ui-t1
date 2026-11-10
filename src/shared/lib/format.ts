@@ -29,6 +29,29 @@ export function formatNumber(value: number): string {
   return value.toLocaleString('ru-RU')
 }
 
+const euroFormat = new Intl.NumberFormat('ru-RU', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2,
+  // У бэкенда деньги — Numeric(20, 10): десять знаков после запятой хватает на любую сумму.
+  maximumFractionDigits: 10,
+})
+
+const DECIMAL = /^-?\d+(\.\d+)?$/
+
+/**
+ * Сумма в евро из десятичной строки API (`"4.75"`, `"-0.01"`). Строка уходит в `Intl` как есть,
+ * без `Number`: в числе с плавающей точкой копейки больших сумм теряются. Не число — как есть.
+ */
+export function formatEuro(amount: string): string {
+  return DECIMAL.test(amount) ? euroFormat.format(amount as `${number}`) : `${amount} €`
+}
+
+/** Отрицательная ли сумма из десятичной строки API: выделяется цветом ошибки. */
+export function isNegativeAmount(amount: string): boolean {
+  return amount.startsWith('-')
+}
+
 /** Внешняя ссылка из API допустима только по http(s): `javascript:` и прочие схемы отбрасываются. */
 export function safeExternalUrl(url: string): string | null {
   try {

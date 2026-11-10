@@ -181,7 +181,9 @@ flowchart LR
 Серверные данные идут через `useTransport()` из `shared/api` в кэш TanStack Query; запросы,
 мутации и правку кэша (`useQueryClient`) держат перечисленные слайсы. Исключение —
 `features/auth`: профиль и выход (`entities/session`) вызывают `apiFetch` напрямую, мимо
-`useTransport()`, поэтому подмена adapter их не покрывает. Живые статусы прогонов
+`useTransport()`, поэтому подмена adapter их не покрывает. Ключ кэша профиля `CURRENT_USER_KEY`
+живёт в `entities/session`; `features/repository` и `features/live-run-status` инвалидируют его,
+когда меняется плательщик или завершается прогон: баланс и `paid_repositories` устаревают. Живые статусы прогонов
 приходят другим путём: `useRunLiveStatus` и `useRunListLiveUpdates` из `features/live-run-status`
 читают события из `useEventStream()` и пишут их в кэш через `setQueryData`. UI-состояние живёт в
 двух Zustand-сторах: `widgets/review-workspace` и `features/filter-findings`. Тема
