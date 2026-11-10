@@ -40,4 +40,5 @@
 - [x] 8.1 После архива `review-run-diff-viewer` и `session-cookie` — `openspec archive cabinet-without-mocks` (#130)
 - [x] 8.2 При архиве — Purpose `openspec/specs/cabinet-auth/spec.md`: вход через бэкенд и cookie сессии вместо «Mock OAuth… до готовности бэкенда» (дельтой Purpose не меняется)
 - [x] 8.3 Дельта `cabinet-repository-settings`: из «Состояния данных экрана» убрана граница «mock adapter и HTTP-клиент» (сверка в #130)
-- [x] 8.4 Дельта `review-run-view` при архиве (#130): «Дифф и шаги из контракта» заменено на «Дифф и шаги с бэкенда» (REMOVED + ADDED — MODIFIED не убирает сценарий `501`), текст «Ошибка загрузки части прогона» сокращён до 500 символов для `openspec validate --strict`; в `cabinet-shell` «mock adapter» → «мок транспорта»
+- [x] 8.4 Дельта `review-run-view` при архиве (#130): «Дифф и шаги из контракта» заменено на «Дифф и шаги с бэкенда» (REMOVED + ADDED — MODIFIED не убирает сценарий `501`), текст «Ошибка загрузки части прогона» сокращён до 500 символов для `openspec validate --strict` с сохранением того, что прогон с замечаниями списком остаётся на экране (ревью #143); в `cabinet-shell` «mock adapter» → «мок транспорта»
+- [x] 8.5 Дельты `review-run-view` «Экран прогона» и `testing` «Smoke-тест экрана прогона» (ревью #143): «adapter» → «бэкенд» и «фейк `ApiTransport`»
