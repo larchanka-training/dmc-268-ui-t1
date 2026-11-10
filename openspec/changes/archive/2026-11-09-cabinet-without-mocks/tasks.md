@@ -22,7 +22,7 @@
 ## 5. Сборка, CI, доставка
 
 - [x] 5.1 `Dockerfile`, `ci.yml` (job `image`: build-arg, шаг «Мока входа нет в образе», комментарий), `deploy.yml` (тег — только sha, без build-arg); фикстуры тегов в `.github/tests/deploy-report.test.mjs` и `infra/tests/main.tftest.hcl`; `grep VITE_USE_MOCK_API` по репозиторию пуст
-- [ ] 5.2 После мёржа в `develop`: `gh variable delete VITE_USE_MOCK_API`, `gh variable list` её не показывает
+- [x] 5.2 После мёржа в `develop`: `gh variable delete VITE_USE_MOCK_API`, `gh variable list` её не показывает — переменная удалена ранее, 09.11 нет ни в репозитории, ни в окружении `stand`
 
 ## 6. Документация
 
@@ -33,9 +33,12 @@
 ## 7. Проверка
 
 - [x] 7.1 Все гейты: `typecheck`, `lint`, `stylelint`, `format:check`, `test`, `api:check`, `openspec validate cabinet-without-mocks --strict`
-- [ ] 7.2 Локально против бэкенда: вход, репозитории, настройки, прогон, выход
+- [x] 7.2 Локально против бэкенда: вход, репозитории, настройки, прогон, выход — проверено 09.11 (`make run-local`, `pnpm dev`)
 
 ## 8. Архив
 
-- [ ] 8.1 После архива `review-run-diff-viewer` и `session-cookie` — `openspec archive cabinet-without-mocks` (#130)
-- [ ] 8.2 При архиве — Purpose `openspec/specs/cabinet-auth/spec.md`: вход через бэкенд и cookie сессии вместо «Mock OAuth… до готовности бэкенда» (дельтой Purpose не меняется)
+- [x] 8.1 После архива `review-run-diff-viewer` и `session-cookie` — `openspec archive cabinet-without-mocks` (#130)
+- [x] 8.2 При архиве — Purpose `openspec/specs/cabinet-auth/spec.md`: вход через бэкенд и cookie сессии вместо «Mock OAuth… до готовности бэкенда» (дельтой Purpose не меняется)
+- [x] 8.3 Дельта `cabinet-repository-settings`: из «Состояния данных экрана» убрана граница «mock adapter и HTTP-клиент» (сверка в #130)
+- [x] 8.4 Дельта `review-run-view` при архиве (#130): «Дифф и шаги из контракта» заменено на «Дифф и шаги с бэкенда» (REMOVED + ADDED — MODIFIED не убирает сценарий `501`), текст «Ошибка загрузки части прогона» сокращён до 500 символов для `openspec validate --strict` с сохранением того, что прогон с замечаниями списком остаётся на экране (ревью #143); в `cabinet-shell` «mock adapter» → «мок транспорта»
+- [x] 8.5 Дельты `review-run-view` «Экран прогона» и `testing` «Smoke-тест экрана прогона» (ревью #143): «adapter» → «бэкенд» и «фейк `ApiTransport`»
