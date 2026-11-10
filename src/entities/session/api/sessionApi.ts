@@ -11,6 +11,7 @@ export const CURRENT_USER_KEY = ['auth', 'me'] as const
 
 // Поля в snake_case — как отвечает бэкенд (контракт, `UserResponse`).
 export const currentUserSchema = z.object({
+  id: z.string(),
   provider: z.enum(['github', 'gitlab']),
   login: z.string().min(1),
   name: z.string().nullable(),

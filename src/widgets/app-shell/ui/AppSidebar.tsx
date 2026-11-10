@@ -1,4 +1,5 @@
 import {
+  BarChartOutlined,
   BookOutlined,
   CloudServerOutlined,
   DashboardOutlined,
@@ -14,6 +15,7 @@ import styles from '@/widgets/app-shell/ui/AppSidebar.module.css'
 const navItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Обзор' },
   { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
+  { key: '/analytics', icon: <BarChartOutlined />, label: 'Аналитика' },
   { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
   { key: '/help', icon: <QuestionCircleOutlined />, label: 'Помощь' },
   { key: '/status', icon: <CloudServerOutlined />, label: 'Статус сервиса' },

@@ -1,10 +1,13 @@
 /**
- * Переходы за пределы SPA — на статичную `/login` и на лендинг. Объект, а не
- * функция: тест подменяет `assign`, не трогая `window.location` jsdom.
+ * Переходы за пределы SPA — на статичную `/login` и на лендинг — и перезагрузка
+ * страницы. Объект, а не функция: тест подменяет метод, не трогая `window.location` jsdom.
  */
 export const navigation = {
   assign(url: string): void {
     window.location.assign(url)
+  },
+  reload(): void {
+    window.location.reload()
   },
 }
 

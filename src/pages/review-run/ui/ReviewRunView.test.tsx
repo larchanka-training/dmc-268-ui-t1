@@ -9,6 +9,7 @@ import type { ReviewRun } from '../../../entities/review-run'
 import type { ReviewRunStep } from '../../../entities/review-run-step'
 import { initialFilterFindingsState, useFilterFindings } from '../../../features/filter-findings'
 import { ApiError, type ApiTransport } from '../../../shared/api'
+import { navigation } from '../../../shared/lib'
 import { createFakeEventStream, type FakeEventStream } from '../../../test/fakeEventStream'
 import {
   hunk,
@@ -24,6 +25,19 @@ import { reviewDiffPath, reviewPath, reviewStepsPath } from '../model/review'
 import { AppProviders } from '../../../app/providers/AppProviders'
 import { createQueryClient } from '../../../app/providers/queryClient'
 import { ReviewRunView } from './ReviewRunView'
+
+const diffViewer = vi.hoisted(() => ({ fail: false }))
+vi.mock('../../../widgets/review-workspace/ui/DiffViewer', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../../../widgets/review-workspace/ui/DiffViewer')>()
+  return {
+    ...original,
+    DiffViewer: (props: Parameters<typeof original.DiffViewer>[0]) => {
+      if (diffViewer.fail) throw new Error('просмотрщик упал')
+      return <original.DiffViewer {...props} />
+    },
+  }
+})
 
 const api = makeDiffFile({
   path: 'app/api.py',
@@ -154,6 +168,8 @@ describe('ReviewRunView', () => {
   })
   afterEach(() => {
     vi.useRealTimers()
+    diffViewer.fail = false
+    vi.restoreAllMocks()
   })
 
   it('пока adapter не ответил, экран говорит, что идёт загрузка', () => {
@@ -359,6 +375,19 @@ describe('ReviewRunView', () => {
     expect(
       await screen.findByRole('article', { name: /Секрет был в истории git/ }),
     ).toBeInTheDocument()
+  })
+
+  it('просмотрщик диффа упал — ошибка на месте диффа, повтор перезагружает страницу', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const reload = vi.spyOn(navigation, 'reload').mockImplementation(() => {})
+    diffViewer.fail = true
+    renderView(fakeAdapter())
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось отобразить дифф файла')
+    await user.click(within(alert).getByRole('button', { name: 'Повторить' }))
+    expect(reload).toHaveBeenCalledOnce()
   })
 
   it('выбор файла показывает его дифф и сохраняет режим просмотра', async () => {
