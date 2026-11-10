@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 
 import {
   applyRunEvent,
+  isRefusedForBalance,
   isTerminalStatus,
   type ReviewRunListItem,
 } from '../../../entities/review-run'
@@ -114,7 +115,11 @@ export function ReviewRunView() {
           onRetry={() => void review.refetch()}
         />
       )}
-      <RunHeader run={run} verdict={runVerdict(run.status, findings)} />
+      {/* Прогон без денег модель не вызывал: «можно мёржить» по пустому списку было бы ложью. */}
+      <RunHeader
+        run={run}
+        verdict={isRefusedForBalance(run) ? null : runVerdict(run.status, findings)}
+      />
       {!isTerminalStatus(run.status) && (
         <ConnectionNotice state={live.streamState} onRefresh={live.refresh} />
       )}
@@ -136,7 +141,10 @@ export function ReviewRunView() {
           publishedComments={published_comments}
         />
       ) : (
-        <FindingsList findings={findings} publishedComments={published_comments} />
+        // Без денег замечаний не искали: «Замечаний нет» здесь выдавало бы прогон за чистое ревью.
+        !isRefusedForBalance(run) && (
+          <FindingsList findings={findings} publishedComments={published_comments} />
+        )
       )}
       {/* Ход прогона не загрузился — ошибка с повтором в его месте. */}
       {steps.isLoadingError ? (

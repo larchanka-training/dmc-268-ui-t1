@@ -16,11 +16,13 @@ import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
 import type { RepositoryListItem } from '@/entities/repository'
+import { useCurrentUser } from '@/features/auth'
 import {
   useConnectRepository,
   useDisconnectRepository,
   usePendingReviewToggles,
   useRepositories,
+  useTakeOverPayment,
 } from '@/features/repository'
 import {
   PAGE_PARAM,
@@ -108,6 +110,8 @@ export function RepositoriesPage() {
   const connect = useConnectRepository()
   const disconnect = useDisconnectRepository()
   const pending = usePendingReviewToggles()
+  const user = useCurrentUser()
+  const takeOver = useTakeOverPayment()
   const [messageApi, messageHolder] = message.useMessage()
   const [modal, modalHolder] = Modal.useModal()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -219,6 +223,25 @@ export function RepositoriesPage() {
     })
   }
 
+  const payFor = (repo: RepositoryListItem) => {
+    const repositoryId = repo.id
+    if (repositoryId === null) return
+    // Подтверждение: оплата уходит от прежнего плательщика, и вернуть её может только он сам.
+    void modal.confirm({
+      title: `Платить за ${repo.full_name}?`,
+      content: repo.payer_login
+        ? `Ревью этого репозитория пойдёт с вашего баланса вместо баланса ${repo.payer_login}.`
+        : 'Ревью этого репозитория пойдёт с вашего баланса.',
+      okText: 'Платить',
+      cancelText: 'Отмена',
+      onOk: () => {
+        void takeOver.mutateAsync(repositoryId).catch((err: unknown) => {
+          void messageApi.error(errorText(err, 'Не удалось взять оплату на себя'))
+        })
+      },
+    })
+  }
+
   const columns: ColumnsType<RepositoryListItem> = [
     {
       title: 'Репозиторий',
@@ -260,6 +283,39 @@ export function RepositoriesPage() {
           </Space>
         )
       },
+    },
+    {
+      title: 'Плательщик',
+      key: 'payer',
+      // Плательщик бывает только у репозитория с записью в сервисе.
+      render: (_, record) =>
+        record.id !== null && (
+          <Space orientation="vertical" size={0}>
+            {record.payer_login ? (
+              <Typography.Text>{record.payer_login}</Typography.Text>
+            ) : (
+              <>
+                <Typography.Text>нет</Typography.Text>
+                <Typography.Text type="warning" className="text-meta">
+                  Без плательщика ревью не запускается
+                </Typography.Text>
+              </>
+            )}
+            {/* Без admin или maintain бэкенд ответит 403: кнопку не показываем, как и переключатель. */}
+            {record.can_connect && record.payer_login !== user.login && (
+              <Button
+                type="link"
+                size="small"
+                className="px-0"
+                aria-label={`Платить за этот репозиторий: ${record.full_name}`}
+                loading={takeOver.isPending && takeOver.variables === record.id}
+                onClick={() => payFor(record)}
+              >
+                Платить за этот репозиторий
+              </Button>
+            )}
+          </Space>
+        ),
     },
     {
       title: 'Действия',

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 
@@ -58,6 +58,7 @@ describe('OverviewPage', () => {
       id: connected ? `repo-${n}` : null,
       can_connect: true,
       connected_at: connected ? '2026-10-01T10:00:00Z' : null,
+      payer_login: null,
     })
 
     renderWithTransport(
@@ -104,5 +105,107 @@ describe('OverviewPage', () => {
 
     expect(await screen.findByText('0')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  describe('баланс и «Я плачу за»', () => {
+    const PAID = [
+      { id: 'repo-1', full_name: 'acme/api' },
+      { id: 'repo-2', full_name: 'acme/web' },
+    ]
+
+    function renderOverview(transport = noRepositories) {
+      return renderWithTransport(
+        <MemoryRouter>
+          <RequireAuth>
+            <OverviewPage />
+          </RequireAuth>
+        </MemoryRouter>,
+        transport,
+      )
+    }
+
+    /** Значение карточки «Баланс» с обычными пробелами вместо неразрывных. */
+    async function balanceCard() {
+      const title = await screen.findByText('Баланс')
+      const card = title.closest('.ant-card') as HTMLElement
+      return { card, text: card.textContent?.replace(/\s/g, ' ') ?? '' }
+    }
+
+    it('баланс в евро; положительный — без выделения', async () => {
+      stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '4.75' } } })
+      renderOverview()
+
+      const { text } = await balanceCard()
+      expect(text).toContain('4,75 €')
+      expect(text).toContain('Пополняет администратор сервиса')
+    })
+
+    it('отрицательный баланс выделен цветом, знаки после запятой не теряются', async () => {
+      stubFetch({
+        'GET /api/v1/auth/me': { status: 200, body: { ...ME, balance_eur: '-1234.0000000001' } },
+      })
+      renderOverview()
+
+      const { card, text } = await balanceCard()
+      expect(text).toContain('-1 234,0000000001 €')
+      expect(card.querySelector('.ant-statistic-content')).toHaveStyle({ color: '#cf1322' })
+    })
+
+    it('не платит ни за что — так и сказано', async () => {
+      stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+      renderOverview()
+
+      expect(await screen.findByText('Вы не платите ни за один репозиторий.')).toBeInTheDocument()
+    })
+
+    it('«Перестать платить»: подтверждение, DELETE …/payer, профиль и репозитории перечитаны', async () => {
+      const user = userEvent.setup()
+      const routes = {
+        'GET /api/v1/auth/me': { status: 200, body: { ...ME, paid_repositories: PAID } },
+      }
+      const fetchCalls = stubFetch(routes)
+      const get = vi.fn(async () => ({ items: [], install_url: null }))
+      const del = vi.fn(async () => {
+        routes['GET /api/v1/auth/me'] = {
+          status: 200,
+          body: { ...ME, paid_repositories: [PAID[1]] },
+        }
+        return null
+      })
+      renderOverview(fakeTransport({ get, delete: del }))
+
+      expect(await screen.findByText('Я плачу за')).toBeInTheDocument()
+      expect(screen.getByText('acme/api')).toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Перестать платить за acme/api' }))
+      const dialog = await screen.findByRole('dialog')
+      expect(dialog).toHaveTextContent('Перестать платить за acme/api?')
+      await user.click(within(dialog).getByRole('button', { name: 'Перестать платить' }))
+
+      await waitFor(() => expect(screen.queryByText('acme/api')).not.toBeInTheDocument())
+      expect(del).toHaveBeenCalledWith('/repositories/repo-1/payer')
+      expect(screen.getByText('acme/web')).toBeInTheDocument()
+      expect(fetchCalls).toHaveLength(2)
+      expect(get).toHaveBeenCalledTimes(2)
+    })
+
+    it('404 REPOSITORY_NOT_FOUND — виден detail ответа', async () => {
+      const user = userEvent.setup()
+      stubFetch({
+        'GET /api/v1/auth/me': { status: 200, body: { ...ME, paid_repositories: PAID } },
+      })
+      const del = vi.fn(async () => {
+        throw new ApiError(404, 'Репозиторий не найден', 'REPOSITORY_NOT_FOUND')
+      })
+      renderOverview(fakeTransport({ get: noRepositories.get, delete: del }))
+
+      await user.click(await screen.findByRole('button', { name: 'Перестать платить за acme/web' }))
+      await user.click(
+        within(await screen.findByRole('dialog')).getByRole('button', {
+          name: 'Перестать платить',
+        }),
+      )
+
+      expect(await screen.findByText('Репозиторий не найден')).toBeInTheDocument()
+    })
   })
 })

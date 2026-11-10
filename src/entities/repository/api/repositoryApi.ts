@@ -1,4 +1,5 @@
 import {
+  RepositoryPayerSchema,
   RepositorySchema,
   RepositoryListSchema,
   type ConnectRepositoryRequest,
@@ -60,6 +61,20 @@ export async function disconnectRepository(
   repositoryId: string,
 ): Promise<void> {
   await transport.delete(repositoryPath(repositoryId))
+}
+
+/**
+ * «Платить за этот репозиторий»: плательщиком становится вызывающий. Без роли admin или
+ * maintain — `403 REPOSITORY_MANAGE_REQUIRED`, невидимый или неподключённый — `404`.
+ */
+export async function takeOverPayment(transport: ApiTransport, repositoryId: string) {
+  const path = `${repositoryPath(repositoryId)}/payer`
+  return parseResponse(RepositoryPayerSchema, path, await transport.post(path, undefined))
+}
+
+/** «Перестать платить»: `204`; не плательщику и при повторе — `404 REPOSITORY_NOT_FOUND`. */
+export async function stopPayment(transport: ApiTransport, repositoryId: string): Promise<void> {
+  await transport.delete(`${repositoryPath(repositoryId)}/payer`)
 }
 
 export async function fetchRepository(

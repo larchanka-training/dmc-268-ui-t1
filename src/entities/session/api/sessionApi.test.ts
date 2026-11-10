@@ -15,6 +15,26 @@ describe('fetchCurrentUser', () => {
       login: 'octocat',
       name: 'The Octocat',
       avatarUrl: ME.avatar_url,
+      balanceEur: '4.75',
+      paidRepositories: [],
+    })
+  })
+
+  it('баланс — строка как есть, оплачиваемые репозитории — в camelCase', async () => {
+    stubFetch({
+      'GET /api/v1/auth/me': {
+        status: 200,
+        body: {
+          ...ME,
+          balance_eur: '-0.0100000001',
+          paid_repositories: [{ id: 'repo-1', full_name: 'acme/api' }],
+        },
+      },
+    })
+
+    await expect(fetchCurrentUser()).resolves.toMatchObject({
+      balanceEur: '-0.0100000001',
+      paidRepositories: [{ id: 'repo-1', fullName: 'acme/api' }],
     })
   })
 

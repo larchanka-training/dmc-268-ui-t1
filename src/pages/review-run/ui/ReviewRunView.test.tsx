@@ -489,6 +489,51 @@ describe('ReviewRunView', () => {
     expect(screen.getByText(/список замечаний может быть неполным/)).toBeInTheDocument()
   })
 
+  it('без денег (coverage_reason = balance) — предупреждение с подсказкой, а не чистое ревью', async () => {
+    const run = makeReviewRun({
+      coverage_reason: 'balance',
+      tokens_used: 0,
+      usage: { input_tokens: 0, output_tokens: 0, cost_eur: '0' },
+    })
+    renderView(fakeAdapter({ run, findings: [] }))
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Недостаточно средств, ревью не было')
+    expect(alert).toHaveTextContent(
+      'Пополните баланс плательщика или назначьте плательщика на странице «Репозитории», затем запустите ревью вручную.',
+    )
+    expect(within(alert).getByRole('link', { name: '«Репозитории»' })).toHaveAttribute(
+      'href',
+      '/repositories',
+    )
+    expect(screen.getByText('Вердикта нет')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Вердикт: Можно мёржить')).not.toBeInTheDocument()
+    expect(screen.queryByText('Замечаний нет.')).not.toBeInTheDocument()
+    await diffShown()
+    expect(screen.queryByText('Замечаний нет.')).not.toBeInTheDocument()
+  })
+
+  it('стоимость прогона рядом с токенами, в евро', async () => {
+    const term = (name: string) => screen.getByText(name, { selector: 'dt' }).nextElementSibling
+    renderView(
+      fakeAdapter({
+        run: makeReviewRun({ usage: { input_tokens: 1, output_tokens: 2, cost_eur: '0.0421' } }),
+      }),
+    )
+    await screen.findByRole('heading', { name: 'Прогон ревью' })
+    expect(term('Стоимость')?.textContent?.replace(/\s/g, ' ')).toBe('0,0421 €')
+    expect(term('Токены')).toHaveTextContent('18 432')
+  })
+
+  it('без usage стоимость — прочерк', async () => {
+    renderView(fakeAdapter({ run: makeReviewRun({ usage: null }) }))
+
+    await screen.findByRole('heading', { name: 'Прогон ревью' })
+    expect(screen.getByText('Стоимость', { selector: 'dt' }).nextElementSibling).toHaveTextContent(
+      '—',
+    )
+  })
+
   it('INT-04: без замечаний это сказано явно', async () => {
     renderView(fakeAdapter({ findings: [] }))
 

@@ -48,6 +48,19 @@ export const MergeRequestSummarySchema = z.object({
   }),
 })
 
+/**
+ * Почему прогон покрыл не весь дифф (`CoverageReason` контракта). `balance` — денег не хватило:
+ * прогон завершён без вызова модели, находок нет, и это не чистое ревью.
+ */
+const CoverageReasonSchema = z.enum(['balance']).nullable()
+
+/** Расход модели прогона (`RunUsageResponse`); `cost_eur` — десятичная строка в евро. */
+const RunUsageSchema = z.object({
+  input_tokens: z.number().int(),
+  output_tokens: z.number().int(),
+  cost_eur: z.string(),
+})
+
 /** Итог ревью. В контракте его нет: фронт выводит его из замечаний (решение 1 в dmc-268-ui-t1#37). */
 export const VERDICTS = ['approve', 'comment', 'request_changes'] as const
 
@@ -64,6 +77,8 @@ export const ReviewRunSchema = z.object({
   trigger: z.enum(['webhook', 'manual', 'mention']),
   model: z.string().nullable(),
   tokens_used: z.number().int().nullable(),
+  /** `null` до анализа и у прогонов, записанных до разбивки расхода. */
+  usage: RunUsageSchema.nullable(),
   rejected_findings: z.number().int(),
   /** Итог второго прохода модели (Reflection Pass); `null` — анализ ещё не завершён. */
   verification: z.enum(['verified', 'not_required', 'unavailable']).nullable(),
@@ -72,6 +87,9 @@ export const ReviewRunSchema = z.object({
   failure_reason: z.string().nullable(),
   /** Этап, на котором упал прогон; `null` — не сообщён. */
   failed_stage: z.enum(RUN_STAGES).nullable(),
+  coverage_reason: CoverageReasonSchema,
+  /** Когда дифф прогона удалён по сроку хранения; `null` — не удалён. */
+  diff_expired_at: z.string().nullable(),
   last_progress_at: z.string(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -84,6 +102,11 @@ export type Verdict = (typeof VERDICTS)[number]
 
 export function isTerminalStatus(status: string): boolean {
   return TERMINAL_STATUSES.has(status)
+}
+
+/** Прогон завершён без вызова модели: у плательщика не хватило денег или плательщика нет. */
+export function isRefusedForBalance(run: { coverage_reason: string | null }): boolean {
+  return run.coverage_reason === 'balance'
 }
 
 export function isKnownStatus(status: string): status is KnownRunStatus {
@@ -105,6 +128,7 @@ export const ReviewRunListItemSchema = z.object({
   duration_seconds: z.number().nullable(),
   failed_stage: z.enum(RUN_STAGES).nullable(),
   findings_count: z.number().int(),
+  coverage_reason: CoverageReasonSchema,
   merge_request: MergeRequestSummarySchema,
 })
 
@@ -144,7 +168,13 @@ export function isSameOrNewer(incoming: string, current: string): boolean {
 /** Поля прогона, которые несут события `run.*`: их версия определяется `updated_at`. */
 type RunStatusFields = Pick<
   ReviewRun,
-  'status' | 'last_progress_at' | 'failed_stage' | 'duration_seconds' | 'updated_at'
+  | 'status'
+  | 'last_progress_at'
+  | 'failed_stage'
+  | 'duration_seconds'
+  | 'updated_at'
+  // Иначе прогон без денег до перезапроса выглядел бы чистым ревью («Можно мёржить»).
+  | 'coverage_reason'
 >
 
 function statusFields(source: RunStatusFields): RunStatusFields {
@@ -154,6 +184,7 @@ function statusFields(source: RunStatusFields): RunStatusFields {
     failed_stage: source.failed_stage,
     duration_seconds: source.duration_seconds,
     updated_at: source.updated_at,
+    coverage_reason: source.coverage_reason,
   }
 }
 

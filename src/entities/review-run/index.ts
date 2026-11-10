@@ -1,6 +1,7 @@
 export {
   applyRunEvent,
   isKnownStatus,
+  isRefusedForBalance,
   isRunEventType,
   isRunStage,
   isTerminalStatus,

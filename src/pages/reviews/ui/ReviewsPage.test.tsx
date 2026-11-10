@@ -26,6 +26,7 @@ const repository = (n: number, name: string): RepositoryListItem => ({
   connected: true,
   can_connect: true,
   connected_at: '2026-09-01T10:00:00Z',
+  payer_login: null,
 })
 
 /** Репозиторий без записи в сервисе: прогонов у него нет, в фильтр он не попадает. */
@@ -193,6 +194,16 @@ describe('ReviewsPage: таблица и URL', () => {
       'https://github.com/acme/api/pull/7',
     )
     expect(screen.getByText('Найдено прогонов: 1')).toBeInTheDocument()
+  })
+
+  it('прогон без денег отличается от чистого ревью меткой «Нет средств»', async () => {
+    const [refused, clean] = makeRuns(2).map((run) => ({ ...run, status: 'completed' }))
+    backend.rows = [{ ...refused, coverage_reason: 'balance' }, clean]
+    renderPage()
+
+    await screen.findByText('#100 Изменение 1')
+    expect(within(rowOf('#100 Изменение 1')).getByText('Нет средств')).toBeInTheDocument()
+    expect(within(rowOf('#99 Изменение 2')).queryByText('Нет средств')).not.toBeInTheDocument()
   })
 
   it('берёт поиск, фильтры, страницу и размер из URL', async () => {

@@ -10,6 +10,8 @@ export const ME = {
   login: 'octocat',
   name: 'The Octocat',
   avatar_url: 'https://avatars.githubusercontent.com/u/583231',
+  balance_eur: '4.75',
+  paid_repositories: [] as { id: string; full_name: string }[],
 }
 
 type Reply = { status: number; body?: unknown } | Error

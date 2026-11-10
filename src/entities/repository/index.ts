@@ -25,6 +25,8 @@ export {
   repositoryRulesPath,
   repositorySettingsPath,
   saveRepositorySettings,
+  stopPayment,
+  takeOverPayment,
 } from '@/entities/repository/api/repositoryApi'
 export { RepositorySettingsSchema, RulesStatusSchema } from '@/entities/repository/model/settings'
 export { RulesStatusBadge } from '@/entities/repository/ui/RulesStatusBadge'

@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
 import {
+  isRefusedForBalance,
   isTerminalStatus,
   RUN_TRIGGER_LABELS,
   RunStatusBadge,
@@ -11,6 +13,7 @@ import {
 import {
   formatDateTime,
   formatDuration,
+  formatEuro,
   formatNumber,
   safeExternalUrl,
   shortSha,
@@ -74,7 +77,21 @@ export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict |
         </Meta>
         <Meta term="Модель">{run.model ?? '—'}</Meta>
         <Meta term="Токены">{run.tokens_used === null ? '—' : formatNumber(run.tokens_used)}</Meta>
+        <Meta term="Стоимость">{run.usage ? formatEuro(run.usage.cost_eur) : '—'}</Meta>
       </dl>
+
+      {isRefusedForBalance(run) && (
+        <div role="alert" className="mt-4 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
+          <p className="font-semibold">Недостаточно средств, ревью не было</p>
+          <p className="mt-1">
+            Пополните баланс плательщика или назначьте плательщика на странице{' '}
+            <Link to="/repositories" className="font-medium underline">
+              «Репозитории»
+            </Link>
+            , затем запустите ревью вручную.
+          </p>
+        </div>
+      )}
 
       {run.failure_reason && (
         <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">

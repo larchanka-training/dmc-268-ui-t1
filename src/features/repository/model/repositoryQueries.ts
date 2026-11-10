@@ -7,10 +7,13 @@ import {
   fetchRepositorySettings,
   fetchRulesStatus,
   saveRepositorySettings,
+  stopPayment,
+  takeOverPayment,
   type ConnectRepositoryRequest,
   type RepositorySettingsUpdate,
 } from '@/entities/repository'
-import { ApiError, useTransport } from '@/shared/api'
+import { CURRENT_USER_KEY } from '@/entities/session'
+import { ApiError, useTransport, type ApiTransport } from '@/shared/api'
 
 export const repositoryKeys = {
   list: ['repositories', 'list'] as const,
@@ -50,7 +53,12 @@ export function useConnectRepository() {
         if (!alreadyConnected) throw error
       }
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+    // Первое подключение делает подключившего плательщиком: меняется и `paid_repositories`.
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+        queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
+      ]),
   })
 }
 
@@ -80,6 +88,33 @@ export function usePendingReviewToggles() {
     select: (mutation) => mutation.state.variables as string,
   })
   return { connecting, disconnecting }
+}
+
+/**
+ * Смена плательщика меняет и строку списка (`payer_login`), и профиль (`paid_repositories`):
+ * перечитываются оба, и после ошибки тоже — плательщика могли сменить параллельно.
+ */
+function usePayerMutation(request: (transport: ApiTransport, id: string) => Promise<unknown>) {
+  const transport = useTransport()
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (repositoryId: string) => request(transport, repositoryId),
+    onSettled: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: repositoryKeys.list }),
+        queryClient.invalidateQueries({ queryKey: CURRENT_USER_KEY }),
+      ]),
+  })
+}
+
+/** «Платить за этот репозиторий» — `POST …/payer`. */
+export function useTakeOverPayment() {
+  return usePayerMutation(takeOverPayment)
+}
+
+/** «Перестать платить» — `DELETE …/payer`. */
+export function useStopPayment() {
+  return usePayerMutation(stopPayment)
 }
 
 /** Заголовок экрана настроек: один репозиторий `GET /repositories/{id}`, без списка. */

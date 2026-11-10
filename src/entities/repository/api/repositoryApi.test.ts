@@ -105,6 +105,7 @@ describe('fetchRepositories', () => {
     id: null,
     can_connect: true,
     connected_at: null,
+    payer_login: null,
   })
 
   it('больше 200: страницы по offset, пока страница полная; install_url — из первой', async () => {
