@@ -1,6 +1,19 @@
-import { Card, Col, Row, Segmented, Select, Space, Spin, Statistic, Table, Typography } from 'antd'
+import {
+  Button,
+  Card,
+  Col,
+  Row,
+  Segmented,
+  Select,
+  Space,
+  Spin,
+  Statistic,
+  Table,
+  Typography,
+} from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import type { RepositoryAnalytics } from '@/entities/analytics'
 import {
@@ -10,6 +23,7 @@ import {
   type Severity,
 } from '@/entities/review-finding'
 import { useRepositories } from '@/features/repository'
+import { ApiError } from '@/shared/api'
 import { formatDuration, formatNumber, navigation } from '@/shared/lib'
 import {
   EmptyState,
@@ -21,7 +35,7 @@ import {
 
 import { useAnalytics } from '../model/analyticsQuery'
 import { findingsSeries, utcDays } from '../model/series'
-import { DEFAULT_PERIOD_DAYS, PERIOD_PRESETS, periodBounds, type PeriodDays } from '../model/period'
+import { parseAnalyticsParams, PERIOD_PRESETS, writeAnalyticsParams } from '../model/period'
 
 // Библиотека диаграмм тяжёлая — грузим отдельным чанком, как просмотрщик диффа.
 const FindingsChart = lazy(() =>
@@ -66,20 +80,26 @@ const columns: ColumnsType<RepositoryAnalytics> = [
 ]
 
 export function AnalyticsPage() {
-  const [days, setDays] = useState<PeriodDays>(DEFAULT_PERIOD_DAYS)
-  // Момент «сейчас» фиксируется при выборе периода, а не на каждом рендере: иначе ключ запроса
-  // менялся бы постоянно.
-  const [nowMs, setNowMs] = useState(() => Date.now())
-  const [repositoryId, setRepositoryId] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { days, repositoryId } = parseAnalyticsParams(searchParams)
   const [severity, setSeverity] = useState<Severity | null>(null)
 
   const repositories = useRepositories()
   // Прогоны есть у каждого репозитория с записью в сервисе (`id`), в том числе у выключенных.
   const known = repositories.data?.items.filter((repo) => repo.id !== null) ?? []
-  const { data, isLoading, isFetching, error, refetch } = useAnalytics({
-    repositoryId,
-    ...periodBounds(days, nowMs),
-  })
+  const { data, isLoading, isFetching, error, refetch } = useAnalytics(repositoryId, days)
+  // Некорректные значения в URL уже заменены умолчаниями. Чужой или удалённый репозиторий убираем
+  // по 404 бэкенда (видимость у него та же, что у списка), без новой записи в истории.
+  const unknownRepository =
+    repositoryId !== null && error instanceof ApiError && error.code === 'REPOSITORY_NOT_FOUND'
+  useEffect(() => {
+    const canonical = writeAnalyticsParams(searchParams, {
+      days,
+      repositoryId: unknownRepository ? null : repositoryId,
+    }).toString()
+    if (canonical !== searchParams.toString())
+      setSearchParams(new URLSearchParams(canonical), { replace: true })
+  }, [days, repositoryId, unknownRepository, searchParams, setSearchParams])
 
   const chartData = useMemo(
     () =>
@@ -108,21 +128,37 @@ export function AnalyticsPage() {
           aria-label="Период"
           value={days}
           options={PERIOD_PRESETS.map((value) => ({ value, label: `${value} дн.` }))}
-          onChange={(value) => {
-            setDays(value)
-            setNowMs(Date.now())
-          }}
+          onChange={(value) =>
+            setSearchParams((prev) => writeAnalyticsParams(prev, { days: value, repositoryId }))
+          }
         />
         <Select
           aria-label="Репозиторий"
           className="min-w-60"
+          showSearch
+          optionFilterProp="label"
+          loading={repositories.isLoading}
+          status={repositories.isLoadingError ? 'warning' : undefined}
           value={repositoryId ?? ALL}
-          onChange={(value) => setRepositoryId(value === ALL ? null : value)}
+          onChange={(value) =>
+            setSearchParams((prev) =>
+              writeAnalyticsParams(prev, { days, repositoryId: value === ALL ? null : value }),
+            )
+          }
           options={[
             { value: ALL, label: 'Все репозитории' },
             ...known.map((repo) => ({ value: repo.id!, label: repo.full_name })),
           ]}
         />
+        {repositories.isLoadingError && (
+          // В списке всегда есть «Все репозитории», поэтому ошибка рядом с фильтром, а не в нём.
+          <span role="alert" className="text-sm">
+            Не удалось загрузить репозитории.{' '}
+            <Button size="small" type="link" onClick={() => void repositories.refetch()}>
+              Повторить
+            </Button>
+          </span>
+        )}
         <Select
           aria-label="Важность"
           className="min-w-40"
@@ -143,7 +179,7 @@ export function AnalyticsPage() {
           <LoadingState label="Загрузка аналитики…" />
         </div>
       )}
-      {error && (
+      {error && !unknownRepository && (
         <div className="page-section">
           {data ? (
             <RefreshErrorNotice

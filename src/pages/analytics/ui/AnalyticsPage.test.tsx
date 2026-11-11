@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { Analytics } from '@/entities/analytics'
@@ -87,11 +88,20 @@ const REPOSITORIES = {
   install_url: null,
 }
 
-function render(analytics: (path: string) => Promise<unknown>) {
+let router: ReturnType<typeof createMemoryRouter>
+
+function render(
+  analytics: (path: string) => Promise<unknown>,
+  url = '/analytics',
+  repositories: () => Promise<unknown> = async () => REPOSITORIES,
+) {
   const get = vi.fn((path: string) =>
-    path.startsWith('/analytics') ? analytics(path) : Promise.resolve(REPOSITORIES),
+    path.startsWith('/analytics') ? analytics(path) : repositories(),
   ) as unknown as ApiTransport['get']
-  renderWithTransport(<AnalyticsPage />, fakeTransport({ get }))
+  router = createMemoryRouter([{ path: '/analytics', element: <AnalyticsPage /> }], {
+    initialEntries: [url],
+  })
+  renderWithTransport(<RouterProvider router={router} />, fakeTransport({ get }))
   return get as unknown as ReturnType<typeof vi.fn>
 }
 
@@ -150,6 +160,120 @@ describe('AnalyticsPage', () => {
 
     await waitFor(() => expect(analyticsCalls(get)).toHaveLength(2))
     expect(analyticsCalls(get)[1].searchParams.get('repository_id')).toBe(REPO_ID)
+  })
+
+  it('период и репозиторий из ссылки уходят в запрос, выбор меняет URL', async () => {
+    const user = userEvent.setup()
+    const get = render(async () => ANALYTICS, `/analytics?days=180&repository_id=${REPO_ID}`)
+    await screen.findByTestId('chart')
+
+    const [call] = analyticsCalls(get)
+    expect(
+      Date.parse(call.searchParams.get('created_to')!) -
+        Date.parse(call.searchParams.get('created_from')!),
+    ).toBe(180 * 86_400_000)
+    expect(call.searchParams.get('repository_id')).toBe(REPO_ID)
+
+    await user.click(screen.getByText('7 дн.'))
+    await waitFor(() =>
+      expect(router.state.location.search).toBe(`?days=7&repository_id=${REPO_ID}`),
+    )
+    await user.click(screen.getByRole('combobox', { name: 'Репозиторий' }))
+    await user.click(await screen.findByTitle('Все репозитории'))
+    await waitFor(() => expect(router.state.location.search).toBe('?days=7'))
+    await user.click(screen.getByText('30 дн.'))
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+  })
+
+  it('некорректные days и repository_id — умолчания, из адреса убираются', async () => {
+    const get = render(async () => ANALYTICS, '/analytics?days=7000&repository_id=foo&x=1')
+    await screen.findByTestId('chart')
+
+    await waitFor(() => expect(router.state.location.search).toBe('?x=1'))
+    const [call] = analyticsCalls(get)
+    expect(
+      Date.parse(call.searchParams.get('created_to')!) -
+        Date.parse(call.searchParams.get('created_from')!),
+    ).toBe(30 * 86_400_000)
+    expect(call.searchParams.has('repository_id')).toBe(false)
+    expect(analyticsCalls(get)).toHaveLength(1)
+  })
+
+  it('«назад» возвращает прежний период в адрес и в запрос', async () => {
+    const user = userEvent.setup()
+    const get = render(async () => ANALYTICS)
+    await screen.findByTestId('chart')
+    await user.click(screen.getByText('7 дн.'))
+    await waitFor(() => expect(analyticsCalls(get)).toHaveLength(2))
+
+    await router.navigate(-1)
+
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    await waitFor(() => expect(analyticsCalls(get)).toHaveLength(3))
+    const call = analyticsCalls(get)[2]
+    expect(
+      Date.parse(call.searchParams.get('created_to')!) -
+        Date.parse(call.searchParams.get('created_from')!),
+    ).toBe(30 * 86_400_000)
+  })
+
+  it('одна смена фильтра — ровно один запрос', async () => {
+    const user = userEvent.setup()
+    const get = render(async () => ANALYTICS)
+    await screen.findByTestId('chart')
+
+    await user.click(screen.getByText('90 дн.'))
+    await waitFor(() => expect(router.state.location.search).toBe('?days=90'))
+    await waitFor(() => expect(analyticsCalls(get)).toHaveLength(2))
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
+    expect(analyticsCalls(get)).toHaveLength(2)
+  })
+
+  it('чужой репозиторий в адресе: 404 убирает его, не дожидаясь списка', async () => {
+    const get = render(
+      async (path) => {
+        if (path.includes('repository_id')) {
+          throw new ApiError(404, 'Репозитория с таким id нет.', 'REPOSITORY_NOT_FOUND')
+        }
+        return ANALYTICS
+      },
+      '/analytics?repository_id=00000000-0000-4000-8000-0000000000ff',
+      () => new Promise(() => {}),
+    )
+
+    await waitFor(() => expect(router.state.location.search).toBe(''))
+    expect(await screen.findByTestId('chart')).toBeInTheDocument()
+    const calls = analyticsCalls(get)
+    expect(calls[calls.length - 1].searchParams.has('repository_id')).toBe(false)
+  })
+
+  it('ошибка бэкенда не 404: репозиторий остаётся в адресе', async () => {
+    render(
+      async () => {
+        throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+      },
+      '/analytics?repository_id=00000000-0000-4000-8000-0000000000ff',
+      () => new Promise(() => {}),
+    )
+
+    expect(await screen.findByText('Не удалось загрузить аналитику')).toBeInTheDocument()
+    expect(router.state.location.search).toContain('repository_id')
+  })
+
+  it('список репозиториев не загрузился: рядом с фильтром ошибка с повтором', async () => {
+    render(
+      async () => ANALYTICS,
+      '/analytics',
+      async () => {
+        throw new ApiError(502, 'GitHub недоступен', 'SCM_UNAVAILABLE')
+      },
+    )
+    await screen.findByTestId('chart')
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Не удалось загрузить репозитории')
+    expect(within(alert).getByRole('button', { name: 'Повторить' })).toBeInTheDocument()
   })
 
   it('фильтр важности пересчитывает диаграмму без нового запроса', async () => {
