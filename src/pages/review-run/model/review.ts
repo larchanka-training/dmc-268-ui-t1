@@ -64,20 +64,30 @@ export function useReviewRun(reviewId: string) {
   })
 }
 
+/** Поля прогона, по которым видно, есть ли у него дифф вообще. */
+type DiffSource = Pick<ReviewRunResponse, 'base_sha' | 'diff_expired_at'>
+
+/**
+ * Можно ли запросить дифф прогона. Нельзя без `base_sha` (он пуст только у старых прогонов,
+ * записанных до миграции `0002`) и после удаления диффа по сроку хранения (`diff_expired_at`):
+ * бэкенд ответил бы постоянным отказом, а причину экран знает и без запроса.
+ */
+export function canRequestDiff(run: DiffSource): boolean {
+  return run.base_sha !== null && run.diff_expired_at === null
+}
+
 /**
  * Дифф прогона. Бэкенд его реализует (dmc-268-api-t1#87), поэтому любой отказ — ошибка
- * запроса: экран показывает причину (`diffProblem`), а не прячет дифф молча.
- *
- * Без `base_sha` (он пуст только у старых прогонов, записанных до миграции `0002`) дифф
- * не воспроизвести, поэтому он не запрашивается.
+ * запроса: экран показывает причину (`diffProblem`), а не прячет дифф молча. Пока прогон
+ * не загружен или дифф заведомо недоступен (`canRequestDiff`), запроса нет.
  */
-export function useReviewDiff(reviewId: string, baseSha: string | null | undefined) {
+export function useReviewDiff(reviewId: string, run: DiffSource | undefined) {
   const transport = useTransport()
   const path = reviewDiffPath(reviewId)
   return useQuery({
     queryKey: [...reviewKey(reviewId), 'diff'] as const,
     queryFn: async () => parseResponse(ReviewDiffSchema, path, await transport.get(path)),
-    enabled: baseSha != null,
+    enabled: run !== undefined && canRequestDiff(run),
   })
 }
 

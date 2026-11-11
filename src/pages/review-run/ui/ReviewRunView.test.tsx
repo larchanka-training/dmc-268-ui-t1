@@ -247,6 +247,7 @@ describe('ReviewRunView', () => {
       'REPOSITORY_NOT_IN_INSTALLATION',
       'Приложение не установлено на репозиторий',
     ],
+    ['дифф удалён по сроку хранения', 410, 'DIFF_EXPIRED', 'Дифф удалён по сроку хранения'],
   ])(
     'дифф недоступен насовсем (%s) — причина без повтора, запрос один, замечания списком',
     async (_, status, code, title) => {
@@ -604,6 +605,41 @@ describe('ReviewRunView', () => {
         'Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.',
       ),
     ).toBeInTheDocument()
+  })
+
+  it('дифф удалён по сроку хранения (diff_expired_at) — без запроса диффа: дата удаления, замечания списком, ход прогона', async () => {
+    const backend = fakeAdapter({
+      run: makeReviewRun({ status: 'completed', diff_expired_at: '2026-10-21T03:00:00Z' }),
+      steps: [makeStep({ stage: 'fetching_diff' })],
+    })
+    const get = vi.spyOn(backend, 'get')
+    renderView(backend)
+
+    expect(await screen.findByRole('article', { name: /Токен печатается/ })).toBeInTheDocument()
+    expect(screen.getByText('app/api.py:3')).toBeInTheDocument()
+    expect(
+      screen.getByText(/Дифф этого прогона удалён по сроку хранения 21\.10\.2026, 03:00 UTC\./),
+    ).toHaveTextContent('Замечания и ход прогона сохранены.')
+    expect(await screen.findByRole('list', { name: 'Шаги прогона' })).toHaveTextContent(
+      'Получение диффа',
+    )
+    await act(() => new Promise((resolve) => setTimeout(resolve, 50)))
+    expect(get).not.toHaveBeenCalledWith(reviewDiffPath(makeReviewRun().id))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Повторить' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Изменённые файлы' })).not.toBeInTheDocument()
+    expect(screen.queryByText(/не сохранена базовая ревизия/)).not.toBeInTheDocument()
+  })
+
+  it('дифф удалён по сроку хранения у прогона без base_sha — одно объяснение, про срок хранения', async () => {
+    renderView(
+      fakeAdapter({
+        run: makeReviewRun({ base_sha: null, diff_expired_at: '2026-10-21T03:00:00Z' }),
+      }),
+    )
+
+    expect(await screen.findByText(/удалён по сроку хранения/)).toBeInTheDocument()
+    expect(screen.queryByText(/не сохранена базовая ревизия/)).not.toBeInTheDocument()
   })
 
   describe('статус в реальном времени', () => {

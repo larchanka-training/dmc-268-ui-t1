@@ -9,6 +9,7 @@ import {
 } from '../../../entities/review-run'
 import { ConnectionNotice, useRunLiveStatus } from '../../../features/live-run-status'
 import { ApiError } from '../../../shared/api'
+import { formatDateTime } from '../../../shared/lib'
 import { EmptyState, ErrorState, LoadingState, RefreshErrorNotice } from '../../../shared/ui'
 import { ReviewSummary, RunHeader, RunProgress } from '../../../widgets/review-run-view'
 import { ReviewWorkspace } from '../../../widgets/review-workspace'
@@ -49,9 +50,8 @@ export function ReviewRunView() {
   // Маршрут `/reviews/:reviewId`; id — UUID прогона на бэкенде.
   const { reviewId = '' } = useParams()
   const review = useReviewRun(reviewId)
-  // `base_sha = null` бывает только у прогонов, записанных до миграции `0002`: дифф
-  // не воспроизвести, поэтому он не запрашивается.
-  const diff = useReviewDiff(reviewId, review.data?.base_sha)
+  // Без `base_sha` и после удаления по сроку хранения дифф не запрашивается: причина известна.
+  const diff = useReviewDiff(reviewId, review.data)
   const steps = useReviewSteps(reviewId)
   // Ключ — в зависимостях эффекта подписки: новый массив на каждый рендер переоткрывал бы поток.
   const queryKey = useMemo(() => reviewKey(reviewId), [reviewId])
@@ -124,10 +124,19 @@ export function ReviewRunView() {
       {/* Дифф не загрузился — причина на месте области изменений, замечания списком ниже.
           Постоянная причина (дифф велик, коммитов нет) без повтора: ответ не изменится. */}
       {diff.isLoadingError && <DiffProblemNotice error={diff.error} onRetry={diff.refetch} />}
-      {run.base_sha === null && (
+      {/* Дифф удалён по сроку хранения — объяснение с датой вместо запроса; бэкенд и сам
+          проверяет срок раньше `base_sha`, поэтому и здесь он первый. */}
+      {run.diff_expired_at !== null ? (
         <EmptyState>
-          Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.
+          Дифф этого прогона удалён по сроку хранения {formatDateTime(run.diff_expired_at)}.
+          Замечания и ход прогона сохранены.
         </EmptyState>
+      ) : (
+        run.base_sha === null && (
+          <EmptyState>
+            Для этого прогона не сохранена базовая ревизия — дифф в момент ревью недоступен.
+          </EmptyState>
+        )
       )}
       {workspace ? (
         <ReviewWorkspace
