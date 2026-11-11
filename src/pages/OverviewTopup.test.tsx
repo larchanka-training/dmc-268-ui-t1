@@ -52,13 +52,26 @@ describe('Overview: пополнение через Stripe', () => {
     expect(link).not.toHaveAttribute('target')
   })
 
-  it('кривая переменная не роняет «Обзор»: ссылки нет, пополняет администратор', async () => {
-    env.link = 'не адрес'
+  it.each(['не адрес', 'http://buy.stripe.com/test_x', 'https://pay.example.com/test_x'])(
+    'переменная %s: ссылки нет, пополняет администратор',
+    async (link) => {
+      env.link = link
+      stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
+      renderOverview('/')
+
+      expect(await screen.findByText('Пополняет администратор сервиса')).toBeInTheDocument()
+      expect(screen.queryByRole('link', { name: 'Пополнить' })).not.toBeInTheDocument()
+    },
+  )
+
+  it('рядом со ссылкой сказано про потолок пополнений', async () => {
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
     renderOverview('/')
 
-    expect(await screen.findByText('Пополняет администратор сервиса')).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Пополнить' })).not.toBeInTheDocument()
+    await screen.findByRole('link', { name: 'Пополнить' })
+    expect(
+      screen.getByText('до лимита на аккаунт: оплата сверх него не зачисляется'),
+    ).toBeInTheDocument()
   })
 
   it('свой query ссылки сохраняется рядом с client_reference_id', async () => {
