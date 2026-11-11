@@ -13,6 +13,7 @@ import {
   TextFilter,
   useFilterFindings,
 } from '../../../features/filter-findings'
+import { navigation } from '../../../shared/lib'
 import { EmptyState, ErrorBoundary, ErrorState, LoadingState } from '../../../shared/ui'
 import { resolveSelectedPath, useReviewWorkspace } from '../model/store'
 import { FileList } from './FileList'
@@ -123,8 +124,14 @@ export function ReviewWorkspace({ files, diffsByPath, findings, publishedComment
         ) : (
           <ErrorBoundary
             key={activePath}
-            fallback={(error, reset) => (
-              <ErrorState title="Не удалось отобразить дифф файла" error={error} onRetry={reset} />
+            // Повтор — перезагрузкой, не reset: React.lazy запоминает упавшую загрузку чанка,
+            // а после деплоя старого чанка нет вовсе.
+            fallback={(error) => (
+              <ErrorState
+                title="Не удалось отобразить дифф файла"
+                error={error}
+                onRetry={() => navigation.reload()}
+              />
             )}
           >
             <Suspense fallback={<LoadingState label="Загружаем просмотрщик диффа…" />}>

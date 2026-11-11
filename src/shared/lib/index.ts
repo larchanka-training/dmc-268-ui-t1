@@ -3,6 +3,7 @@ export {
   formatDuration,
   formatEuro,
   formatNumber,
+  formatShortUtcDay,
   isNegativeAmount,
   safeExternalUrl,
   shortSha,
