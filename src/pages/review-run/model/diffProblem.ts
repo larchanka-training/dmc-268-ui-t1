@@ -9,6 +9,8 @@ const PERMANENT_DIFF_PROBLEMS: Readonly<Record<string, string>> = {
   DIFF_UNAVAILABLE: 'Дифф прогона недоступен',
   COMMIT_NOT_FOUND: 'Коммитов прогона больше нет',
   REPOSITORY_NOT_IN_INSTALLATION: 'Приложение не установлено на репозиторий',
+  // Срок хранения прошёл, пока экран был открыт: прогон загружен ещё с `diff_expired_at = null`.
+  DIFF_EXPIRED: 'Дифф удалён по сроку хранения',
 }
 
 export type DiffProblem = {
