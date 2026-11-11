@@ -21,6 +21,11 @@ export function formatDuration(seconds: number): string {
   return rest === 0 ? `${minutes} мин` : `${minutes} мин ${rest} с`
 }
 
+/** UTC-день `YYYY-MM-DD` как `ДД.ММ`: нарезка строки, а не Intl — локальная зона сдвинула бы день. */
+export function formatShortUtcDay(date: string): string {
+  return `${date.slice(8)}.${date.slice(5, 7)}`
+}
+
 export function shortSha(sha: string): string {
   return sha.slice(0, 7)
 }
