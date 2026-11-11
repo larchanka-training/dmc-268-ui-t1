@@ -123,6 +123,7 @@ jobs:
             PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
             VITE_OTEL_EXPORTER_URL=${{ vars.VITE_OTEL_EXPORTER_URL }}
             VITE_OTEL_ENVIRONMENT=production
+            VITE_STRIPE_PAYMENT_LINK=${{ vars.VITE_STRIPE_PAYMENT_LINK }}
             VITE_APP_VERSION=${{ needs.gate.outputs.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

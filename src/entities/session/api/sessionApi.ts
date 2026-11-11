@@ -34,6 +34,7 @@ export async function fetchCurrentUser(): Promise<CurrentUser> {
   const data: unknown = await response.json()
   const me = parseResponse(currentUserSchema, ME_PATH, data)
   return {
+    id: me.id,
     provider: me.provider,
     login: me.login,
     name: me.name,
