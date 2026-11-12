@@ -1,12 +1,13 @@
-import { Typography } from 'antd'
+import { WalletOutlined } from '@ant-design/icons'
+import { Button, Grid, Typography } from 'antd'
 
 import { STRIPE_PAYMENT_LINK } from '@/shared/config/env'
 
 const TOPUP_CAP_HINT = 'до лимита на аккаунт: оплата сверх него не зачисляется'
 
 /**
- * Ссылка «Пополнить» на Payment Link Stripe: по `client_reference_id` вебхук находит, чей баланс
- * пополнить. Без `VITE_STRIPE_PAYMENT_LINK` пополняет администратор.
+ * Кнопка «Пополнить» в карточке «Баланс» на Payment Link Stripe: по `client_reference_id` вебхук
+ * находит, чей баланс пополнить. Без `VITE_STRIPE_PAYMENT_LINK` пополняет администратор.
  */
 export function TopupLink({ userId }: { userId: string }) {
   const href = topupHref(userId)
@@ -18,14 +19,34 @@ export function TopupLink({ userId }: { userId: string }) {
     )
   }
   return (
-    <span>
-      <Typography.Link href={href} className="text-meta">
+    <div className="mt-3">
+      <Button type="primary" icon={<WalletOutlined aria-hidden />} href={href}>
         Пополнить
-      </Typography.Link>{' '}
-      <Typography.Text type="secondary" className="text-meta">
+      </Button>
+      <Typography.Paragraph type="secondary" className="text-meta mt-1 mb-0">
         {TOPUP_CAP_HINT}
-      </Typography.Text>
-    </span>
+      </Typography.Paragraph>
+    </div>
+  )
+}
+
+/**
+ * «Пополнить баланс» в шапке кабинета: прямая ссылка на оплату, уже `lg` только иконка (рядом
+ * сайдбар). Про лимит говорят карточка «Баланс» и уведомление после возврата из Stripe.
+ */
+export function TopupHeaderButton({ userId }: { userId: string }) {
+  const screens = Grid.useBreakpoint()
+  const href = topupHref(userId)
+  if (!href) return null
+  return (
+    <Button
+      type="primary"
+      icon={<WalletOutlined aria-hidden />}
+      href={href}
+      aria-label={screens.lg ? undefined : 'Пополнить баланс'}
+    >
+      {screens.lg && 'Пополнить баланс'}
+    </Button>
   )
 }
 

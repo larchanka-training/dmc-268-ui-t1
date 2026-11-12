@@ -6,8 +6,9 @@ import { cleanup } from '@testing-library/react'
 if (!window.matchMedia) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
+    // Как настольный браузер: `min-width` брейкпоинтов antd выполняются, кабинет с сайдбаром.
     value: (query: string) => ({
-      matches: false,
+      matches: query.includes('min-width'),
       media: query,
       onchange: null,
       addListener: () => {},

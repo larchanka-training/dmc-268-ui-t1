@@ -1,6 +1,6 @@
 import {
   BarChartOutlined,
-  BookOutlined,
+  BranchesOutlined,
   CloudServerOutlined,
   DashboardOutlined,
   FileSearchOutlined,
@@ -16,12 +16,13 @@ const navItems = [
   { key: '/', icon: <DashboardOutlined />, label: 'Обзор' },
   { key: '/reviews', icon: <FileSearchOutlined />, label: 'Ревью' },
   { key: '/analytics', icon: <BarChartOutlined />, label: 'Аналитика' },
-  { key: '/repositories', icon: <BookOutlined />, label: 'Репозитории' },
+  { key: '/repositories', icon: <BranchesOutlined />, label: 'Репозитории' },
   { key: '/help', icon: <QuestionCircleOutlined />, label: 'Помощь' },
   { key: '/status', icon: <CloudServerOutlined />, label: 'Статус сервиса' },
 ]
 
-export function AppSidebar() {
+/** `onNavigate` закрывает выдвижное меню на узком экране после перехода. */
+export function AppSidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -42,7 +43,10 @@ export function AppSidebar() {
           mode="inline"
           selectedKeys={[selectedKey]}
           items={navItems}
-          onClick={({ key }) => navigate(key)}
+          onClick={({ key }) => {
+            navigate(key)
+            onNavigate?.()
+          }}
           className={styles.menu}
         />
       </nav>

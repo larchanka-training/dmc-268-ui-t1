@@ -1,3 +1,12 @@
+import {
+  BranchesOutlined,
+  CheckCircleOutlined,
+  GithubOutlined,
+  GitlabOutlined,
+  ReloadOutlined,
+  StopOutlined,
+  WalletOutlined,
+} from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { Button, Card, Col, Modal, Row, Statistic, Typography, message, theme } from 'antd'
 import type { PaidRepository } from '@/entities/session'
@@ -49,6 +58,7 @@ function PaidRepositoriesCard({ repositories }: { repositories: PaidRepository[]
                 aria-label={`Перестать платить за ${repo.fullName}`}
                 aria-busy={pending.includes(repo.id)}
                 loading={pending.includes(repo.id)}
+                icon={<StopOutlined aria-hidden />}
                 onClick={() => confirmStop(repo)}
               >
                 Перестать платить
@@ -77,28 +87,35 @@ export function OverviewPage() {
       </Typography.Paragraph>
       <TopupNotice className="page-section" />
       <Row gutter={[16, 16]} className="page-section">
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card className="app-content-card">
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="app-content-card h-full">
             {/* Список не загрузился — не «0»: это выглядело бы как «репозиториев нет». */}
             <Statistic
               title="Подключённых репозиториев"
+              prefix={<BranchesOutlined aria-hidden />}
               value={connectedCount ?? '—'}
               loading={isLoading}
             />
             {isLoadingError && (
               <div role="alert" className="mt-2 text-sm text-red-700">
                 Не удалось загрузить репозитории.{' '}
-                <Button size="small" type="link" onClick={() => void refetch()}>
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ReloadOutlined aria-hidden />}
+                  onClick={() => void refetch()}
+                >
                   Повторить
                 </Button>
               </div>
             )}
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card className="app-content-card">
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="app-content-card h-full">
             <Statistic
               title="Баланс"
+              prefix={<WalletOutlined aria-hidden />}
               value={formatEuro(user.balanceEur)}
               styles={
                 isNegativeAmount(user.balanceEur)
@@ -109,14 +126,29 @@ export function OverviewPage() {
             <TopupLink userId={user.id} />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card className="app-content-card">
-            <Statistic title="Провайдер VCS" value={user?.provider ?? '—'} />
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="app-content-card h-full">
+            <Statistic
+              title="Провайдер VCS"
+              value={user?.provider ?? '—'}
+              prefix={
+                user.provider === 'gitlab' ? (
+                  <GitlabOutlined aria-hidden />
+                ) : (
+                  <GithubOutlined aria-hidden />
+                )
+              }
+            />
           </Card>
         </Col>
-        <Col xs={24} sm={12} md={12} lg={6}>
-          <Card className="app-content-card">
-            <Statistic title="Сессия" value="Активна" valueStyle={{ color: '#1a7f37' }} />
+        <Col xs={24} sm={12} xl={6}>
+          <Card className="app-content-card h-full">
+            <Statistic
+              title="Сессия"
+              value="Активна"
+              prefix={<CheckCircleOutlined aria-hidden />}
+              styles={{ content: { color: token.colorSuccess } }}
+            />
           </Card>
         </Col>
       </Row>
@@ -124,7 +156,9 @@ export function OverviewPage() {
       <Card className={`app-content-card page-section`}>
         <Typography.Title level={2}>Быстрые действия</Typography.Title>
         <Link to="/repositories">
-          <Button type="primary">Список репозиториев</Button>
+          <Button type="primary" icon={<BranchesOutlined aria-hidden />}>
+            Список репозиториев
+          </Button>
         </Link>
       </Card>
     </div>

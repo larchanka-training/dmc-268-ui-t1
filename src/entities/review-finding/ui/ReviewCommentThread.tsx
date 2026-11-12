@@ -27,12 +27,14 @@ export function ReviewCommentThread({ finding, publication, anchorContent, defau
   return (
     <article
       aria-label={`Замечание: ${stripCodeMarks(headline)}`}
-      className="overflow-hidden rounded-lg border border-slate-200 bg-white text-sm shadow-sm"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-[var(--app-surface)] text-sm shadow-sm"
     >
       <Collapse
         ghost
         destroyOnHidden
         defaultActiveKey={open ? ['finding'] : []}
+        // Без min-width 0 заголовок шире карточки: длинное замечание обрезалось краем без многоточия.
+        classNames={{ title: 'min-w-0' }}
         items={[
           {
             key: 'finding',

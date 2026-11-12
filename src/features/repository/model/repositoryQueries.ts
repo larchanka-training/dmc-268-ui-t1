@@ -118,7 +118,7 @@ export function usePendingPayerChanges() {
   })
 }
 
-/** «Платить за этот репозиторий» — `POST …/payer`. */
+/** «Взять оплату на себя» — `POST …/payer`. */
 export function useTakeOverPayment() {
   return usePayerMutation(takeOverPayment)
 }

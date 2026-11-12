@@ -199,6 +199,7 @@ export function ReviewsPage() {
           />
         </div>
         <Table
+          scroll={{ x: 'max-content' }}
           rowKey="id"
           loading={list.isLoading}
           columns={columns}
