@@ -1,5 +1,5 @@
 import { MenuOutlined, MoonOutlined, SunOutlined } from '@ant-design/icons'
-import { Avatar, Button, Dropdown, Layout, Space, Tag, Typography } from 'antd'
+import { Avatar, Button, Dropdown, Grid, Layout, Space, Tag, Typography } from 'antd'
 import { useCurrentUser, useLogout } from '@/features/auth'
 import { useAppTheme } from '@/features/theme'
 import { TopupHeaderButton } from '@/features/topup'
@@ -13,6 +13,7 @@ export function AppHeader({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
   const user = useCurrentUser()
   const logout = useLogout()
   const { mode, toggleMode } = useAppTheme()
+  const screens = Grid.useBreakpoint()
 
   const menuItems = [
     {
@@ -32,11 +33,12 @@ export function AppHeader({ onOpenMenu }: { onOpenMenu?: () => void } = {}) {
           aria-label="Открыть меню"
         />
       ) : (
-        <Typography.Text type="secondary" className="hidden lg:inline">
-          Учебное рабочее пространство
-        </Typography.Text>
+        screens.xl && (
+          <Typography.Text type="secondary">Учебное рабочее пространство</Typography.Text>
+        )
       )}
-      <Space size="middle">
+      {/* Без подписи слева `space-between` прижал бы управление к левому краю. */}
+      <Space size="middle" className="ml-auto">
         <Typography.Text
           type={isNegativeAmount(user.balanceEur) ? 'danger' : 'secondary'}
           className="whitespace-nowrap"

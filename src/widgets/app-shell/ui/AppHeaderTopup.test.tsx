@@ -45,13 +45,14 @@ describe('Шапка: «Пополнить баланс»', () => {
     vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
       ...matchMedia(query),
       // Ширина между md и lg: брейкпоинты от lg (992) и выше не выполняются.
-      matches: query.includes('min-width') && !/(992|1200|1600)px/.test(query),
+      matches: query.includes('min-width') && !/(992|1200|1600|1920)px/.test(query),
     }))
     stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
     renderAppHeader()
 
     const link = await screen.findByRole('link', { name: 'Пополнить баланс' })
     expect(link).not.toHaveTextContent('Пополнить баланс')
+    expect(screen.queryByText('Учебное рабочее пространство')).not.toBeInTheDocument()
   })
 
   it('без переменной кнопки нет', async () => {
