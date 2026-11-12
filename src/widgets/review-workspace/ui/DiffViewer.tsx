@@ -1,7 +1,9 @@
-import { Button } from 'antd'
+import { ColumnHeightOutlined, VerticalAlignTopOutlined } from '@ant-design/icons'
+import { Button, Grid } from 'antd'
 import { DiffModeEnum, DiffView, SplitSide } from '@git-diff-view/react'
 import '@git-diff-view/react/styles/diff-view-pure.css'
 import { useMemo } from 'react'
+import { useThemeMode } from '@/features/theme'
 
 import {
   collapseContext,
@@ -43,6 +45,9 @@ export function DiffViewer({
   expandedLineIds,
   onExpand,
 }: Props) {
+  const mode = useThemeMode()
+  // На телефоне двум колонкам места нет: код рвался бы по буквам.
+  const narrow = Grid.useBreakpoint().md === false
   const allLines = useMemo(() => indexLines(file), [file])
 
   const { shown, gaps } = useMemo(() => {
@@ -109,10 +114,17 @@ export function DiffViewer({
           key={gap.lineIds[0]}
           size="small"
           block
+          icon={
+            gap.position === 'before' ? (
+              <VerticalAlignTopOutlined aria-hidden />
+            ) : (
+              <ColumnHeightOutlined aria-hidden />
+            )
+          }
           onClick={() => onExpand(gap.lineIds)}
           className="justify-start border-dashed border-sky-300 bg-sky-50 text-left text-xs font-medium text-sky-800"
         >
-          {gap.position === 'before' ? '↑' : '↕'} Показать {gap.lineIds.length} скрытых строк
+          Показать {gap.lineIds.length} скрытых строк
           {gap.position === 'before' ? ' выше' : ''}
         </Button>
       ))}
@@ -149,10 +161,12 @@ export function DiffViewer({
           renderExtendLine={({ data, side, lineNumber }) =>
             renderExtras(data, side === SplitSide.old ? 'old' : 'new', lineNumber)
           }
-          diffViewMode={viewMode === 'side_by_side' ? DiffModeEnum.Split : DiffModeEnum.Unified}
+          diffViewMode={
+            viewMode === 'side_by_side' && !narrow ? DiffModeEnum.Split : DiffModeEnum.Unified
+          }
           diffViewHighlight
           diffViewWrap
-          diffViewTheme="light"
+          diffViewTheme={mode}
           diffViewFontSize={13}
         />
       </div>

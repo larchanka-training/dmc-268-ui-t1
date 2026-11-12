@@ -1,3 +1,4 @@
+import { ClearOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button, Input, Segmented, Select } from 'antd'
 import { useState } from 'react'
 
@@ -120,7 +121,12 @@ export function ReviewFilters({ filters, onChange, onReset }: Props) {
             repositoriesFailed ? (
               <div role="alert" className="text-sm">
                 Не удалось загрузить репозитории.{' '}
-                <Button size="small" type="link" onClick={() => void refetchRepositories()}>
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<ReloadOutlined aria-hidden />}
+                  onClick={() => void refetchRepositories()}
+                >
                   Повторить
                 </Button>
               </div>
@@ -158,7 +164,11 @@ export function ReviewFilters({ filters, onChange, onReset }: Props) {
           min={filters.from ?? undefined}
           onChange={(event) => onChange({ to: event.target.value || null })}
         />
-        {onReset && <Button onClick={onReset}>Сбросить фильтры</Button>}
+        {onReset && (
+          <Button icon={<ClearOutlined aria-hidden />} onClick={onReset}>
+            Сбросить фильтры
+          </Button>
+        )}
       </div>
     </div>
   )

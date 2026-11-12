@@ -78,6 +78,17 @@ body {
   min-height: 280px;
 }
 
+/* Телефон: поля 16 px, как у страниц вне кабинета. */
+@media (width < 768px) {
+  .app-main-header {
+    padding: 0 12px;
+  }
+
+  .app-layout-content {
+    padding: 16px;
+  }
+}
+
 .page-title {
   margin: 0;
   font-size: 24px;
@@ -163,12 +174,66 @@ body {
 
 /* Помощь: отступ над якорем при прокрутке, пример правил моноширинным блоком. */
 .help-content {
-  max-width: 800px;
+  max-width: 960px;
   margin: 0 auto;
 }
 
 .help-anchor {
   scroll-margin-top: 16px;
+}
+
+.help-steps {
+  display: grid;
+  gap: 14px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.help-steps li {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.help-step-icon,
+.help-question-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--ant-color-primary);
+  background: var(--ant-color-primary-bg);
+}
+
+.help-faq {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  gap: 16px;
+}
+
+.help-faq-wide {
+  grid-column: 1 / -1;
+}
+
+.help-question {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.help-content h2 {
+  margin-bottom: 16px;
+}
+
+.help-content ul {
+  padding-left: 20px;
+  list-style: disc;
 }
 
 .help-code {

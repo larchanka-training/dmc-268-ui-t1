@@ -117,7 +117,7 @@ export function RunProgress({ run, seenStage }: Props) {
   return (
     <section
       aria-label="Прогресс прогона"
-      className="space-y-3 rounded-xl border border-slate-200 bg-white p-5"
+      className="space-y-3 rounded-xl border border-slate-200 bg-[var(--app-surface)] p-5"
     >
       {/* Смену этапа объявляем скринридеру: сам прогон идёт без действий пользователя. */}
       <div aria-live="polite">

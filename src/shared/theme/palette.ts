@@ -24,6 +24,14 @@ export interface ThemePalette {
   headerBg: string
   menuSelectedBg: string
   menuHoverBg: string
+  /** Поля ввода и селекты: в тёмной теме темнее карточки, иначе сливаются с ней. */
+  fieldBg: string
+  fieldBorder: string
+  placeholder: string
+  /** Дорожка выключенного переключателя: в тёмной теме иначе не видна на фоне карточки. */
+  switchOff: string
+  /** Зелёный «успеха» с контрастом не ниже 4.5:1 на поверхности темы. */
+  success: string
 }
 
 export const themePalette: Record<ThemeMode, ThemePalette> = {
@@ -40,6 +48,11 @@ export const themePalette: Record<ThemeMode, ThemePalette> = {
     headerBg: '#fff',
     menuSelectedBg: '#eaeef2',
     menuHoverBg: '#f3f4f6',
+    fieldBg: '#fff',
+    fieldBorder: '#d0d7de',
+    placeholder: '#8c959f',
+    switchOff: 'rgba(0, 0, 0, 0.25)',
+    success: '#1a7f37',
   },
   dark: {
     surface: '#161b22',
@@ -54,6 +67,11 @@ export const themePalette: Record<ThemeMode, ThemePalette> = {
     headerBg: '#161b22',
     menuSelectedBg: '#21262d',
     menuHoverBg: '#21262d',
+    fieldBg: '#0d1117',
+    fieldBorder: '#3d444d',
+    placeholder: '#7d8590',
+    switchOff: '#6e7681',
+    success: '#3fb950',
   },
 }
 
@@ -86,6 +104,8 @@ export function buildAntdThemeConfig(mode: ThemeMode): ThemeConfig {
       colorBorder: p.border,
       colorText: p.text,
       colorTextSecondary: p.muted,
+      colorTextPlaceholder: p.placeholder,
+      colorSuccess: p.success,
     },
     components: {
       Layout: {
@@ -93,6 +113,14 @@ export function buildAntdThemeConfig(mode: ThemeMode): ThemeConfig {
         siderBg: p.siderBg,
         bodyBg: p.bgLayout,
       },
+      Input: { colorBgContainer: p.fieldBg, colorBorder: p.fieldBorder },
+      InputNumber: { colorBgContainer: p.fieldBg, colorBorder: p.fieldBorder },
+      Select: { colorBgContainer: p.fieldBg, colorBorder: p.fieldBorder },
+      DatePicker: { colorBgContainer: p.fieldBg, colorBorder: p.fieldBorder },
+      // Заголовки разделов мельче заголовка страницы (`.page-title`, 24 px). Только в Typography:
+      // глобальный токен уменьшил бы Steps, Result и Alert.
+      Typography: { fontSizeHeading2: 20, fontSizeHeading3: 16 },
+      Switch: { colorTextQuaternary: p.switchOff, colorTextTertiary: p.placeholder },
       Menu: {
         itemBg: 'transparent',
         itemSelectedBg: p.menuSelectedBg,

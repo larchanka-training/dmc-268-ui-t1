@@ -1,3 +1,4 @@
+import { InboxOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button } from 'antd'
 import type { ReactNode } from 'react'
 
@@ -24,7 +25,13 @@ export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
       <p className="font-medium">{title}</p>
       {error instanceof Error && <p className="mt-1 text-red-700">{error.message}</p>}
       {onRetry && (
-        <Button size="small" danger onClick={onRetry} className="mt-3 font-medium">
+        <Button
+          size="small"
+          danger
+          icon={<ReloadOutlined aria-hidden />}
+          onClick={onRetry}
+          className="mt-3 font-medium"
+        >
           Повторить
         </Button>
       )}
@@ -35,6 +42,7 @@ export function ErrorState({ title, error, onRetry }: ErrorStateProps) {
 export function EmptyState({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">
+      <InboxOutlined aria-hidden className="mb-2 block text-2xl" />
       {children}
     </div>
   )

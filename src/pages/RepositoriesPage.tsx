@@ -11,7 +11,7 @@ import {
   Typography,
   message,
 } from 'antd'
-import { SearchOutlined } from '@ant-design/icons'
+import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigationType, useSearchParams } from 'react-router-dom'
@@ -230,11 +230,11 @@ export function RepositoriesPage() {
     if (repositoryId === null) return
     // Подтверждение: оплата уходит от прежнего плательщика, и вернуть её может только он сам.
     void modal.confirm({
-      title: `Платить за ${repo.full_name}?`,
+      title: `Взять оплату ревью ${repo.full_name} на себя?`,
       content: repo.payer_login
         ? `Ревью этого репозитория пойдёт с вашего баланса вместо баланса ${repo.payer_login}.`
         : 'Ревью этого репозитория пойдёт с вашего баланса.',
-      okText: 'Платить',
+      okText: 'Взять на себя',
       cancelText: 'Отмена',
       onOk: () => {
         void takeOver.mutateAsync(repositoryId).catch((err: unknown) => {
@@ -309,12 +309,12 @@ export function RepositoriesPage() {
                 type="link"
                 size="small"
                 className="px-0"
-                aria-label={`Платить за этот репозиторий: ${record.full_name}`}
+                aria-label={`Взять оплату на себя: ${record.full_name}`}
                 aria-busy={payerPending.includes(record.id)}
                 loading={payerPending.includes(record.id)}
                 onClick={() => payFor(record)}
               >
-                Платить за этот репозиторий
+                Взять оплату на себя
               </Button>
             )}
           </Space>
@@ -352,7 +352,7 @@ export function RepositoriesPage() {
         <Space wrap>
           {/* Без `install_url` бэкенд не знает адрес установки: кнопки нет. */}
           {installUrl && (
-            <Button type="primary" href={installUrl}>
+            <Button type="primary" icon={<PlusOutlined aria-hidden />} href={installUrl}>
               Добавить репозитории из GitHub
             </Button>
           )}
@@ -414,7 +414,12 @@ export function RepositoriesPage() {
             }
           >
             {installUrl && (
-              <Button type="primary" size="large" href={installUrl}>
+              <Button
+                type="primary"
+                size="large"
+                icon={<PlusOutlined aria-hidden />}
+                href={installUrl}
+              >
                 Добавить
               </Button>
             )}
@@ -450,6 +455,8 @@ export function RepositoriesPage() {
               />
             )}
             <Table
+              scroll={{ x: 'max-content' }}
+              rowHoverable={false}
               rowKey={(record) => `${record.provider}:${record.provider_id}`}
               loading={isLoading}
               columns={columns}

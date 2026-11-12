@@ -1,3 +1,4 @@
+import { SaveOutlined } from '@ant-design/icons'
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, Button, Card, Form, Radio, Result, Select, Skeleton, Space, Typography } from 'antd'
@@ -134,7 +135,12 @@ function SettingsForm({ repositoryId }: { repositoryId: string }) {
           />
         </Form.Item>
         <Space>
-          <Button type="primary" htmlType="submit" loading={save.isPending}>
+          <Button
+            type="primary"
+            htmlType="submit"
+            icon={<SaveOutlined aria-hidden />}
+            loading={save.isPending}
+          >
             Сохранить
           </Button>
           <Button

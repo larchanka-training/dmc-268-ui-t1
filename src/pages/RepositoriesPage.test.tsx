@@ -18,7 +18,7 @@ afterEach(() => vi.unstubAllGlobals())
 
 /**
  * Профиль — из `fetch` (`RequireAuth`), как в приложении: по логину строка решает, показывать ли
- * «Платить за этот репозиторий».
+ * «Взять оплату на себя».
  */
 function withProfile(ui: ReactNode) {
   stubFetch({ 'GET /api/v1/auth/me': { status: 200, body: ME } })
@@ -492,7 +492,7 @@ describe('RepositoriesPage — ошибки выключения', () => {
 })
 
 describe('RepositoriesPage — плательщик', () => {
-  const PAY = 'Платить за этот репозиторий'
+  const PAY = 'Взять оплату на себя'
   const payButton = (name: string) => screen.queryByRole('button', { name: `${PAY}: ${name}` })
   const NO_PAYER = repository(5, 'acme/no-payer', { payer_login: null })
   const ALICE = repository(6, 'acme/alice-pays', { payer_login: 'alice' })
@@ -515,7 +515,7 @@ describe('RepositoriesPage — плательщик', () => {
     expect(payButton('acme/no-rights')).not.toBeInTheDocument()
   })
 
-  it('«Платить за этот репозиторий»: подтверждение, POST …/payer, список перечитан', async () => {
+  it('«Взять оплату на себя»: подтверждение, POST …/payer, список перечитан', async () => {
     const user = userEvent.setup()
     const backend = listBackend([ALICE])
     const post = vi.fn(async () => {
@@ -528,7 +528,7 @@ describe('RepositoriesPage — плательщик', () => {
     await user.click(payButton('acme/alice-pays')!)
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toHaveTextContent('вместо баланса alice')
-    await user.click(within(dialog).getByRole('button', { name: 'Платить' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Взять на себя' }))
 
     expect(await screen.findByText('octocat')).toBeInTheDocument()
     expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined)
@@ -554,13 +554,13 @@ describe('RepositoriesPage — плательщик', () => {
         expect(found).toBeDefined()
         return found!
       })
-      await user.click(within(dialog).getByRole('button', { name: 'Платить' }))
+      await user.click(within(dialog).getByRole('button', { name: 'Взять на себя' }))
     }
 
     await screen.findByText('acme/no-payer')
-    await payFor('acme/no-payer', 'Платить за acme/no-payer?')
+    await payFor('acme/no-payer', 'Взять оплату ревью acme/no-payer на себя?')
     await waitFor(() => expect(payButton('acme/no-payer')).toHaveAttribute('aria-busy', 'true'))
-    await payFor('acme/alice-pays', 'Платить за acme/alice-pays?')
+    await payFor('acme/alice-pays', 'Взять оплату ревью acme/alice-pays на себя?')
 
     await waitFor(() => expect(post).toHaveBeenCalledWith('/repositories/repo-6/payer', undefined))
     await waitFor(() => expect(payButton('acme/alice-pays')).toHaveAttribute('aria-busy', 'false'))
@@ -585,7 +585,7 @@ describe('RepositoriesPage — плательщик', () => {
     await screen.findByText('acme/no-payer')
     await user.click(payButton('acme/no-payer')!)
     await user.click(
-      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Платить' }),
+      within(await screen.findByRole('dialog')).getByRole('button', { name: 'Взять на себя' }),
     )
 
     expect(await screen.findByText('detail бэкенда')).toBeInTheDocument()

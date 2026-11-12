@@ -8,3 +8,8 @@ export function useAppTheme() {
   }
   return ctx
 }
+
+/** Режим темы для виджетов, которые рендерятся и без `ThemeProvider` (тесты): по умолчанию светлый. */
+export function useThemeMode() {
+  return useContext(ThemeContext)?.mode ?? 'light'
+}

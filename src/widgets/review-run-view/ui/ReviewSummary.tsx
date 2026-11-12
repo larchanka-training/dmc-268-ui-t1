@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 
 import { publicationsByFinding, type PublishedComment } from '../../../entities/published-comment'
 import {
@@ -27,35 +27,23 @@ export function ReviewSummary({ run, findings, publishedComments }: Props) {
   return (
     <section
       aria-labelledby="review-summary-title"
-      className="rounded-xl border border-slate-200 bg-white p-5"
+      className="rounded-xl border border-slate-200 bg-[var(--app-surface)] p-5"
     >
       <h2 id="review-summary-title" className="text-base font-semibold text-slate-900">
         Сводка
       </h2>
 
       <dl className="mt-3 flex flex-wrap gap-x-8 gap-y-3">
-        <div>
-          <dt className="text-xs text-slate-500">Замечаний</dt>
-          <dd className="text-2xl font-semibold text-slate-900">{findings.length}</dd>
-        </div>
+        <SummaryItem label="Замечаний" value={findings.length} />
         {SEVERITIES.map((severity) => (
-          <div key={severity}>
-            <dt>
-              <SeverityBadge severity={severity} />
-            </dt>
-            <dd className="mt-1 text-lg font-semibold text-slate-900">
-              {findings.filter((finding) => finding.severity === severity).length}
-            </dd>
-          </div>
+          <SummaryItem
+            key={severity}
+            label={<SeverityBadge severity={severity} />}
+            value={findings.filter((finding) => finding.severity === severity).length}
+          />
         ))}
-        <div>
-          <dt className="text-xs text-slate-500">Опубликовано inline</dt>
-          <dd className="text-lg font-semibold text-slate-900">{inlinePublished}</dd>
-        </div>
-        <div>
-          <dt className="text-xs text-slate-500">Отброшено валидацией</dt>
-          <dd className="text-lg font-semibold text-slate-900">{run.rejected_findings}</dd>
-        </div>
+        <SummaryItem label="Опубликовано inline" value={inlinePublished} />
+        <SummaryItem label="Отброшено валидацией" value={run.rejected_findings} />
       </dl>
 
       {partial && (
@@ -83,5 +71,15 @@ export function ReviewSummary({ run, findings, publishedComments }: Props) {
         </div>
       )}
     </section>
+  )
+}
+
+/** Показатель сводки: подпись (текст или бейдж) в строке одной высоты, число под ней — все на одном уровне. */
+function SummaryItem({ label, value }: { label: ReactNode; value: number }) {
+  return (
+    <div>
+      <dt className="flex h-6 items-center text-xs text-slate-500">{label}</dt>
+      <dd className="mt-1 text-xl font-semibold text-slate-900">{value}</dd>
+    </div>
   )
 }

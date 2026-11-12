@@ -1,4 +1,10 @@
 import {
+  ClockCircleOutlined,
+  FieldTimeOutlined,
+  FileSearchOutlined,
+  ReloadOutlined,
+} from '@ant-design/icons'
+import {
   Button,
   Card,
   Col,
@@ -154,7 +160,12 @@ export function AnalyticsPage() {
           // В списке всегда есть «Все репозитории», поэтому ошибка рядом с фильтром, а не в нём.
           <span role="alert" className="text-sm">
             Не удалось загрузить репозитории.{' '}
-            <Button size="small" type="link" onClick={() => void repositories.refetch()}>
+            <Button
+              size="small"
+              type="link"
+              icon={<ReloadOutlined aria-hidden />}
+              onClick={() => void repositories.refetch()}
+            >
               Повторить
             </Button>
           </span>
@@ -204,22 +215,28 @@ export function AnalyticsPage() {
         <>
           <Row gutter={[16, 16]} className="page-section">
             <Col xs={24} sm={8}>
-              <Card className="app-content-card">
-                <Statistic title="Прогонов" value={formatNumber(data.runs.count)} />
+              <Card className="app-content-card h-full">
+                <Statistic
+                  title="Прогонов"
+                  value={formatNumber(data.runs.count)}
+                  prefix={<FileSearchOutlined aria-hidden />}
+                />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card className="app-content-card">
+              <Card className="app-content-card h-full">
                 <Statistic
                   title="Средняя длительность"
+                  prefix={<ClockCircleOutlined aria-hidden />}
                   value={duration(data.runs.average_duration_seconds)}
                 />
               </Card>
             </Col>
             <Col xs={24} sm={8}>
-              <Card className="app-content-card">
+              <Card className="app-content-card h-full">
                 <Statistic
                   title="p95 длительности"
+                  prefix={<FieldTimeOutlined aria-hidden />}
                   value={duration(data.runs.p95_duration_seconds)}
                 />
               </Card>
@@ -261,6 +278,7 @@ export function AnalyticsPage() {
           <Card className="app-content-card page-section">
             <Typography.Title level={2}>По репозиториям</Typography.Title>
             <Table
+              rowHoverable={false}
               rowKey="repository_id"
               columns={columns}
               dataSource={data.by_repository}

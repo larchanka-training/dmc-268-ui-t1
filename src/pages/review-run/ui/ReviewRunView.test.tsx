@@ -352,7 +352,9 @@ describe('ReviewRunView', () => {
     expect(screen.getByText('Завершён')).toBeInTheDocument()
     expect(screen.getByText('Чтение токена из окружения')).toBeInTheDocument()
     expect(screen.getByText('a.petrova')).toBeInTheDocument()
-    expect(screen.getByText('feat/env-token → develop')).toBeInTheDocument()
+    const branches = screen.getByText('feat/env-token', { exact: false })
+    expect(branches).toHaveTextContent(/feat\/env-token\s*develop/)
+    expect(within(branches).getByRole('img', { name: 'в' })).toBeInTheDocument()
     // Вердикт выводится из замечаний: среди них critical.
     expect(screen.getByLabelText('Вердикт: Нужны правки')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Открыть запрос на изменение/ })).toHaveAttribute(

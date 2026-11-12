@@ -17,7 +17,7 @@ export function ViewModeToggle({ value, onChange }: Props) {
     <div
       role="group"
       aria-label="Режим диффа"
-      className="inline-flex rounded-md border border-slate-300 p-0.5"
+      className="hidden rounded-md border border-slate-300 p-0.5 md:inline-flex"
     >
       {MODES.map(({ mode, label }) => (
         <Button

@@ -91,7 +91,7 @@ export function ReviewWorkspace({ files, diffsByPath, findings, publishedComment
       aria-label="Изменения"
       className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]"
     >
-      <aside className="min-w-0 rounded-xl border border-slate-200 bg-white p-2 lg:sticky lg:top-4 lg:self-start">
+      <aside className="min-w-0 rounded-xl border border-slate-200 bg-[var(--app-surface)] p-2 lg:sticky lg:top-4 lg:self-start">
         <FileFilter />
         <FileList
           files={visibleFiles}

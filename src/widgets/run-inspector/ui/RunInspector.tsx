@@ -32,7 +32,7 @@ export function RunInspector({
   return (
     <section
       aria-labelledby="run-inspector-title"
-      className="rounded-xl border border-slate-200 bg-white p-5"
+      className="rounded-xl border border-slate-200 bg-[var(--app-surface)] p-5"
     >
       <h2 id="run-inspector-title" className="text-base font-semibold text-slate-900">
         Ход прогона

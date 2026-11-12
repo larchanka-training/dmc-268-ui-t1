@@ -1,3 +1,4 @@
+import { ArrowRightOutlined, ExportOutlined } from '@ant-design/icons'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -23,7 +24,7 @@ function Meta({ term, wide, children }: { term: string; wide?: boolean; children
   return (
     <div className={wide ? 'col-span-2' : undefined}>
       <dt className="text-xs text-slate-500">{term}</dt>
-      <dd className="mt-0.5 text-sm text-slate-900">{children}</dd>
+      <dd className="mt-0.5 text-sm [overflow-wrap:anywhere] text-slate-900">{children}</dd>
     </div>
   )
 }
@@ -32,7 +33,7 @@ export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict |
   const mr = run.merge_request
   const sourceUrl = mr.url ? safeExternalUrl(mr.url) : null
   return (
-    <header className="rounded-xl border border-slate-200 bg-white p-5">
+    <header className="rounded-xl border border-slate-200 bg-[var(--app-surface)] p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-3">
@@ -43,9 +44,10 @@ export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict |
                 href={sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm font-medium text-blue-700 hover:underline"
+                className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline"
               >
-                Открыть запрос на изменение ↗
+                Открыть запрос на изменение
+                <ExportOutlined aria-hidden />
               </a>
             )}
           </div>
@@ -57,11 +59,13 @@ export function RunHeader({ run, verdict }: { run: ReviewRun; verdict: Verdict |
         <VerdictBadge verdict={verdict} finished={isTerminalStatus(run.status)} />
       </div>
 
-      <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-8">
+      <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 xl:grid-cols-8">
         <Meta term="Автор">{mr.author}</Meta>
         <Meta term="Ветки" wide>
-          <span className="font-mono text-xs">
-            {mr.source_branch} → {mr.target_branch}
+          <span className="inline-flex flex-wrap items-center gap-1 font-mono text-xs">
+            {mr.source_branch}
+            <ArrowRightOutlined aria-label="в" />
+            {mr.target_branch}
           </span>
         </Meta>
         <Meta term="Коммит">

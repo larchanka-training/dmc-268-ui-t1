@@ -1,3 +1,4 @@
+import { ReloadOutlined } from '@ant-design/icons'
 import { Alert, Button, Typography } from 'antd'
 
 import {
@@ -101,7 +102,12 @@ export function StatusPage() {
                 title="Не удалось получить статус от API"
                 description="О состоянии обработки ревью и очереди задач сообщает API, поэтому для них нет данных. Страница повторит запрос сама."
                 action={
-                  <Button size="small" loading={isFetching} onClick={() => void refetch()}>
+                  <Button
+                    size="small"
+                    icon={<ReloadOutlined aria-hidden />}
+                    loading={isFetching}
+                    onClick={() => void refetch()}
+                  >
                     Проверить снова
                   </Button>
                 }
