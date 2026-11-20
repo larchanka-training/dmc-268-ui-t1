@@ -184,6 +184,101 @@ run "empty_service_host_rejected" {
   expect_failures = [var.service_host]
 }
 
+run "service_host_with_scheme_rejected" {
+  command = plan
+
+  variables {
+    service_host = "https://review.example"
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_with_port_rejected" {
+  command = plan
+
+  variables {
+    service_host = "review.example:8443"
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_with_uppercase_rejected" {
+  command = plan
+
+  variables {
+    service_host = "Review.Example"
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_with_trailing_dot_rejected" {
+  command = plan
+
+  variables {
+    service_host = "example.com."
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_with_path_rejected" {
+  command = plan
+
+  variables {
+    service_host = "review.example/app"
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_with_ipv6_rejected" {
+  command = plan
+
+  variables {
+    service_host = "2001:db8::1"
+  }
+
+  expect_failures = [var.service_host]
+}
+
+run "service_host_domain_and_ipv4_accepted" {
+  command = plan
+
+  variables {
+    public_tls   = true
+    ui_port      = 80
+    service_host = "review.example"
+  }
+
+  assert {
+    condition     = contains(docker_container.ui.env, "PUBLIC_HOST=review.example") && output.ui_url == "https://review.example"
+    error_message = "Домен в нижнем регистре проходит проверку и доходит до PUBLIC_HOST и ui_url."
+  }
+}
+
+run "acme_production_directory_rejected" {
+  command = plan
+
+  variables {
+    acme_directory = "https://acme-v02.api.letsencrypt.org/directory"
+  }
+
+  expect_failures = [var.acme_directory]
+}
+
+run "acme_production_directory_with_slash_rejected" {
+  command = plan
+
+  variables {
+    acme_directory = "https://acme-v02.api.letsencrypt.org/directory/"
+  }
+
+  expect_failures = [var.acme_directory]
+}
+
 run "tls_on_non_80_port_rejected" {
   command = plan
 

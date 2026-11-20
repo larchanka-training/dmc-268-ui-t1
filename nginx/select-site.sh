@@ -12,6 +12,16 @@ if [ -z "${PUBLIC_HOST:-}" ]; then
     exit 0
 fi
 
+# IPv6 не поддерживается: в адресах (redirect, server_name, Grafana на :8443)
+# его пришлось бы брать в скобки. Проверка service_host в infra/variables.tf
+# его не пропускает; здесь — на случай запуска образа мимо OpenTofu.
+case "$PUBLIC_HOST" in
+    *:*)
+        echo "$0: PUBLIC_HOST=${PUBLIC_HOST} — IPv6 или адрес с портом не поддерживаются" >&2
+        exit 1
+        ;;
+esac
+
 acme_production=https://acme-v02.api.letsencrypt.org/directory
 : "${ACME_DIRECTORY:=$acme_production}"
 
@@ -20,7 +30,8 @@ acme_production=https://acme-v02.api.letsencrypt.org/directory
 # возврата на боевой каталог модуль мог бы взять с тома сертификат staging,
 # которому браузер не доверяет, и отдавать его до продления. Состояние
 # боевого каталога остаётся там же, где было, — перевыпуска нет.
-if [ "$ACME_DIRECTORY" = "$acme_production" ]; then
+# Боевой адрес с косой чертой в конце — тот же боевой каталог.
+if [ "${ACME_DIRECTORY%/}" = "$acme_production" ]; then
     ACME_STATE_PATH=/var/lib/nginx-acme
 else
     ACME_STATE_PATH=/var/lib/nginx-acme/test-directory
@@ -30,11 +41,9 @@ fi
 # сертификат только с профилем shortlived (160 часов), и без него заказ
 # отклоняется; require — не откатываться молча на другой профиль, а падать.
 # На имя хоста профиль не запрашивается: сервер выдаёт профиль по умолчанию,
-# у Let's Encrypt — classic на 90 дней. IP узнаём по виду: IPv6 — по
-# двоеточию (в имени хоста его не бывает), IPv4 — только цифры и точки
-# (имя верхнего уровня из одних цифр не бывает).
+# у Let's Encrypt — classic на 90 дней. IP узнаём по виду: IPv4 — только
+# цифры и точки (имя верхнего уровня из одних цифр не бывает).
 case "$PUBLIC_HOST" in
-    *:*) acme_profile=shortlived ;;
     *[!0-9.]*) acme_profile= ;;
     *.*.*.*) acme_profile=shortlived ;;
     *) acme_profile= ;;
