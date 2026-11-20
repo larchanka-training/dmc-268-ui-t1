@@ -119,8 +119,9 @@ jobs:
           # Адрес коллектора — переменная репозитория VITE_OTEL_EXPORTER_URL:
           # пока её нет, телеметрия кабинета выключена (прокси /otlp/ — api#108).
           # Окружение — production: стенд и есть прод, staging нет (api#97).
+          # Адрес — домен из PUBLIC_HOST, пока его нет — IP стенда (ui#41).
           build-args: |
-            PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
+            PUBLIC_ORIGIN=https://${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
             VITE_OTEL_EXPORTER_URL=${{ vars.VITE_OTEL_EXPORTER_URL }}
             VITE_OTEL_ENVIRONMENT=production
             VITE_STRIPE_PAYMENT_LINK=${{ vars.VITE_STRIPE_PAYMENT_LINK }}
@@ -179,10 +180,18 @@ jobs:
     permissions:
       contents: read
       packages: read
-    # Адрес стенда: имя для клиента, адрес проверок и summary. На сервер шаги
-    # ходят через хост `stand` из ~/.ssh/config (stand-ssh).
+    # Адрес стенда: имя для клиента, адрес проверок и summary. Домен из
+    # переменной репозитория PUBLIC_HOST, а пока её нет — IP стенда: без
+    # переменной деплой такой же, как до домена (ui#41). На сервер шаги ходят
+    # через хост `stand` из ~/.ssh/config (stand-ssh) — всегда по IP.
+    #
+    # ACME_DIRECTORY — каталог ACME вместо боевого Let's Encrypt (staging для
+    # первого выката на домен). Его сертификату браузеры и проверки не
+    # доверяют, поэтому при заданном каталоге проверки публичного входа не
+    # сверяют цепочку (TLS_INSECURE) — остальное проверяется как обычно.
     env:
-      HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+      HOST: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
+      TLS_INSECURE: ${{ vars.ACME_DIRECTORY != '' && '1' || '' }}
     # Шаги с id — для summary: исход каждого берёт шаг summary, а каждый шаг с
     # `run` первой строкой ставит засечку (.github/scripts/deploy/mark.sh) —
     # по ним считается длительность. Так время шагов видно без `actions: read`
@@ -258,7 +267,9 @@ jobs:
           # Docker-провайдер зовёт системный ssh, и тот берёт пользователя,
           # адрес и ключ из ~/.ssh/config.
           TF_VAR_docker_host: ssh://stand
-          TF_VAR_service_host: ${{ vars.VPS_DMC268_IP_T1 }}
+          TF_VAR_service_host: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
+          # Пусто — боевой Let's Encrypt (infra/variables.tf).
+          TF_VAR_acme_directory: ${{ vars.ACME_DIRECTORY }}
           TF_VAR_bind_ip: 0.0.0.0
           TF_VAR_ui_port: '80'
           TF_VAR_public_tls: 'true'

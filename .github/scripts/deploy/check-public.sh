@@ -11,12 +11,24 @@
 # `https …` и `api …` в файл probes каталога отчёта (scripts/deploy-report.mjs).
 #
 # HOST — адрес стенда без схемы (env job'а); REPORT_DIR — каталог отчёта,
-# по умолчанию $RUNNER_TEMP/deploy-report.
+# по умолчанию $RUNNER_TEMP/deploy-report. TLS_INSECURE=1 — сертификат от
+# тестового ACME-сервера (Let's Encrypt staging): модулям дописывается
+# insecure_skip_verify, и цепочка не сверяется, остальное — как обычно.
 set -uo pipefail
 
 : "${HOST:?нужна переменная HOST — адрес стенда}"
 report="${REPORT_DIR:-${RUNNER_TEMP:-/tmp}/deploy-report}"
 modules="$(cd "$(dirname "$0")/../../.." && pwd)/nginx/blackbox.yml"
+
+if [ -n "${TLS_INSECURE:-}" ]; then
+  echo "::warning::сертификат стенда от тестового ACME-сервера: цепочка не проверяется"
+  insecure="$(mktemp "${RUNNER_TEMP:-/tmp}/blackbox-XXXXXX")"
+  # Каждый модуль http: в blackbox.yml — `    http:` с отступом в четыре пробела.
+  awk '{ print } /^    http:$/ { print "      tls_config:"; print "        insecure_skip_verify: true" }' \
+    "$modules" > "$insecure"
+  chmod 644 "$insecure"
+  modules="$insecure"
+fi
 
 # По digest и с quay.io: тот же образ, что в стеке наблюдаемости бэкенда, без
 # анонимного лимита Docker Hub. Обновлять:
