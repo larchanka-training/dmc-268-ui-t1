@@ -51,8 +51,30 @@ jobs:
           # У workflow_run GITHUB_SHA — вершина ветки по умолчанию на момент
           # запуска, а не проверенный коммит; он лежит в head_sha.
           RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ACME_DIRECTORY: ${{ vars.ACME_DIRECTORY }}
         run: |
           set -euo pipefail
+          # Тестовый каталог ACME (staging) — только на время перехода на
+          # домен и только ручным запуском: при нём проверки публичного входа
+          # не сверяют цепочку сертификата (TLS_INSECURE), и забытая
+          # переменная не должна тихо катиться с каждым мержем. Боевой адрес
+          # Let's Encrypt в переменной не нужен — он и так по умолчанию, а
+          # непустая переменная включила бы TLS_INSECURE.
+          if [ -n "$ACME_DIRECTORY" ]; then
+            if [ "${ACME_DIRECTORY%/}" = https://acme-v02.api.letsencrypt.org/directory ]; then
+              echo "::error::ACME_DIRECTORY — боевой Let's Encrypt: удалите переменную, пустая и есть боевой каталог"
+              exit 1
+            fi
+            if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then
+              echo "::error::задана переменная ACME_DIRECTORY (${ACME_DIRECTORY}): автоматический деплой с тестовым каталогом ACME не выполняется. Удалите переменную или запустите деплой вручную: gh workflow run deploy.yml --ref develop"
+              exit 1
+            fi
+            {
+              echo "> [!WARNING]"
+              echo "> **Тестовый каталог ACME: ${ACME_DIRECTORY}.** Сертификату стенда браузеры не доверяют, проверки публичного входа не сверяют цепочку. Удалите переменную ACME_DIRECTORY и запустите деплой, когда проверка домена закончена."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::деплой с тестовым каталогом ACME ${ACME_DIRECTORY}"
+          fi
           # Прогоны CI по develop не отменяют друг друга и могут закончиться
           # не по порядку: без этой сверки поздно завершившийся CI старого
           # коммита откатил бы стенд назад. Новый коммит катит свой прогон.
