@@ -24,8 +24,12 @@ shortlived require;`, имя хоста — профиль не запрашив
 - Переменная репозитория `ACME_DIRECTORY` доходит до `acme_directory` (OpenTofu); пока она
   задана, проверки публичного входа не сверяют цепочку сертификата — для первого выката на домен
   против Let's Encrypt staging.
-- CI проверяет `nginx -t` в режиме HTTPS и для имени хоста, и для IP, и что профиль в конфиге
-  соответствует виду адреса.
+- Проверки: `service_host` — только имя хоста в нижнем регистре или IPv4 (IPv6 не
+  поддерживается); `acme_directory` не принимает боевой адрес; деплой с `ACME_DIRECTORY` — только
+  ручным запуском; после выката изменяющий запрос с `Origin: https://<PUBLIC_HOST>` не должен
+  получать `403 ORIGIN_FORBIDDEN`.
+- CI проверяет `nginx -t` в режиме HTTPS для имени хоста, для IP и с каталогом staging, и что
+  профиль и путь состояния в конфиге соответствуют им.
 - Документация: порядок перехода на домен в `infra/README.md`.
 
 **Не входит**: перенаправление с `https://<IP>/` на домен — для него нужен второй сертификат на
@@ -50,4 +54,6 @@ IP (профиль `shortlived`); `http://<IP>/` и так уводит на `ht
   `.github/scripts/deploy/apply.sh`, `scripts/check-routes.sh`.
 - Документация: `README.md`, `infra/README.md`.
 - Переменные репозитория: новые необязательные `PUBLIC_HOST`, `ACME_DIRECTORY`.
-- Код приложения и `infra/*.tf` не меняются.
+- OpenTofu: проверки `service_host` и `acme_directory` в `infra/variables.tf`, тесты в
+  `infra/tests/main.tftest.hcl`.
+- Код приложения не меняется.
