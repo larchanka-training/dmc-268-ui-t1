@@ -32,7 +32,8 @@
 #   false) nginx не слушает 443, пробник видит одни отказы, и отчёт берёт
 #   границу по check-public.sh. Пробник останавливает finish: дожидается 2xx на
 #   запрос, отправленный после apply, но не дольше 5 с, и снимает его — curl
-#   доработает, шаг пробник не переживает. Без HOST пробника нет.
+#   доработает, шаг пробник не переживает. Без HOST пробника нет. С
+#   TLS_INSECURE (сертификат Let's Encrypt staging) цепочка не сверяется.
 #
 # Вопросы серверу — под `timeout 30`: `ConnectTimeout` через живой
 # ControlMaster не действует, и пропавший без разрыва master держал бы шаг до
@@ -98,7 +99,7 @@ probe() {
   trap 'exit 0' TERM
   while :; do
     sent="$(now)"
-    code="$(curl -s -o /dev/null --max-time 1 -w '%{http_code}' "$url" 2>/dev/null)" || true
+    code="$(curl ${TLS_INSECURE:+-k} -s -o /dev/null --max-time 1 -w '%{http_code}' "$url" 2>/dev/null)" || true
     echo "$sent ${code:-000}" >> "$dir/ui-probe"
     sleep 0.25
   done

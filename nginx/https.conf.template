@@ -1,7 +1,9 @@
 # Режим стенда: PUBLIC_HOST задан. Сертификат на этот адрес выпускает и
 # продлевает модуль ngx_http_acme_module внутри процесса nginx и подменяет
-# без перезапуска. Переменные ${PUBLIC_HOST} и ${ACME_DIRECTORY} подставляет
-# скрипт выбора режима при старте контейнера.
+# без перезапуска. Адрес, каталог ACME, профиль и путь состояния подставляет
+# скрипт выбора режима (select-site.sh) при старте контейнера: переменные
+# PUBLIC_HOST, ACME_DIRECTORY, ACME_PROFILE, ACME_STATE_PATH. Здесь, в
+# комментарии, имена — без знака доллара, иначе envsubst подставил бы и их.
 
 # DNS докера: по нему nginx находит и dmc268-api, и ACME-сервер — внешние
 # имена он передаёт резолверу хоста.
@@ -48,13 +50,15 @@ map $host $grafana_origin {
 
 acme_issuer letsencrypt {
     uri ${ACME_DIRECTORY};
-    # На IP Let's Encrypt выдаёт сертификаты только с этим профилем: 160
-    # часов. require — не откатываться молча на другой профиль, а падать.
-    profile shortlived require;
+    # Профиль подставляет select-site.sh: на IP — shortlived (160 часов,
+    # другого Let's Encrypt для IP не выдаёт), на имя хоста — не запрашивается,
+    # и сервер выдаёт сертификат по умолчанию (у Let's Encrypt — 90 дней).
+    ${ACME_PROFILE}
     # Ключ аккаунта и выпущенные сертификаты. Каталог лежит на томе: без
     # этого каждый передеплой выпускал бы сертификат заново и упирался в
-    # лимиты Let's Encrypt.
-    state_path /var/lib/nginx-acme;
+    # лимиты Let's Encrypt. У тестового каталога ACME — свой подкаталог тома
+    # (select-site.sh).
+    state_path ${ACME_STATE_PATH};
     accept_terms_of_service;
 }
 

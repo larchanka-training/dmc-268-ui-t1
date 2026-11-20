@@ -43,6 +43,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       sha: ${{ steps.pick.outputs.sha }}
+      # 1 — задан тестовый каталог ACME: решение принято здесь один раз, job
+      # deploy берёт его в TLS_INSECURE.
+      tls_insecure: ${{ steps.pick.outputs.tls_insecure }}
     steps:
       - name: Выбрать коммит
         id: pick
@@ -51,8 +54,31 @@ jobs:
           # У workflow_run GITHUB_SHA — вершина ветки по умолчанию на момент
           # запуска, а не проверенный коммит; он лежит в head_sha.
           RUN_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ACME_DIRECTORY: ${{ vars.ACME_DIRECTORY }}
         run: |
           set -euo pipefail
+          # Тестовый каталог ACME (staging) — только на время перехода на
+          # домен и только ручным запуском: при нём проверки публичного входа
+          # не сверяют цепочку сертификата (TLS_INSECURE), и забытая
+          # переменная не должна тихо катиться с каждым мержем. Боевой адрес
+          # Let's Encrypt в переменной не нужен — он и так по умолчанию, а
+          # непустая переменная включила бы TLS_INSECURE.
+          if [ -n "$ACME_DIRECTORY" ]; then
+            if [ "${ACME_DIRECTORY%/}" = https://acme-v02.api.letsencrypt.org/directory ]; then
+              echo "::error::ACME_DIRECTORY — боевой Let's Encrypt: удалите переменную, пустая и есть боевой каталог"
+              exit 1
+            fi
+            if [ "$GITHUB_EVENT_NAME" != workflow_dispatch ]; then
+              echo "::error::задана переменная ACME_DIRECTORY (${ACME_DIRECTORY}): автоматический деплой с тестовым каталогом ACME не выполняется. Удалите переменную или запустите деплой вручную: gh workflow run deploy.yml --ref develop"
+              exit 1
+            fi
+            {
+              echo "> [!WARNING]"
+              echo "> **Тестовый каталог ACME: ${ACME_DIRECTORY}.** Сертификату стенда браузеры не доверяют, проверки публичного входа не сверяют цепочку. Удалите переменную ACME_DIRECTORY и запустите деплой, когда проверка домена закончена."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::деплой с тестовым каталогом ACME ${ACME_DIRECTORY}"
+            echo "tls_insecure=1" >> "$GITHUB_OUTPUT"
+          fi
           # Прогоны CI по develop не отменяют друг друга и могут закончиться
           # не по порядку: без этой сверки поздно завершившийся CI старого
           # коммита откатил бы стенд назад. Новый коммит катит свой прогон.
@@ -119,8 +145,9 @@ jobs:
           # Адрес коллектора — переменная репозитория VITE_OTEL_EXPORTER_URL:
           # пока её нет, телеметрия кабинета выключена (прокси /otlp/ — api#108).
           # Окружение — production: стенд и есть прод, staging нет (api#97).
+          # Адрес — домен из PUBLIC_HOST, пока его нет — IP стенда (ui#41).
           build-args: |
-            PUBLIC_ORIGIN=https://${{ vars.VPS_DMC268_IP_T1 }}
+            PUBLIC_ORIGIN=https://${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
             VITE_OTEL_EXPORTER_URL=${{ vars.VITE_OTEL_EXPORTER_URL }}
             VITE_OTEL_ENVIRONMENT=production
             VITE_STRIPE_PAYMENT_LINK=${{ vars.VITE_STRIPE_PAYMENT_LINK }}
@@ -179,10 +206,18 @@ jobs:
     permissions:
       contents: read
       packages: read
-    # Адрес стенда: имя для клиента, адрес проверок и summary. На сервер шаги
-    # ходят через хост `stand` из ~/.ssh/config (stand-ssh).
+    # Адрес стенда: имя для клиента, адрес проверок и summary. Домен из
+    # переменной репозитория PUBLIC_HOST, а пока её нет — IP стенда: без
+    # переменной деплой такой же, как до домена (ui#41). На сервер шаги ходят
+    # через хост `stand` из ~/.ssh/config (stand-ssh) — всегда по IP.
+    #
+    # ACME_DIRECTORY — каталог ACME вместо боевого Let's Encrypt (staging для
+    # первого выката на домен). Его сертификату браузеры и проверки не
+    # доверяют, поэтому при заданном каталоге проверки публичного входа не
+    # сверяют цепочку (TLS_INSECURE, решает job gate) — остальное как обычно.
     env:
-      HOST: ${{ vars.VPS_DMC268_IP_T1 }}
+      HOST: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
+      TLS_INSECURE: ${{ needs.gate.outputs.tls_insecure }}
     # Шаги с id — для summary: исход каждого берёт шаг summary, а каждый шаг с
     # `run` первой строкой ставит засечку (.github/scripts/deploy/mark.sh) —
     # по ним считается длительность. Так время шагов видно без `actions: read`
@@ -258,7 +293,9 @@ jobs:
           # Docker-провайдер зовёт системный ssh, и тот берёт пользователя,
           # адрес и ключ из ~/.ssh/config.
           TF_VAR_docker_host: ssh://stand
-          TF_VAR_service_host: ${{ vars.VPS_DMC268_IP_T1 }}
+          TF_VAR_service_host: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
+          # Пусто — боевой Let's Encrypt (infra/variables.tf).
+          TF_VAR_acme_directory: ${{ vars.ACME_DIRECTORY }}
           TF_VAR_bind_ip: 0.0.0.0
           TF_VAR_ui_port: '80'
           TF_VAR_public_tls: 'true'

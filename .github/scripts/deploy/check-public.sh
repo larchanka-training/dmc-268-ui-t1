@@ -11,12 +11,30 @@
 # `https …` и `api …` в файл probes каталога отчёта (scripts/deploy-report.mjs).
 #
 # HOST — адрес стенда без схемы (env job'а); REPORT_DIR — каталог отчёта,
-# по умолчанию $RUNNER_TEMP/deploy-report.
+# по умолчанию $RUNNER_TEMP/deploy-report. TLS_INSECURE=1 — сертификат от
+# тестового ACME-сервера (Let's Encrypt staging): модулям дописывается
+# insecure_skip_verify, и цепочка не сверяется, остальное — как обычно.
 set -uo pipefail
 
 : "${HOST:?нужна переменная HOST — адрес стенда}"
 report="${REPORT_DIR:-${RUNNER_TEMP:-/tmp}/deploy-report}"
 modules="$(cd "$(dirname "$0")/../../.." && pwd)/nginx/blackbox.yml"
+
+# Контейнер exporter'а и временная копия модулей (TLS_INSECURE) убираются на
+# выходе в любом случае.
+name="check-public-$$"
+insecure=""
+trap 'docker rm -f "$name" >/dev/null 2>&1; [ -z "$insecure" ] || rm -f "$insecure"' EXIT
+
+if [ -n "${TLS_INSECURE:-}" ]; then
+  echo "::warning::сертификат стенда от тестового ACME-сервера: цепочка не проверяется"
+  insecure="$(mktemp "${RUNNER_TEMP:-/tmp}/blackbox-XXXXXX")"
+  # Каждый модуль http: в blackbox.yml — `    http:` с отступом в четыре пробела.
+  awk '{ print } /^    http:$/ { print "      tls_config:"; print "        insecure_skip_verify: true" }' \
+    "$modules" > "$insecure"
+  chmod 644 "$insecure"
+  modules="$insecure"
+fi
 
 # По digest и с quay.io: тот же образ, что в стеке наблюдаемости бэкенда, без
 # анонимного лимита Docker Hub. Обновлять:
@@ -24,8 +42,6 @@ modules="$(cd "$(dirname "$0")/../../.." && pwd)/nginx/blackbox.yml"
 BLACKBOX_IMAGE='quay.io/prometheus/blackbox-exporter:v0.29.1@sha256:ea1c7aa3ef3f307cd03e85f34abb604478ccb90b567fc690da0cd9776da76b13'
 exporter=http://127.0.0.1:9115
 
-name="check-public-$$"
-trap 'docker rm -f "$name" >/dev/null 2>&1' EXIT
 if ! docker run -d --name "$name" -p 127.0.0.1:9115:9115 \
   -v "${modules}:/etc/blackbox_exporter/config.yml:ro" "$BLACKBOX_IMAGE" >/dev/null; then
   echo "::error::не удалось запустить blackbox_exporter"
@@ -95,3 +111,25 @@ check gzip "https://${HOST}/app/" "статика отдаётся сжатой"
 wait_for api api "https://${HOST}/api/v1/" 20 \
   || fail api "https://${HOST}/api/v1/" "API через адрес интерфейса не ответил JSON с detail"
 echo "API отвечает через адрес интерфейса"
+
+# Origin кабинета принимает API: изменяющий запрос с Origin https://HOST не
+# получает 403 ORIGIN_FORBIDDEN. Бэкенд сверяет Origin со своим PUBLIC_ORIGIN
+# побайтно, и он должен быть ровно https:// + PUBLIC_HOST. Ручка — выход:
+# без cookie она идемпотентна и отвечает 204, ничего не меняя. Пока стенд на
+# тестовом каталоге ACME (TLS_INSECURE), бэкенд по порядку перехода ещё на
+# старом адресе — расхождение тогда предупреждение, а не ошибка.
+origin_body="$(curl ${TLS_INSECURE:+-k} -sS --max-time 10 -X POST -H "Origin: https://${HOST}" \
+  -w '\n%{http_code}' "https://${HOST}/api/v1/auth/logout" 2>&1)" || origin_body=$'\n000'
+origin_status="${origin_body##*$'\n'}"
+case "$origin_status:$origin_body" in
+  403:*ORIGIN_FORBIDDEN*)
+    if [ -n "${TLS_INSECURE:-}" ]; then
+      echo "::warning::API отвечает 403 ORIGIN_FORBIDDEN на Origin https://${HOST}: PUBLIC_ORIGIN бэкенда ещё не https://${HOST}"
+    else
+      echo "::error::API отвечает 403 ORIGIN_FORBIDDEN на Origin https://${HOST}: PUBLIC_ORIGIN бэкенда должен быть ровно https://${HOST}"
+      exit 1
+    fi
+    ;;
+  204:*) echo "API принимает Origin https://${HOST}" ;;
+  *) echo "::warning::POST /api/v1/auth/logout с Origin https://${HOST} ответил ${origin_status}, ожидался 204" ;;
+esac

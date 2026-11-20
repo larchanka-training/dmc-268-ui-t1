@@ -10,6 +10,8 @@
 #   Без него проверяется только редирект кабинета на Grafana.
 # GRAFANA_COOKIE_ECHO=1 — вместо Grafana эхо заголовка Cookie (CI): тогда
 #   проверяется и то, что до Grafana доходят остальные cookie без session.
+# TLS_INSECURE=1 — не сверять цепочку сертификата (curl -k): стенд с
+#   сертификатом от тестового ACME-сервера (Let's Encrypt staging).
 #
 # Без конвейеров с `grep -q`: с `set -o pipefail` короткий grep закрывает
 # канал, curl получает SIGPIPE, и проверка падает при работающем сервисе.
@@ -30,7 +32,7 @@ fail() {
 # fetch ПУТЬ [COOKIE]: заполняет status, headers и body.
 fetch() {
   tmp="$(mktemp)"
-  status="$(curl -sS -o "$tmp" -D "$tmp.h" -w '%{http_code}' --max-time 10 -b "${2:-}" "${base}$1" 2>&1)" || status="000"
+  status="$(curl ${TLS_INSECURE:+-k} -sS -o "$tmp" -D "$tmp.h" -w '%{http_code}' --max-time 10 -b "${2:-}" "${base}$1" 2>&1)" || status="000"
   body="$(cat "$tmp")"
   headers="$(tr -d '\r' < "$tmp.h" 2>/dev/null || true)"
   rm -f "$tmp" "$tmp.h"
@@ -38,7 +40,7 @@ fetch() {
 
 # post_status ПУТЬ: POST с пустым телом, заполняет только status.
 post_status() {
-  status="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 10 --data '' "${base}$1" 2>&1)" || status="000"
+  status="$(curl ${TLS_INSECURE:+-k} -sS -o /dev/null -w '%{http_code}' --max-time 10 --data '' "${base}$1" 2>&1)" || status="000"
 }
 
 # has ТЕКСТ СТРОКА: есть ли строка в тексте.
