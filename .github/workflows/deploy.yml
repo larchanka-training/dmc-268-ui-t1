@@ -43,6 +43,9 @@ jobs:
     timeout-minutes: 5
     outputs:
       sha: ${{ steps.pick.outputs.sha }}
+      # 1 — задан тестовый каталог ACME: решение принято здесь один раз, job
+      # deploy берёт его в TLS_INSECURE.
+      tls_insecure: ${{ steps.pick.outputs.tls_insecure }}
     steps:
       - name: Выбрать коммит
         id: pick
@@ -74,6 +77,7 @@ jobs:
               echo "> **Тестовый каталог ACME: ${ACME_DIRECTORY}.** Сертификату стенда браузеры не доверяют, проверки публичного входа не сверяют цепочку. Удалите переменную ACME_DIRECTORY и запустите деплой, когда проверка домена закончена."
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::warning::деплой с тестовым каталогом ACME ${ACME_DIRECTORY}"
+            echo "tls_insecure=1" >> "$GITHUB_OUTPUT"
           fi
           # Прогоны CI по develop не отменяют друг друга и могут закончиться
           # не по порядку: без этой сверки поздно завершившийся CI старого
@@ -210,10 +214,10 @@ jobs:
     # ACME_DIRECTORY — каталог ACME вместо боевого Let's Encrypt (staging для
     # первого выката на домен). Его сертификату браузеры и проверки не
     # доверяют, поэтому при заданном каталоге проверки публичного входа не
-    # сверяют цепочку (TLS_INSECURE) — остальное проверяется как обычно.
+    # сверяют цепочку (TLS_INSECURE, решает job gate) — остальное как обычно.
     env:
       HOST: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
-      TLS_INSECURE: ${{ vars.ACME_DIRECTORY != '' && '1' || '' }}
+      TLS_INSECURE: ${{ needs.gate.outputs.tls_insecure }}
     # Шаги с id — для summary: исход каждого берёт шаг summary, а каждый шаг с
     # `run` первой строкой ставит засечку (.github/scripts/deploy/mark.sh) —
     # по ним считается длительность. Так время шагов видно без `actions: read`

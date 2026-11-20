@@ -4,7 +4,7 @@
 
 - [x] 1.1 `nginx/select-site.sh`: `ACME_PROFILE` по виду `PUBLIC_HOST` (IP — `profile shortlived require;`, имя — без профиля), `ACME_STATE_PATH` — подкаталог тома для небоевого каталога
 - [x] 1.2 `nginx/https.conf.template`: `${ACME_PROFILE}` и `${ACME_STATE_PATH}` вместо постоянных строк
-- [x] 1.3 Образ: `nginx -t` для IPv4, IPv6, имени хоста и режима HTTP; выпуск сертификата против Pebble и на имя хоста без профиля, и на IP с `shortlived`
+- [x] 1.3 Образ: `nginx -t` для IPv4, имени хоста и режима HTTP, IPv6 в `PUBLIC_HOST` — отказ скрипта; выпуск сертификата против Pebble и на имя хоста без профиля, и на IP с `shortlived`
 
 ## 2. Деплой и CI
 

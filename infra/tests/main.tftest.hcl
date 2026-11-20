@@ -244,7 +244,7 @@ run "service_host_with_ipv6_rejected" {
   expect_failures = [var.service_host]
 }
 
-run "service_host_domain_and_ipv4_accepted" {
+run "service_host_domain_accepted" {
   command = plan
 
   variables {
@@ -256,6 +256,21 @@ run "service_host_domain_and_ipv4_accepted" {
   assert {
     condition     = contains(docker_container.ui.env, "PUBLIC_HOST=review.example") && output.ui_url == "https://review.example"
     error_message = "Домен в нижнем регистре проходит проверку и доходит до PUBLIC_HOST и ui_url."
+  }
+}
+
+run "service_host_ipv4_accepted" {
+  command = plan
+
+  variables {
+    public_tls   = true
+    ui_port      = 80
+    service_host = "62.169.24.237"
+  }
+
+  assert {
+    condition     = contains(docker_container.ui.env, "PUBLIC_HOST=62.169.24.237") && output.ui_url == "https://62.169.24.237"
+    error_message = "IPv4 проходит проверку и доходит до PUBLIC_HOST и ui_url."
   }
 }
 
