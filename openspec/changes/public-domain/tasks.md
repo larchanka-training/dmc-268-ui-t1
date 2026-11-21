@@ -19,6 +19,9 @@
 - [x] 3.3 `deploy.yml`: с `ACME_DIRECTORY` — только ручной запуск, предупреждение в summary; боевой адрес в переменной — отказ
 - [x] 3.4 `check-public.sh`: `POST /api/v1/auth/logout` с `Origin: https://<HOST>` не получает `403 ORIGIN_FORBIDDEN`; временная копия модулей blackbox удаляется на выходе
 - [x] 3.5 `ci.yml`: `nginx -t` с каталогом staging и проверкой `state_path`
+- [x] 3.6 `select-site.sh`: состояние тестового каталога — `/var/lib/nginx-acme-test` вне тома (без `CAP_DAC_OVERRIDE` подкаталог в корне тома не создаётся)
+- [x] 3.7 `ci.yml`: `nginx -t` в режиме HTTPS с capabilities стенда и корнем тома, отданным `nginx`
+- [x] 3.8 `infra/README.md`: callback домена вторым до staging, окно без вебхуков, Webhook и Setup URL сразу за боевым сертификатом, повтор доставок; то же при откате
 
 ## 4. Документация
 
@@ -27,7 +30,8 @@
 ## 5. Переход на стенде (после выбора домена)
 
 - [ ] 5.1 A-запись домена на IP стенда
-- [ ] 5.2 `PUBLIC_HOST` и `ACME_DIRECTORY` (staging), деплой: сертификат staging на домен выпущен, проверки зелёные
-- [ ] 5.3 `PUBLIC_ORIGIN` и адрес Grafana бэкенда на домен, деплой бэкенда
-- [ ] 5.4 `ACME_DIRECTORY` удалена, деплой: боевой сертификат на домен на 90 дней, браузер открывает стенд без предупреждений
-- [ ] 5.5 GitHub App: callback, Setup URL и webhook на домен, вход через GitHub работает
+- [ ] 5.2 Callback URL домена добавлен в GitHub App вторым
+- [ ] 5.3 `PUBLIC_HOST` и `ACME_DIRECTORY` (staging), деплой: сертификат staging на домен выпущен, проверки зелёные
+- [ ] 5.4 `PUBLIC_ORIGIN` и адрес Grafana бэкенда на домен, деплой бэкенда
+- [ ] 5.5 `ACME_DIRECTORY` удалена, деплой: боевой сертификат на домен на 90 дней, браузер открывает стенд без предупреждений
+- [ ] 5.6 GitHub App сразу за 5.5: Setup URL и webhook на домен, упавшие доставки повторены, вход через GitHub работает
