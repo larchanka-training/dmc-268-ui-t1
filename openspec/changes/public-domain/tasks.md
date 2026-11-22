@@ -16,7 +16,7 @@
 
 - [x] 3.1 `infra/variables.tf`: `service_host` — имя хоста в нижнем регистре или IPv4; `acme_directory` не принимает боевой адрес; `tofu test` — допустимые и отвергнутые значения
 - [x] 3.2 `select-site.sh`: двоеточие в `PUBLIC_HOST` — отказ; боевой адрес с косой чертой — боевое состояние
-- [x] 3.3 `deploy.yml`: с `ACME_DIRECTORY` — только ручной запуск, предупреждение в summary; боевой адрес в переменной — отказ
+- [x] 3.3 `deploy.yml`: с `ACME_DIRECTORY` — только ручной запуск, предупреждение в summary; боевой адрес в переменной — отказ; job `deploy` берёт каталог выходом `gate`
 - [x] 3.4 `check-public.sh`: `POST /api/v1/auth/logout` с `Origin: https://<HOST>` не получает `403 ORIGIN_FORBIDDEN`; временная копия модулей blackbox удаляется на выходе
 - [x] 3.5 `ci.yml`: `nginx -t` с каталогом staging и проверкой `state_path`
 - [x] 3.6 `select-site.sh`: состояние тестового каталога — `/var/lib/nginx-acme-test` вне тома (без `CAP_DAC_OVERRIDE` подкаталог в корне тома не создаётся)

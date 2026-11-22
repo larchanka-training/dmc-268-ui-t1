@@ -46,6 +46,10 @@ jobs:
       # 1 — задан тестовый каталог ACME: решение принято здесь один раз, job
       # deploy берёт его в TLS_INSECURE.
       tls_insecure: ${{ steps.pick.outputs.tls_insecure }}
+      # Каталог ACME, который gate проверил. Job deploy берёт его отсюда, а не
+      # из vars: переменная, заданная между gate и apply автодеплоя, иначе
+      # выкатила бы staging в обход запрета.
+      acme_directory: ${{ steps.pick.outputs.acme_directory }}
     steps:
       - name: Выбрать коммит
         id: pick
@@ -78,6 +82,7 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
             echo "::warning::деплой с тестовым каталогом ACME ${ACME_DIRECTORY}"
             echo "tls_insecure=1" >> "$GITHUB_OUTPUT"
+            echo "acme_directory=${ACME_DIRECTORY}" >> "$GITHUB_OUTPUT"
           fi
           # Прогоны CI по develop не отменяют друг друга и могут закончиться
           # не по порядку: без этой сверки поздно завершившийся CI старого
@@ -294,8 +299,9 @@ jobs:
           # адрес и ключ из ~/.ssh/config.
           TF_VAR_docker_host: ssh://stand
           TF_VAR_service_host: ${{ vars.PUBLIC_HOST || vars.VPS_DMC268_IP_T1 }}
-          # Пусто — боевой Let's Encrypt (infra/variables.tf).
-          TF_VAR_acme_directory: ${{ vars.ACME_DIRECTORY }}
+          # Пусто — боевой Let's Encrypt (infra/variables.tf). Значение — то,
+          # что проверил gate, а не повторное чтение vars.
+          TF_VAR_acme_directory: ${{ needs.gate.outputs.acme_directory }}
           TF_VAR_bind_ip: 0.0.0.0
           TF_VAR_ui_port: '80'
           TF_VAR_public_tls: 'true'

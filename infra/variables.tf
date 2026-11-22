@@ -56,8 +56,9 @@ variable "acme_directory" {
   description = "Адрес каталога ACME. Пусто — боевой Let's Encrypt; для пробы — https://acme-staging-v02.api.letsencrypt.org/directory."
   default     = ""
 
-  # Непустой каталог считается тестовым: своё состояние на томе (select-site.sh)
-  # и проверки деплоя без сверки цепочки. Боевой адрес здесь включил бы и то и
+  # Непустой каталог считается тестовым: своё состояние вне тома,
+  # /var/lib/nginx-acme-test (select-site.sh), и проверки деплоя без сверки
+  # цепочки. Боевой адрес здесь включил бы и то и
   # другое для боевого сертификата.
   validation {
     condition     = trimsuffix(var.acme_directory, "/") != "https://acme-v02.api.letsencrypt.org/directory"

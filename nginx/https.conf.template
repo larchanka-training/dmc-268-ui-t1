@@ -56,8 +56,9 @@ acme_issuer letsencrypt {
     ${ACME_PROFILE}
     # Ключ аккаунта и выпущенные сертификаты. Каталог лежит на томе: без
     # этого каждый передеплой выпускал бы сертификат заново и упирался в
-    # лимиты Let's Encrypt. У тестового каталога ACME — свой подкаталог тома
-    # (select-site.sh).
+    # лимиты Let's Encrypt. У тестового каталога ACME — /var/lib/nginx-acme-test
+    # вне тома (select-site.sh): корень тома принадлежит nginx, и мастеру без
+    # CAP_DAC_OVERRIDE подкаталог в нём не создать — nginx не стартует.
     state_path ${ACME_STATE_PATH};
     accept_terms_of_service;
 }
