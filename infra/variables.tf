@@ -29,6 +29,15 @@ variable "service_host" {
     condition     = trimspace(var.service_host) != "" && !contains(["0.0.0.0", "::", "[::]"], var.service_host)
     error_message = "service_host должен быть обращаемым именем хоста или адресом: пустая строка и адрес привязки ко всем интерфейсам (0.0.0.0, ::) не подходят."
   }
+
+  # Значение уходит в PUBLIC_HOST nginx и в адреса как есть: server_name,
+  # сертификат, редирект, Grafana на :8443. Поэтому только имя хоста в нижнем
+  # регистре или IPv4 — без схемы, пути, порта и точки в конце. IPv6 не
+  # поддерживается: в адресах его пришлось бы брать в скобки.
+  validation {
+    condition     = can(regex("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$", var.service_host))
+    error_message = "service_host — имя хоста в нижнем регистре или IPv4, без схемы, пути, порта и точки в конце (review.example.org, 62.169.24.237). IPv6 не поддерживается."
+  }
 }
 
 variable "public_tls" {
@@ -46,6 +55,15 @@ variable "acme_directory" {
   type        = string
   description = "Адрес каталога ACME. Пусто — боевой Let's Encrypt; для пробы — https://acme-staging-v02.api.letsencrypt.org/directory."
   default     = ""
+
+  # Непустой каталог считается тестовым: своё состояние вне тома,
+  # /var/lib/nginx-acme-test (select-site.sh), и проверки деплоя без сверки
+  # цепочки. Боевой адрес здесь включил бы и то и
+  # другое для боевого сертификата.
+  validation {
+    condition     = trimsuffix(var.acme_directory, "/") != "https://acme-v02.api.letsencrypt.org/directory"
+    error_message = "acme_directory: для боевого Let's Encrypt оставьте пустым — непустое значение считается тестовым каталогом."
+  }
 }
 
 variable "ui_image" {
